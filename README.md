@@ -1,3 +1,3 @@
 # CloudMusic-for-WinUI3
-基于NeteaseCloudMusicApi与WinUI3开发的网易云音乐第三方客户端
+基于NeteaseCloudMusicApi与WinUI3开发的网易云音乐第三方客户端  
 若要使用请提前部署NeteaseCloudMusicApi服务
