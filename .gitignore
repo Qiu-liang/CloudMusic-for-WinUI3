@@ -1,0 +1,39 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# Build outputs
+bin/
+obj/
+publish/
+
+# Rider
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# NuGet
+packages/
+*.nupkg
+
+# Visual Studio Code
+.vscode/
+
+# Files to ignore for packaging
+AppPackages/
+*.msix
+*.appx
+
+# Sensitive
+*.pfx
+secrets.json
+
+# Node
+node_modules/
+
+# Mac
+.DS_Store

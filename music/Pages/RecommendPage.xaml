@@ -1,0 +1,368 @@
+<Page
+    x:Class="music.Pages.RecommendPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:music.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <local:TrackCountConverter x:Key="TrackCountConverter"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部标题栏 -->
+        <Grid Margin="24,16,24,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="为你推荐"
+                       FontSize="34"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"/>
+
+            <Button Grid.Column="1"
+                    x:Name="RefreshButton" 
+                    Click="RefreshButton_Click"
+                    VerticalAlignment="Center"
+                    Padding="12,8"
+                    Background="Transparent"
+                    BorderThickness="0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE72C;" FontSize="16"/>
+                    <TextBlock Text="刷新" FontSize="14"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- 加载中 -->
+        <Grid Grid.Row="1" x:Name="LoadingPanel">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+                <ProgressRing IsActive="True" Width="36" Height="36"/>
+                <TextBlock Text="正在加载推荐..." 
+                           FontSize="14"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 错误状态 -->
+        <Grid Grid.Row="1" x:Name="ErrorPanel" Visibility="Collapsed">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+                <FontIcon Glyph="&#xE783;" FontSize="48" 
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                          HorizontalAlignment="Center"/>
+                <TextBlock x:Name="ErrorText"
+                           Text="加载失败"
+                           FontSize="16"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <Button Content="重试" Click="RefreshButton_Click" Padding="16,8"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 内容区域 -->
+        <ScrollViewer Grid.Row="1" x:Name="ContentPanel" Visibility="Collapsed"
+                      VerticalScrollBarVisibility="Auto"
+                      Padding="0,0,0,16">
+            <StackPanel Spacing="32">
+                
+                <!-- 推荐歌单 -->
+                <StackPanel Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="推荐歌单" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                        <Button Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Click="ViewAllPlaylistsButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE712;" FontSize="14"/>
+                                <TextBlock Text="查看全部"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:Name="PlaylistScroller"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      ViewChanged="PlaylistScroller_ViewChanged">
+                            <ItemsControl x:Name="PlaylistItems">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="16"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:PlaylistItem">
+                                        <Border Width="160" 
+                                                CornerRadius="12"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                Padding="0,0,0,12"
+                                                PointerPressed="PlaylistItem_PointerPressed">
+                                            <StackPanel Spacing="8">
+                                                <Border Height="160" CornerRadius="12,12,0,0">
+                                                    <Grid>
+                                                        <Image Source="{x:Bind PicUrl}" 
+                                                               Stretch="UniformToFill"/>
+                                                        <Border Background="#40000000" 
+                                                                CornerRadius="12,12,0,0"
+                                                                VerticalAlignment="Bottom"
+                                                                Padding="8,4"
+                                                                MinHeight="28">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <FontIcon Glyph="&#xE768;" FontSize="10" Foreground="White" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{x:Bind PlayCountFormatted}" 
+                                                                           FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+                                                <StackPanel Padding="8,0,8,0" Spacing="2">
+                                                    <TextBlock Text="{x:Bind Name}" 
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               MaxLines="2"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind TrackCount, Converter={StaticResource TrackCountConverter}}" 
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               MaxLines="1"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Button x:Name="PlaylistLeftButton"
+                                Click="PlaylistLeftButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
+
+                        <Button x:Name="PlaylistRightButton"
+                                Click="PlaylistRightButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+
+                <!-- 精选歌曲 -->
+                <StackPanel Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="精选歌曲" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                        <Button Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Click="PlayAllButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE768;" FontSize="14"/>
+                                <TextBlock Text="播放全部"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:Name="PersonalizedScroller"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      ViewChanged="PersonalizedScroller_ViewChanged">
+                            <ItemsControl x:Name="PersonalizedItems">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="16"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:SongItem">
+                                        <Border Width="160" 
+                                                CornerRadius="12"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                Padding="0,0,0,12"
+                                                PointerPressed="PersonalizedItem_PointerPressed">
+                                            <StackPanel Spacing="8">
+                                                <Border Height="160" CornerRadius="12,12,0,0">
+                                                    <Image Source="{x:Bind CoverUrl}" 
+                                                           Stretch="UniformToFill"/>
+                                                </Border>
+                                                <StackPanel Padding="8,0,8,0" Spacing="2">
+                                                    <TextBlock Text="{x:Bind Name}" 
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               MaxLines="1"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind ArtistNames}" 
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               MaxLines="1"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Button x:Name="PersonalizedLeftButton"
+                                Click="PersonalizedLeftButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
+
+                        <Button x:Name="PersonalizedRightButton"
+                                Click="PersonalizedRightButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+
+                <!-- 每日推荐歌曲 -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="每日推荐" 
+                               FontSize="22" 
+                               FontWeight="SemiBold"
+                               Margin="24,0,24,0"/>
+                    
+                    <ListView x:Name="SongsListView"
+                              IsItemClickEnabled="True"
+                              ItemClick="SongsListView_ItemClick"
+                              SelectionMode="None"
+                              Padding="0,0,0,0"
+                              Margin="0,0,0,0">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:SongItem">
+                                <Grid Height="64" Padding="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1"/>
+                                        <ColumnDefinition Width="28"/>
+                                        <ColumnDefinition Width="48"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 左边距 -->
+                                    <TextBlock Grid.Column="0" Text=""/>
+
+                                    <TextBlock Grid.Column="1"
+                                               Text="{x:Bind Index}"
+                                               FontSize="14"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Right"
+                                               Margin="0,0,12,0"/>
+
+                                    <Border Grid.Column="2" 
+                                            Width="48" Height="48" 
+                                            CornerRadius="8"
+                                            VerticalAlignment="Center">
+                                        <Image Source="{x:Bind CoverUrl}" 
+                                               Stretch="UniformToFill"/>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="4"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,16,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{x:Bind Name}"
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       MaxLines="1"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <Border x:Name="VipBadge"
+                                                    Visibility="{x:Bind VipVisibility}"
+                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6,2"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="VIP"
+                                                           FontSize="10"
+                                                           FontWeight="Bold"
+                                                           Foreground="White"/>
+                                            </Border>
+                                            <Border x:Name="PaidBadge"
+                                                    Visibility="{x:Bind PaidVisibility}"
+                                                    Background="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6,2"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind FeeText}"
+                                                           FontSize="10"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{x:Bind ArtistNames}"
+                                                   FontSize="12"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   MaxLines="1"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="5"
+                                               Text="{x:Bind DurationFormatted}"
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>
