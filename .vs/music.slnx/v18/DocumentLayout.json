@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\code\\WinUI\\music\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|d:\\code\\winui\\music\\music\\pages\\localpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|solutionrelative:music\\pages\\localpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "LocalPage.xaml",
+              "DocumentMoniker": "D:\\code\\WinUI\\music\\music\\Pages\\LocalPage.xaml",
+              "RelativeDocumentMoniker": "music\\Pages\\LocalPage.xaml",
+              "ToolTip": "D:\\code\\WinUI\\music\\music\\Pages\\LocalPage.xaml",
+              "RelativeToolTip": "music\\Pages\\LocalPage.xaml",
+              "ViewState": "AgIAACEAAAAAAAAAAAAAACcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2026-05-29T09:08:49.012Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

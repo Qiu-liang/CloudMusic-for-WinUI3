@@ -121,15 +121,36 @@
                             </Grid>
                         </Border>
 
-                        <StackPanel Grid.Column="1" 
-                                    VerticalAlignment="Center" 
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Center"
                                     Margin="12,0,16,0">
-                            <TextBlock Text="{x:Bind Name}" 
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       MaxLines="1"
-                                       TextTrimming="CharacterEllipsis"/>
-                            <TextBlock Text="{x:Bind ArtistNames}" 
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{x:Bind Name}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           MaxLines="1"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Border Visibility="{x:Bind VipVisibility}"
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="4"
+                                        Padding="6,2"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="VIP"
+                                               FontSize="10"
+                                               FontWeight="Bold"
+                                               Foreground="White"/>
+                                </Border>
+                                <Border Visibility="{x:Bind PaidVisibility}"
+                                        Background="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        CornerRadius="4"
+                                        Padding="6,2"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind FeeText}"
+                                               FontSize="10"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{x:Bind ArtistNames}"
                                        FontSize="12"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        MaxLines="1"

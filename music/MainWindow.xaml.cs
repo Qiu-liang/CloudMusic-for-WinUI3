@@ -74,10 +74,11 @@ namespace music
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                // 只在歌单详情和全部歌单页面显示返回按钮
+                // 在歌单详情、全部歌单、搜索页面显示返回按钮
                 var currentPage = ContentFrame.CurrentSourcePageType;
                 var showBack = currentPage == typeof(Pages.PlaylistDetailPage) || 
-                               currentPage == typeof(Pages.AllPlaylistsPage);
+                               currentPage == typeof(Pages.AllPlaylistsPage) ||
+                               currentPage == typeof(Pages.SearchPage);
                 
                 if (showBack)
                 {
@@ -501,59 +502,29 @@ namespace music
             BackBar.Visibility = Visibility.Collapsed;
         }
 
-        private async void QualityButton_Click(object sender, RoutedEventArgs e)
+        private void Quality_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new ContentDialog
+            if (sender is MenuFlyoutItem item && item.Tag is string quality)
             {
-                Title = "音质选择",
-                PrimaryButtonText = "确定",
-                CloseButtonText = "取消",
-                XamlRoot = ContentFrame.XamlRoot
-            };
-
-            var stackPanel = new StackPanel { Spacing = 12 };
-            
-            var qualities = new[]
-            {
-                ("standard", "标准", "标准音质，流量消耗最少"),
-                ("higher", "较高", "较高音质"),
-                ("exhigh", "极高", "极高音质"),
-                ("lossless", "无损", "无损音质，需要VIP"),
-                ("hires", "Hi-Res", "高解析度，需要VIP"),
-                ("jyeffect", "高清环绕声", "高清环绕声，需要VIP"),
-                ("sky", "沉浸环绕声", "沉浸环绕声，需要VIP"),
-                ("dolby", "杜比全景声", "杜比全景声，需要设备支持"),
-                ("jymaster", "超清母带", "超清母带，需要VIP")
-            };
-
-            var settings = ApplicationData.Current.LocalSettings;
-            var currentQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-
-            var comboBox = new ComboBox
-            {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                SelectedIndex = Array.FindIndex(qualities, q => q.Item1 == currentQuality)
-            };
-
-            foreach (var (value, name, desc) in qualities)
-            {
-                comboBox.Items.Add($"{name} - {desc}");
-            }
-
-            stackPanel.Children.Add(new TextBlock { Text = "选择播放音质：" });
-            stackPanel.Children.Add(comboBox);
-            
-            dialog.Content = stackPanel;
-
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary && comboBox.SelectedIndex >= 0)
-            {
-                var selectedQuality = qualities[comboBox.SelectedIndex].Item1;
-                var selectedName = qualities[comboBox.SelectedIndex].Item2;
-                settings.Values["AudioQuality"] = selectedQuality;
-                QualityText.Text = selectedName;
+                var settings = ApplicationData.Current.LocalSettings;
+                settings.Values["AudioQuality"] = quality;
                 
-                System.Diagnostics.Debug.WriteLine($"[Settings] Audio quality changed to: {selectedQuality}");
+                var qualityName = quality switch
+                {
+                    "standard" => "标准",
+                    "higher" => "较高",
+                    "exhigh" => "极高",
+                    "lossless" => "无损",
+                    "hires" => "Hi-Res",
+                    "jyeffect" => "高清环绕声",
+                    "sky" => "沉浸环绕声",
+                    "dolby" => "杜比全景声",
+                    "jymaster" => "超清母带",
+                    _ => "标准"
+                };
+                
+                QualityText.Text = qualityName;
+                System.Diagnostics.Debug.WriteLine($"[Settings] Audio quality changed to: {quality}");
             }
         }
 

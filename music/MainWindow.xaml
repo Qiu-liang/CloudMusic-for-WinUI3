@@ -258,10 +258,38 @@
                 <!-- 音量控制 -->
                 <StackPanel Grid.Column="2" 
                             Orientation="Horizontal" 
-                            Spacing="4" 
+                            Spacing="8" 
                             VerticalAlignment="Center" 
                             HorizontalAlignment="Right" 
                             Margin="0,0,16,0">
+                    <!-- 音质选择 -->
+                    <DropDownButton x:Name="QualityButton"
+                                    Padding="8,4"
+                                    VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE7F4;" FontSize="14"/>
+                            <TextBlock x:Name="QualityText" 
+                                       Text="标准" 
+                                       FontSize="12"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <DropDownButton.Flyout>
+                            <MenuFlyout Placement="TopEdgeAlignedRight">
+                                <MenuFlyoutItem Text="标准" Click="Quality_Click" Tag="standard"/>
+                                <MenuFlyoutItem Text="较高" Click="Quality_Click" Tag="higher"/>
+                                <MenuFlyoutItem Text="极高" Click="Quality_Click" Tag="exhigh"/>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem Text="无损 (VIP)" Click="Quality_Click" Tag="lossless"/>
+                                <MenuFlyoutItem Text="Hi-Res (VIP)" Click="Quality_Click" Tag="hires"/>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem Text="高清臻音 (VIP)" Click="Quality_Click" Tag="jyeffect"/>
+                                <MenuFlyoutItem Text="沉浸环绕声" Click="Quality_Click" Tag="sky"/>
+                                <MenuFlyoutItem Text="杜比全景声" Click="Quality_Click" Tag="dolby"/>
+                                <MenuFlyoutItem Text="超清母带 (VIP)" Click="Quality_Click" Tag="jymaster"/>
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+
                     <Button x:Name="VolumeButton" 
                             Click="VolumeButton_Click"
                             Padding="8,4"
@@ -277,23 +305,6 @@
                             Value="80"
                             ValueChanged="VolumeSlider_ValueChanged"
                             IsThumbToolTipEnabled="False"/>
-                    
-                    <!-- 音质选择 -->
-                    <Button x:Name="QualityButton"
-                            Click="QualityButton_Click"
-                            Padding="8,4"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            VerticalAlignment="Center"
-                            ToolTipService.ToolTip="音质选择">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <FontIcon Glyph="&#xE7F4;" FontSize="14"/>
-                            <TextBlock x:Name="QualityText" 
-                                       Text="标准" 
-                                       FontSize="11"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
                 </StackPanel>
             </Grid>
         </Grid>

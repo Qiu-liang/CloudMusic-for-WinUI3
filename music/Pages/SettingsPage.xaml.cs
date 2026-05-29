@@ -37,14 +37,19 @@ namespace music.Pages
             ServerAddressBox.Text = serverAddress;
 
             // 加载音质设置
-            var quality = settings.Values["AudioQuality"]?.ToString() ?? "exhigh";
+            var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
             QualityComboBox.SelectedIndex = quality switch
             {
                 "standard" => 0,
                 "higher" => 1,
                 "exhigh" => 2,
                 "lossless" => 3,
-                _ => 2
+                "hires" => 4,
+                "jyeffect" => 5,
+                "sky" => 6,
+                "dolby" => 7,
+                "jymaster" => 8,
+                _ => 0
             };
         }
 

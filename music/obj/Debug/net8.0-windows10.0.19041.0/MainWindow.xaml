@@ -1,0 +1,313 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="music.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:music"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Cloud Music">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <NavigationView x:ConnectionId='2' x:Name="NavView"
+                                                               
+                    IsBackButtonVisible="Collapsed"
+                    IsSettingsVisible="True">
+        <NavigationView.AutoSuggestBox>
+            <AutoSuggestBox x:ConnectionId='3' x:Name="SearchBox"
+                            PlaceholderText="搜索音乐"
+                            QueryIcon="Find"
+                                                               
+                                                                     />
+        </NavigationView.AutoSuggestBox>
+
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="推荐" Tag="recommend" IsSelected="True">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Home"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="关注" Tag="follow">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Contact"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+
+            <NavigationViewItemHeader Content="我的"/>
+
+            <NavigationViewItem Content="我喜欢的音乐" Tag="liked">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Like"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="最近" Tag="recent">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Clock"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="已下载" Tag="downloaded">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Download"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="音乐云盘" Tag="cloud">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE753;"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+
+            <NavigationViewItemHeader x:ConnectionId='4' Content="创建的歌单" x:Name="CreatedPlaylistHeader"/>
+
+            <NavigationViewItemHeader x:ConnectionId='5' Content="收藏的歌单" x:Name="CollectedPlaylistHeader" Visibility="Collapsed"/>
+        </NavigationView.MenuItems>
+
+        <NavigationView.FooterMenuItems>
+            <NavigationViewItem x:ConnectionId='6' x:Name="LoginItem" Tag="login" SelectsOnInvoked="False">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon x:ConnectionId='7' x:Name="LoginIcon" Symbol="Contact"/>
+                </NavigationViewItem.Icon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock x:ConnectionId='9' x:Name="LoginStatusText" 
+                                   Text="未登录"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   FontSize="13"/>
+                        <TextBlock x:ConnectionId='10' x:Name="LoginSubText" 
+                                   Text="点击登录"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                    <Button x:ConnectionId='8' x:Name="LogoutButton"
+                                                      
+                            Padding="4"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Visibility="Collapsed"
+                            ToolTipService.ToolTip="退出登录"
+                            VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE7E8;" FontSize="14"/>
+                    </Button>
+                </StackPanel>
+            </NavigationViewItem>
+        </NavigationView.FooterMenuItems>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 顶部返回按钮栏 -->
+            <Grid x:ConnectionId='11' Grid.Row="0" 
+                  x:Name="BackBar"
+                  Height="48" 
+                  Padding="8,0"
+                  Visibility="Collapsed"
+                  Opacity="0"
+                  Translation="0,-48,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromVerticalOffset="-48"/>
+                    </TransitionCollection>
+                </Grid.Transitions>
+                <Button x:ConnectionId='43' x:Name="BackButton"
+                                                
+                        Padding="8,6"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE72B;" FontSize="16"/>
+                        <TextBlock Text="返回" FontSize="14" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <Frame x:ConnectionId='12' x:Name="ContentFrame" Grid.Row="1"/>
+
+            <!-- 底部播放控件 -->
+            <Grid x:ConnectionId='13' Grid.Row="2" 
+                  x:Name="PlayerBar"
+                  Height="72"
+                  Padding="16,0"
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                  BorderThickness="0,1,0,0">
+                <Grid.Background>
+                    <AcrylicBrush TintColor="{ThemeResource CardBackgroundFillColorDefault}"
+                                  TintOpacity="0.8"
+                                  FallbackColor="{ThemeResource CardBackgroundFillColorDefault}"/>
+                </Grid.Background>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="1*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 歌曲信息 -->
+                <StackPanel Grid.Column="0" 
+                            Orientation="Horizontal" 
+                            Spacing="10" 
+                            VerticalAlignment="Center" 
+                            HorizontalAlignment="Left" 
+                            Margin="16,0,0,0">
+                    <Border x:ConnectionId='38' x:Name="AlbumCover" 
+                            Width="48" Height="48" 
+                            CornerRadius="4"
+                            Background="{ThemeResource ControlFillColorDefaultBrush}">
+                        <Grid>
+                            <FontIcon x:ConnectionId='41' x:Name="AlbumCoverIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8D6;" FontSize="22"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Image x:ConnectionId='42' x:Name="AlbumImage" Stretch="UniformToFill" Visibility="Collapsed"/>
+                        </Grid>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:ConnectionId='39' x:Name="SongTitle" 
+                                   Text="未播放"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   FontSize="14"
+                                   MaxWidth="160"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:ConnectionId='40' x:Name="ArtistName" 
+                                   Text=""
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   MaxWidth="160"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 播放控制 -->
+                <Grid Grid.Column="1" VerticalAlignment="Center">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                        <Button x:ConnectionId='31' x:Name="ShuffleButton" 
+                                                           
+                                Padding="8,6"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Height="32">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B1;" FontSize="15"/>
+                        </Button>
+                        <Button x:ConnectionId='32' x:Name="PrevButton" 
+                                                        
+                                Padding="8,6"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Height="32">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE892;" FontSize="15"/>
+                        </Button>
+                        <Button x:ConnectionId='33' x:Name="PlayPauseButton" 
+                                Style="{StaticResource AccentButtonStyle}"
+                                                             
+                                Width="36" Height="36"
+                                Padding="0">
+                            <FontIcon x:ConnectionId='37' x:Name="PlayPauseIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE768;" FontSize="18"/>
+                        </Button>
+                        <Button x:ConnectionId='34' x:Name="NextButton" 
+                                                        
+                                Padding="8,6"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Height="32">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE893;" FontSize="15"/>
+                        </Button>
+                        <Button x:ConnectionId='35' x:Name="RepeatButton" 
+                                                          
+                                Padding="8,6"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Height="32">
+                            <FontIcon x:ConnectionId='36' x:Name="RepeatIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8EE;" FontSize="15"/>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                        <TextBlock x:ConnectionId='28' x:Name="CurrentTime" 
+                                   Text="00:00" 
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   FontSize="11"
+                                   Width="32"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center"/>
+                        <Slider x:ConnectionId='29' x:Name="ProgressSlider" 
+                                Width="180" 
+                                Height="24"
+                                Minimum="0" Maximum="100" 
+                                                                          
+                                IsThumbToolTipEnabled="False"/>
+                        <TextBlock x:ConnectionId='30' x:Name="TotalTime" 
+                                   Text="00:00" 
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   FontSize="11"
+                                   Width="32"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 音量控制 -->
+                <StackPanel Grid.Column="2" 
+                            Orientation="Horizontal" 
+                            Spacing="8" 
+                            VerticalAlignment="Center" 
+                            HorizontalAlignment="Right" 
+                            Margin="0,0,16,0">
+                    <!-- 音质选择 -->
+                    <DropDownButton x:ConnectionId='14' x:Name="QualityButton"
+                                    Padding="8,4"
+                                    VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE7F4;" FontSize="14"/>
+                            <TextBlock x:ConnectionId='18' x:Name="QualityText" 
+                                       Text="标准" 
+                                       FontSize="12"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <DropDownButton.Flyout>
+                            <MenuFlyout Placement="TopEdgeAlignedRight">
+                                <MenuFlyoutItem x:ConnectionId='19' Text="标准"                       Tag="standard"/>
+                                <MenuFlyoutItem x:ConnectionId='20' Text="较高"                       Tag="higher"/>
+                                <MenuFlyoutItem x:ConnectionId='21' Text="极高"                       Tag="exhigh"/>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem x:ConnectionId='22' Text="无损 (VIP)"                       Tag="lossless"/>
+                                <MenuFlyoutItem x:ConnectionId='23' Text="Hi-Res (VIP)"                       Tag="hires"/>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem x:ConnectionId='24' Text="高清臻音 (VIP)"                       Tag="jyeffect"/>
+                                <MenuFlyoutItem x:ConnectionId='25' Text="沉浸环绕声"                       Tag="sky"/>
+                                <MenuFlyoutItem x:ConnectionId='26' Text="杜比全景声"                       Tag="dolby"/>
+                                <MenuFlyoutItem x:ConnectionId='27' Text="超清母带 (VIP)"                       Tag="jymaster"/>
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+
+                    <Button x:ConnectionId='15' x:Name="VolumeButton" 
+                                                      
+                            Padding="8,4"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            VerticalAlignment="Center">
+                        <FontIcon x:ConnectionId='17' x:Name="VolumeIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE767;" FontSize="14"/>
+                    </Button>
+                    <Slider x:ConnectionId='16' x:Name="VolumeSlider" 
+                            Width="90" 
+                            VerticalAlignment="Center"
+                            Minimum="0" Maximum="100" 
+                            Value="80"
+                                                                    
+                            IsThumbToolTipEnabled="False"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </NavigationView>
+</Window>
+

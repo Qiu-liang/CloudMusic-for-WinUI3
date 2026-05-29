@@ -57,7 +57,11 @@ namespace music.Pages
                     DurationFormatted = song.DurationFormatted,
                     Index = i + 1,
                     IsLiked = song.Liked,
-                    CanPlay = true
+                    CanPlay = song.CanPlay,
+                    Fee = song.Fee,
+                    IsVip = song.IsVip,
+                    IsPaid = song.IsPaid,
+                    FeeText = song.FeeText
                 });
             }
 

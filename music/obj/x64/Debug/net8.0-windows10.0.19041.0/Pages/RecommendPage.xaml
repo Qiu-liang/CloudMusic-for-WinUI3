@@ -1,0 +1,369 @@
+﻿<Page
+    x:Class="music.Pages.RecommendPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:music.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <local:TrackCountConverter x:Key="TrackCountConverter"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部标题栏 -->
+        <Grid Margin="24,16,24,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="为你推荐"
+                       FontSize="34"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"/>
+
+            <Button x:ConnectionId='39' Grid.Column="1"
+                    x:Name="RefreshButton" 
+                                               
+                    VerticalAlignment="Center"
+                    Padding="12,8"
+                    Background="Transparent"
+                    BorderThickness="0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE72C;" FontSize="16"/>
+                    <TextBlock Text="刷新" FontSize="14"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- 加载中 -->
+        <Grid x:ConnectionId='2' Grid.Row="1" x:Name="LoadingPanel">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+                <ProgressRing IsActive="True" Width="36" Height="36"/>
+                <TextBlock Text="正在加载推荐..." 
+                           FontSize="14"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 错误状态 -->
+        <Grid x:ConnectionId='3' Grid.Row="1" x:Name="ErrorPanel" Visibility="Collapsed">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+                <FontIcon Glyph="&#xE783;" FontSize="48" 
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                          HorizontalAlignment="Center"/>
+                <TextBlock x:ConnectionId='37' x:Name="ErrorText"
+                           Text="加载失败"
+                           FontSize="16"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <Button x:ConnectionId='38' Content="重试"                             Padding="16,8"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 内容区域 -->
+        <ScrollViewer x:ConnectionId='4' Grid.Row="1" x:Name="ContentPanel" Visibility="Collapsed"
+                      VerticalScrollBarVisibility="Auto"
+                      Padding="0,0,0,16">
+            <StackPanel Spacing="32">
+                
+                <!-- 推荐歌单 -->
+                <StackPanel Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="推荐歌单" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                        <Button x:ConnectionId='36' Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                                                    >
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE712;" FontSize="14"/>
+                                <TextBlock Text="查看全部"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:ConnectionId='26' x:Name="PlaylistScroller"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                                                                >
+                            <ItemsControl x:ConnectionId='29' x:Name="PlaylistItems">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="16"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate                                >
+                                        <Border x:ConnectionId='31' Width="160" 
+                                                CornerRadius="12"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                Padding="0,0,0,12"
+                                                                                            >
+                                            <StackPanel Spacing="8">
+                                                <Border Height="160" CornerRadius="12,12,0,0">
+                                                    <Grid>
+                                                        <Image x:ConnectionId='34'                          
+                                                               Stretch="UniformToFill"/>
+                                                        <Border Background="#40000000" 
+                                                                CornerRadius="12,12,0,0"
+                                                                VerticalAlignment="Bottom"
+                                                                Padding="8,4"
+                                                                MinHeight="28">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <FontIcon Glyph="&#xE768;" FontSize="10" Foreground="White" VerticalAlignment="Center"/>
+                                                                <TextBlock x:ConnectionId='35'                                    
+                                                                           FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+                                                <StackPanel Padding="8,0,8,0" Spacing="2">
+                                                    <TextBlock x:ConnectionId='32'                      
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               MaxLines="2"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock x:ConnectionId='33'                                                                            
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               MaxLines="1"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Button x:ConnectionId='27' x:Name="PlaylistLeftButton"
+                                                                
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
+
+                        <Button x:ConnectionId='28' x:Name="PlaylistRightButton"
+                                                                 
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+
+                <!-- 精选歌曲 -->
+                <StackPanel Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="精选歌曲" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                        <Button x:ConnectionId='25' Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                                           >
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE768;" FontSize="14"/>
+                                <TextBlock Text="播放全部"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:ConnectionId='16' x:Name="PersonalizedScroller"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                                                                    >
+                            <ItemsControl x:ConnectionId='19' x:Name="PersonalizedItems">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="16"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate                            >
+                                        <Border x:ConnectionId='21' Width="160" 
+                                                CornerRadius="12"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                Padding="0,0,0,12"
+                                                                                                >
+                                            <StackPanel Spacing="8">
+                                                <Border Height="160" CornerRadius="12,12,0,0">
+                                                    <Image x:ConnectionId='24'                            
+                                                           Stretch="UniformToFill"/>
+                                                </Border>
+                                                <StackPanel Padding="8,0,8,0" Spacing="2">
+                                                    <TextBlock x:ConnectionId='22'                      
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               MaxLines="1"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock x:ConnectionId='23'                             
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               MaxLines="1"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Button x:ConnectionId='17' x:Name="PersonalizedLeftButton"
+                                                                    
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
+
+                        <Button x:ConnectionId='18' x:Name="PersonalizedRightButton"
+                                                                     
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+
+                <!-- 每日推荐歌曲 -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="每日推荐" 
+                               FontSize="22" 
+                               FontWeight="SemiBold"
+                               Margin="24,0,24,0"/>
+                    
+                    <ListView x:ConnectionId='5' x:Name="SongsListView"
+                              IsItemClickEnabled="True"
+                                                                 
+                              SelectionMode="None"
+                              Padding="0,0,0,0"
+                              Margin="0,0,0,0">
+                        <ListView.ItemTemplate>
+                            <DataTemplate                            >
+                                <Grid x:ConnectionId='7' Height="64" Padding="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1"/>
+                                        <ColumnDefinition Width="28"/>
+                                        <ColumnDefinition Width="48"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 左边距 -->
+                                    <TextBlock Grid.Column="0" Text=""/>
+
+                                    <TextBlock x:ConnectionId='8' Grid.Column="1"
+                                                                    
+                                               FontSize="14"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Right"
+                                               Margin="0,0,12,0"/>
+
+                                    <Border Grid.Column="2" 
+                                            Width="48" Height="48" 
+                                            CornerRadius="8"
+                                            VerticalAlignment="Center">
+                                        <Image x:ConnectionId='15'                            
+                                               Stretch="UniformToFill"/>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="4"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,16,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock x:ConnectionId='11'                     
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       MaxLines="1"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <Border x:ConnectionId='12' x:Name="VipBadge"
+                                                                                       
+                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6,2"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="VIP"
+                                                           FontSize="10"
+                                                           FontWeight="Bold"
+                                                           Foreground="White"/>
+                                            </Border>
+                                            <Border x:ConnectionId='13' x:Name="PaidBadge"
+                                                                                        
+                                                    Background="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6,2"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock x:ConnectionId='14'                        
+                                                           FontSize="10"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock x:ConnectionId='10'                            
+                                                   FontSize="12"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   MaxLines="1"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <TextBlock x:ConnectionId='9' Grid.Column="5"
+                                                                                
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>
+

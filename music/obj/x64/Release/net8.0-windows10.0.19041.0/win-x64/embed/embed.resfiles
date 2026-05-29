@@ -1,0 +1,17 @@
+App.xbf
+Dialogs\LoginDialog.xbf
+MainWindow.xbf
+Pages\CloudPage.xbf
+Pages\CollectionPage.xbf
+Pages\DownloadedPage.xbf
+Pages\DownloadPage.xbf
+Pages\FollowPage.xbf
+Pages\HomePage.xbf
+Pages\LikedPage.xbf
+Pages\LocalPage.xbf
+Pages\PlaylistDetailPage.xbf
+Pages\PlaylistPage.xbf
+Pages\RecentPage.xbf
+Pages\RecommendPage.xbf
+Pages\SearchPage.xbf
+Pages\SettingsPage.xbf
