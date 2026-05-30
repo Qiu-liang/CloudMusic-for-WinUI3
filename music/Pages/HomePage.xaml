@@ -1,0 +1,28 @@
+<Page
+    x:Class="music.Pages.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:music.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid>
+        <TextBlock Text="首页"
+                   Style="{StaticResource TitleTextBlockStyle}"
+                   Margin="20,20,0,0"
+                   VerticalAlignment="Top"/>
+        
+        <StackPanel VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="20">
+            <TextBlock Text="欢迎使用音乐播放器"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="选择左侧菜单开始浏览音乐"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       HorizontalAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+    </Grid>
+</Page>

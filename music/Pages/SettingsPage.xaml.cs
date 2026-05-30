@@ -1,0 +1,175 @@
+using System;
+using System.Collections.Generic;
+using Microsoft.UI;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Navigation;
+using Windows.Storage;
+using Windows.UI;
+
+namespace music.Pages
+{
+    public class ThemeColorItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public string HexColor { get; set; } = string.Empty;
+    }
+
+    public sealed partial class SettingsPage : Page
+    {
+        private readonly List<ThemeColorItem> _themeColors = new()
+        {
+            new ThemeColorItem { Name = "蓝色", HexColor = "#0078D4" },
+            new ThemeColorItem { Name = "紫色", HexColor = "#8764B8" },
+            new ThemeColorItem { Name = "粉色", HexColor = "#E3008C" },
+            new ThemeColorItem { Name = "红色", HexColor = "#C4314B" },
+            new ThemeColorItem { Name = "橙色", HexColor = "#CA5010" },
+            new ThemeColorItem { Name = "黄色", HexColor = "#986F0B" },
+            new ThemeColorItem { Name = "绿色", HexColor = "#107C10" },
+            new ThemeColorItem { Name = "青色", HexColor = "#038387" },
+        };
+
+        public SettingsPage()
+        {
+            this.InitializeComponent();
+            LoadSettings();
+        }
+
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+        }
+
+        private void LoadSettings()
+        {
+            var settings = ApplicationData.Current.LocalSettings;
+
+            // 加载主题设置
+            var theme = settings.Values["Theme"]?.ToString() ?? "System";
+            ThemeComboBox.SelectedIndex = theme switch
+            {
+                "Light" => 1,
+                "Dark" => 2,
+                _ => 0
+            };
+
+            // 加载服务器地址
+            var serverAddress = settings.Values["ServerAddress"]?.ToString() ?? "http://192.168.31.205:3000";
+            ServerAddressBox.Text = serverAddress;
+
+            // 加载音质设置
+            var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
+            QualityComboBox.SelectedIndex = quality switch
+            {
+                "standard" => 0,
+                "higher" => 1,
+                "exhigh" => 2,
+                "lossless" => 3,
+                "hires" => 4,
+                "jyeffect" => 5,
+                "sky" => 6,
+                "dolby" => 7,
+                "jymaster" => 8,
+                _ => 0
+            };
+        }
+
+        private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ThemeComboBox.SelectedIndex < 0) return;
+
+            var settings = ApplicationData.Current.LocalSettings;
+            var theme = ThemeComboBox.SelectedIndex switch
+            {
+                1 => "Light",
+                2 => "Dark",
+                _ => "System"
+            };
+            settings.Values["Theme"] = theme;
+
+            // 应用主题
+            var root = App.m_window?.Content as FrameworkElement;
+            if (root != null)
+            {
+                root.RequestedTheme = theme switch
+                {
+                    "Light" => ElementTheme.Light,
+                    "Dark" => ElementTheme.Dark,
+                    _ => ElementTheme.Default
+                };
+            }
+        }
+
+        private void ColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.Tag is string hexColor)
+            {
+                var settings = ApplicationData.Current.LocalSettings;
+                settings.Values["ThemeColor"] = hexColor;
+
+                // 全局应用主题色
+                App.ApplyThemeColor();
+            }
+        }
+
+        private void SaveServerButton_Click(object sender, RoutedEventArgs e)
+        {
+            var address = ServerAddressBox.Text.Trim();
+            
+            if (string.IsNullOrEmpty(address))
+            {
+                ServerStatusText.Text = "请输入服务器地址";
+                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                return;
+            }
+
+            if (!address.StartsWith("http://") && !address.StartsWith("https://"))
+            {
+                address = "http://" + address;
+                ServerAddressBox.Text = address;
+            }
+
+            var settings = ApplicationData.Current.LocalSettings;
+            settings.Values["ServerAddress"] = address;
+
+            ServerStatusText.Text = "已保存，重启应用后生效";
+            ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+        }
+
+        private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            var address = ServerAddressBox.Text.Trim();
+            
+            if (string.IsNullOrEmpty(address))
+            {
+                ServerStatusText.Text = "请先输入服务器地址";
+                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                return;
+            }
+
+            TestConnectionButton.IsEnabled = false;
+            ServerStatusText.Text = "正在测试连接...";
+            ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+
+            try
+            {
+                using var client = new System.Net.Http.HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(5);
+                var response = await client.GetAsync(address);
+                
+                ServerStatusText.Text = $"连接成功 (状态码: {response.StatusCode})";
+                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+            }
+            catch (Exception ex)
+            {
+                ServerStatusText.Text = $"连接失败: {ex.Message}";
+                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+            }
+            finally
+            {
+                TestConnectionButton.IsEnabled = true;
+            }
+        }
+    }
+}
