@@ -1,0 +1,19 @@
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+music/bin/
+music/obj/
+music/*.user
+/.vscode/
+.idea/
+# VS temporary database files
+*.db
+*.db-shm
+*.db-wal
+
+# Ignore generated XBF/XAML build outputs
+**/Pages/*.xbf
