@@ -21,7 +21,7 @@ namespace music
 {
     public sealed partial class MainWindow : Window
     {
-        public static PlaybackService PlaybackService { get; private set; }
+        public static PlaybackService PlaybackService { get; private set; } = null!;
         public Frame MainContentFrame => ContentFrame;
         private bool _isProgressDragging = false;
 
@@ -531,7 +531,7 @@ namespace music
                         break;
                     default:
                         // 处理动态歌单
-                        if (tag.StartsWith("playlist_"))
+                        if (tag != null && tag.StartsWith("playlist_"))
                         {
                             var playlistId = tag.Substring("playlist_".Length);
                             ContentFrame.Navigate(typeof(Pages.PlaylistDetailPage), playlistId);

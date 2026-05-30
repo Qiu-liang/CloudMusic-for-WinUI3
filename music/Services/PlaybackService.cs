@@ -246,7 +246,8 @@ namespace music.Services
             switch (_repeatMode)
             {
                 case RepeatMode.One:
-                    await PlayAsync(CurrentSong);
+                    if (CurrentSong != null)
+                        await PlayAsync(CurrentSong);
                     break;
                 case RepeatMode.All:
                     await NextAsync();

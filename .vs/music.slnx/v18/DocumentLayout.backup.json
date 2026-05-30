@@ -14,16 +14,20 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 1,
           "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
               "Title": ".gitignore",
               "DocumentMoniker": "D:\\code\\WinUI\\music\\.gitignore",
               "RelativeDocumentMoniker": ".gitignore",
-              "ToolTip": "D:\\code\\WinUI\\music\\.gitignore*",
-              "RelativeToolTip": ".gitignore*",
+              "ToolTip": "D:\\code\\WinUI\\music\\.gitignore",
+              "RelativeToolTip": ".gitignore",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-05-30T01:17:22.512Z",
