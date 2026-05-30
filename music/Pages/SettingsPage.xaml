@@ -49,6 +49,41 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Padding="16,12">
+                        <StackPanel Spacing="12">
+                            <StackPanel>
+                                <TextBlock Text="主题色(无法全局生效，待修复)" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="选择应用的强调色" FontSize="12" 
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Tag="#0078D4" Click="ColorButton_Click" Width="40" Height="40" Padding="0" ToolTipService.ToolTip="蓝色">
+                                    <Ellipse Width="32" Height="32" Fill="#0078D4"/>
+                                </Button>
+                                <Button Tag="#8764B8" Click="ColorButton_Click" Width="40" Height="40" Padding="0" ToolTipService.ToolTip="紫色">
+                                    <Ellipse Width="32" Height="32" Fill="#8764B8"/>
+                                </Button>
+                                <Button Tag="#E3008C" Click="ColorButton_Click" Width="40" Height="40" Padding="0" ToolTipService.ToolTip="粉色">
+                                    <Ellipse Width="32" Height="32" Fill="#E3008C"/>
+                                </Button>
+                                <Button Tag="#C4314B" Click="ColorButton_Click" Width="40" Height="40" Padding="0" ToolTipService.ToolTip="红色">
+                                    <Ellipse Width="32" Height="32" Fill="#C4314B"/>
+                                </Button>
+                                <Button Tag="#CA5010" Click="ColorButton_Click" Width="40" Height="40" Padding="0" ToolTipService.ToolTip="橙色">
+                                    <Ellipse Width="32" Height="32" Fill="#CA5010"/>
+                                </Button>
+                                <Button Tag="#107C10" Click="ColorButton_Click" Width="40" Height="40" Padding="0" ToolTipService.ToolTip="绿色">
+                                    <Ellipse Width="32" Height="32" Fill="#107C10"/>
+                                </Button>
+                                <Button Tag="#038387" Click="ColorButton_Click" Width="40" Height="40" Padding="0" ToolTipService.ToolTip="青色">
+                                    <Ellipse Width="32" Height="32" Fill="#038387"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- 网络设置 -->

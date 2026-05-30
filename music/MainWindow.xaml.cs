@@ -74,7 +74,7 @@ namespace music
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                // 在歌单详情、全部歌单、搜索页面显示返回按钮
+                // 在歌单详情、全部歌单、搜索页面显示返回按钮（歌词页面不显示）
                 var currentPage = ContentFrame.CurrentSourcePageType;
                 var showBack = currentPage == typeof(Pages.PlaylistDetailPage) || 
                                currentPage == typeof(Pages.AllPlaylistsPage) ||
@@ -123,6 +123,36 @@ namespace music
             }
         }
 
+        private void AlbumCover_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            // 如果当前在歌词页面，则关闭歌词页面
+            if (ContentFrame.CurrentSourcePageType == typeof(Pages.LyricsPage))
+            {
+                if (ContentFrame.CanGoBack)
+                {
+                    ContentFrame.GoBack();
+                }
+                return;
+            }
+
+            // 否则打开歌词页面
+            var currentSong = PlaybackService.CurrentSong;
+            if (currentSong != null)
+            {
+                ContentFrame.Navigate(typeof(Pages.LyricsPage), currentSong);
+            }
+        }
+
+        private void AlbumCover_PointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            AlbumCover.Opacity = 0.8;
+        }
+
+        private void AlbumCover_PointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            AlbumCover.Opacity = 1.0;
+        }
+
         private void SetupLoginEvents()
         {
             LoginItem.Tapped += async (s, e) =>
@@ -157,6 +187,10 @@ namespace music
                     LoginSubText.Text = "已登录";
                     LoginIcon.Symbol = Symbol.Contact;
                     LogoutButton.Visibility = Visibility.Visible;
+                    
+                    // 检查VIP状态
+                    var isVip = App.ApiService.GetVipStatus();
+                    VipBadge.Visibility = isVip ? Visibility.Visible : Visibility.Collapsed;
                 }
                 else if (App.ApiService.IsLoggedIn)
                 {
@@ -164,6 +198,7 @@ namespace music
                     LoginSubText.Text = $"ID: {App.ApiService.UserId}";
                     LoginIcon.Symbol = Symbol.Contact;
                     LogoutButton.Visibility = Visibility.Visible;
+                    VipBadge.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
@@ -171,6 +206,7 @@ namespace music
                     LoginSubText.Text = "点击登录";
                     LoginIcon.Symbol = Symbol.Contact;
                     LogoutButton.Visibility = Visibility.Collapsed;
+                    VipBadge.Visibility = Visibility.Collapsed;
                 }
             });
         }
@@ -180,12 +216,16 @@ namespace music
             var userInfo = await App.ApiService.GetUserInfoAsync();
             if (userInfo != null)
             {
+                // 获取VIP状态
+                var isVip = await App.ApiService.CheckVipStatusAsync();
+                
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     LoginStatusText.Text = userInfo.Nickname;
                     LoginSubText.Text = "已登录";
                     LoginIcon.Symbol = Symbol.Contact;
                     LogoutButton.Visibility = Visibility.Visible;
+                    VipBadge.Visibility = isVip ? Visibility.Visible : Visibility.Collapsed;
                 });
 
                 // 登录成功后加载歌单
@@ -407,6 +447,16 @@ namespace music
                     PlaybackService.Seek(position);
                 }
             }
+        }
+
+        private void ProgressSlider_PointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            _isProgressDragging = true;
+        }
+
+        private void ProgressSlider_PointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            _isProgressDragging = false;
         }
 
         private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)

@@ -1,13 +1,35 @@
 using System;
+using System.Collections.Generic;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage;
+using Windows.UI;
 
 namespace music.Pages
 {
+    public class ThemeColorItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public string HexColor { get; set; } = string.Empty;
+    }
+
     public sealed partial class SettingsPage : Page
     {
+        private readonly List<ThemeColorItem> _themeColors = new()
+        {
+            new ThemeColorItem { Name = "蓝色", HexColor = "#0078D4" },
+            new ThemeColorItem { Name = "紫色", HexColor = "#8764B8" },
+            new ThemeColorItem { Name = "粉色", HexColor = "#E3008C" },
+            new ThemeColorItem { Name = "红色", HexColor = "#C4314B" },
+            new ThemeColorItem { Name = "橙色", HexColor = "#CA5010" },
+            new ThemeColorItem { Name = "黄色", HexColor = "#986F0B" },
+            new ThemeColorItem { Name = "绿色", HexColor = "#107C10" },
+            new ThemeColorItem { Name = "青色", HexColor = "#038387" },
+        };
+
         public SettingsPage()
         {
             this.InitializeComponent();
@@ -76,6 +98,18 @@ namespace music.Pages
                     "Dark" => ElementTheme.Dark,
                     _ => ElementTheme.Default
                 };
+            }
+        }
+
+        private void ColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.Tag is string hexColor)
+            {
+                var settings = ApplicationData.Current.LocalSettings;
+                settings.Values["ThemeColor"] = hexColor;
+
+                // 全局应用主题色
+                App.ApplyThemeColor();
             }
         }
 

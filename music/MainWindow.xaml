@@ -72,10 +72,23 @@
                 </NavigationViewItem.Icon>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <StackPanel VerticalAlignment="Center" Spacing="1">
-                        <TextBlock x:Name="LoginStatusText" 
-                                   Text="未登录"
-                                   Style="{StaticResource BodyStrongTextBlockStyle}"
-                                   FontSize="13"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock x:Name="LoginStatusText" 
+                                       Text="未登录"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                                       FontSize="13"/>
+                            <Border x:Name="VipBadge"
+                                    Visibility="Collapsed"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="VIP"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           Foreground="White"/>
+                            </Border>
+                        </StackPanel>
                         <TextBlock x:Name="LoginSubText" 
                                    Text="点击登录"
                                    Style="{StaticResource CaptionTextBlockStyle}"
@@ -100,7 +113,6 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- 顶部返回按钮栏 -->
@@ -129,19 +141,21 @@
                 </Button>
             </Grid>
 
+            <!-- 内容区域（占满整个空间） -->
             <Frame x:Name="ContentFrame" Grid.Row="1"/>
 
-            <!-- 底部播放控件 -->
-            <Grid Grid.Row="2" 
+            <!-- 底部播放控件（覆盖在内容区域上方） -->
+            <Grid Grid.Row="1" 
                   x:Name="PlayerBar"
                   Height="72"
-                  Padding="16,0"
-                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                  BorderThickness="0,1,0,0">
+                  Padding="8,0"
+                  VerticalAlignment="Bottom"
+                  Canvas.ZIndex="100">
                 <Grid.Background>
                     <AcrylicBrush TintColor="{ThemeResource CardBackgroundFillColorDefault}"
                                   TintOpacity="0.8"
-                                  FallbackColor="{ThemeResource CardBackgroundFillColorDefault}"/>
+                                  FallbackColor="{ThemeResource CardBackgroundFillColorDefault}"
+                                  AlwaysUseFallback="False"/>
                 </Grid.Background>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1*"/>
@@ -159,7 +173,10 @@
                     <Border x:Name="AlbumCover" 
                             Width="48" Height="48" 
                             CornerRadius="4"
-                            Background="{ThemeResource ControlFillColorDefaultBrush}">
+                            Background="{ThemeResource ControlFillColorDefaultBrush}"
+                            Tapped="AlbumCover_Tapped"
+                            PointerEntered="AlbumCover_PointerEntered"
+                            PointerExited="AlbumCover_PointerExited">
                         <Grid>
                             <FontIcon x:Name="AlbumCoverIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8D6;" FontSize="22"
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -232,27 +249,41 @@
                         </Button>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                    <Grid Grid.Row="1" VerticalAlignment="Center" Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
                         <TextBlock x:Name="CurrentTime" 
+                                   Grid.Column="0"
                                    Text="00:00" 
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
-                                   Width="32"
+                                   Width="36"
                                    TextAlignment="Right"
-                                   VerticalAlignment="Center"/>
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
                         <Slider x:Name="ProgressSlider" 
-                                Width="180" 
+                                Grid.Column="1"
+                                MinWidth="150"
                                 Height="24"
                                 Minimum="0" Maximum="100" 
                                 ValueChanged="ProgressSlider_ValueChanged"
-                                IsThumbToolTipEnabled="False"/>
+                                PointerEntered="ProgressSlider_PointerEntered"
+                                PointerExited="ProgressSlider_PointerExited"
+                                IsThumbToolTipEnabled="False"
+                                VerticalAlignment="Center"/>
                         <TextBlock x:Name="TotalTime" 
+                                   Grid.Column="2"
                                    Text="00:00" 
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
-                                   Width="32"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
+                                   Width="36"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"/>
+                    </Grid>
                 </Grid>
 
                 <!-- 音量控制 -->
@@ -261,7 +292,7 @@
                             Spacing="8" 
                             VerticalAlignment="Center" 
                             HorizontalAlignment="Right" 
-                            Margin="0,0,16,0">
+                            Margin="0,0,8,0">
                     <!-- 音质选择 -->
                     <DropDownButton x:Name="QualityButton"
                                     Padding="8,4"
