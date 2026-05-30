@@ -316,11 +316,12 @@ namespace music.Pages
             }
         }
 
-        private async void PlayAllButton_Click(object sender, RoutedEventArgs e)
+        private void ViewAllSongsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_songModels.Count > 0)
+            var mainWindow = App.m_window as MainWindow;
+            if (mainWindow != null)
             {
-                await MainWindow.PlaybackService.PlayAsync(_songModels, 0);
+                mainWindow.MainContentFrame.Navigate(typeof(SearchAllSongsPage), _currentQuery);
             }
         }
 

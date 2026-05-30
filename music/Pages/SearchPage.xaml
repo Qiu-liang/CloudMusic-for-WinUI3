@@ -155,13 +155,13 @@
                                    FontSize="22"
                                    FontWeight="SemiBold"/>
                         <Button Grid.Column="1"
-                                x:Name="PlayAllButton"
-                                Click="PlayAllButton_Click"
+                                x:Name="ViewAllSongsButton"
+                                Click="ViewAllSongsButton_Click"
                                 Padding="12,6"
                                 Style="{StaticResource AccentButtonStyle}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE768;" FontSize="14"/>
-                                <TextBlock Text="播放全部"/>
+                                <FontIcon Glyph="&#xE721;" FontSize="14"/>
+                                <TextBlock Text="查看全部"/>
                             </StackPanel>
                         </Button>
                     </Grid>

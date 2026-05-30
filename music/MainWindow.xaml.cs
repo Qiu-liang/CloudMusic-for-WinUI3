@@ -79,7 +79,8 @@ namespace music
                 var showBack = currentPage == typeof(Pages.PlaylistDetailPage) || 
                                currentPage == typeof(Pages.AllPlaylistsPage) ||
                                currentPage == typeof(Pages.SearchPage) ||
-                               currentPage == typeof(Pages.SearchAllResultsPage);
+                               currentPage == typeof(Pages.SearchAllResultsPage) ||
+                               currentPage == typeof(Pages.SearchAllSongsPage);
                 
                 if (showBack)
                 {
