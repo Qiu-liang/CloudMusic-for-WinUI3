@@ -476,7 +476,7 @@ namespace music
             }
             else
             {
-                VolumeSlider.Value = 80;
+                VolumeSlider.Value = 100;
             }
         }
 

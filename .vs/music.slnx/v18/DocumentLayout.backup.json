@@ -3,24 +3,8 @@
   "WorkspaceRootPath": "D:\\code\\WinUI\\music\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|d:\\code\\winui\\music\\music\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|solutionrelative:music\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|d:\\code\\winui\\music\\music\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|solutionrelative:music\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|d:\\code\\winui\\music\\music\\pages\\lyricspage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|solutionrelative:music\\pages\\lyricspage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|d:\\code\\winui\\music\\music\\pages\\settingspage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|solutionrelative:music\\pages\\settingspage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|d:\\code\\winui\\music\\music\\pages\\localpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{FAD604FC-7B99-9D5F-43AE-E8E055B2ABDD}|music\\music.csproj|solutionrelative:music\\pages\\localpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\code\\WinUI\\music\\.gitignore||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.gitignore||{3B902123-F8A7-4915-9F01-361F908088D0}"
     }
   ],
   "DocumentGroupContainers": [
@@ -30,71 +14,20 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 0,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "MainWindow.xaml.cs",
-              "DocumentMoniker": "D:\\code\\WinUI\\music\\music\\MainWindow.xaml.cs",
-              "RelativeDocumentMoniker": "music\\MainWindow.xaml.cs",
-              "ToolTip": "D:\\code\\WinUI\\music\\music\\MainWindow.xaml.cs",
-              "RelativeToolTip": "music\\MainWindow.xaml.cs",
-              "ViewState": "AgIAANAAAAAAAAAAAAAswAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-05-30T00:39:13.453Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "MainWindow.xaml",
-              "DocumentMoniker": "D:\\code\\WinUI\\music\\music\\MainWindow.xaml",
-              "RelativeDocumentMoniker": "music\\MainWindow.xaml",
-              "ToolTip": "D:\\code\\WinUI\\music\\music\\MainWindow.xaml",
-              "RelativeToolTip": "music\\MainWindow.xaml",
-              "ViewState": "AgIAAH4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-05-30T00:38:45.739Z",
+              "Title": ".gitignore",
+              "DocumentMoniker": "D:\\code\\WinUI\\music\\.gitignore",
+              "RelativeDocumentMoniker": ".gitignore",
+              "ToolTip": "D:\\code\\WinUI\\music\\.gitignore*",
+              "RelativeToolTip": ".gitignore*",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-05-30T01:17:22.512Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "LyricsPage.xaml",
-              "DocumentMoniker": "D:\\code\\WinUI\\music\\music\\Pages\\LyricsPage.xaml",
-              "RelativeDocumentMoniker": "music\\Pages\\LyricsPage.xaml",
-              "ToolTip": "D:\\code\\WinUI\\music\\music\\Pages\\LyricsPage.xaml",
-              "RelativeToolTip": "music\\Pages\\LyricsPage.xaml",
-              "ViewState": "AgIAABsAAAAAAAAAAAAAAEYAAAAyAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-05-29T12:51:22.377Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "SettingsPage.xaml",
-              "DocumentMoniker": "D:\\code\\WinUI\\music\\music\\Pages\\SettingsPage.xaml",
-              "RelativeDocumentMoniker": "music\\Pages\\SettingsPage.xaml",
-              "ToolTip": "D:\\code\\WinUI\\music\\music\\Pages\\SettingsPage.xaml",
-              "RelativeToolTip": "music\\Pages\\SettingsPage.xaml",
-              "ViewState": "AgIAABgAAAAAAAAAAAAAAD4AAACPAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-05-29T12:20:15.418Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "LocalPage.xaml",
-              "DocumentMoniker": "D:\\code\\WinUI\\music\\music\\Pages\\LocalPage.xaml",
-              "RelativeDocumentMoniker": "music\\Pages\\LocalPage.xaml",
-              "ToolTip": "D:\\code\\WinUI\\music\\music\\Pages\\LocalPage.xaml",
-              "RelativeToolTip": "music\\Pages\\LocalPage.xaml",
-              "ViewState": "AgIAACEAAAAAAAAAAAAAACcAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-05-29T09:08:49.012Z"
             }
           ]
         }
