@@ -246,5 +246,28 @@ namespace music.Pages
             PersonalizedLeftButton.Visibility = PersonalizedScroller.HorizontalOffset > 0 ? Visibility.Visible : Visibility.Collapsed;
             PersonalizedRightButton.Visibility = PersonalizedScroller.HorizontalOffset < PersonalizedScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
+
+        // 鼠标滚轮水平滚动支持
+        private void PlaylistScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var scroller = sender as ScrollViewer;
+            if (scroller != null)
+            {
+                var delta = e.GetCurrentPoint(scroller).Properties.MouseWheelDelta;
+                scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
+                e.Handled = true;
+            }
+        }
+
+        private void PersonalizedScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var scroller = sender as ScrollViewer;
+            if (scroller != null)
+            {
+                var delta = e.GetCurrentPoint(scroller).Properties.MouseWheelDelta;
+                scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
+                e.Handled = true;
+            }
+        }
     }
 }

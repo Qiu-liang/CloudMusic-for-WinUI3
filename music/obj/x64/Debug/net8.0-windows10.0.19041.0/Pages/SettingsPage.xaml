@@ -38,7 +38,7 @@
                                 <TextBlock Text="选择应用的外观主题" FontSize="12" 
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
-                            <ComboBox x:ConnectionId='7' Grid.Column="1" 
+                            <ComboBox x:ConnectionId='14' Grid.Column="1" 
                                       x:Name="ThemeComboBox"
                                                                                        
                                       MinWidth="120"
@@ -48,6 +48,41 @@
                                 <ComboBoxItem Content="深色"/>
                             </ComboBox>
                         </Grid>
+                    </Border>
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Padding="16,12">
+                        <StackPanel Spacing="12">
+                            <StackPanel>
+                                <TextBlock Text="主题色(无法全局生效，待修复)" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="选择应用的强调色" FontSize="12" 
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:ConnectionId='7' Tag="#0078D4"                           Width="40" Height="40" Padding="0" ToolTipService.ToolTip="蓝色">
+                                    <Ellipse Width="32" Height="32" Fill="#0078D4"/>
+                                </Button>
+                                <Button x:ConnectionId='8' Tag="#8764B8"                           Width="40" Height="40" Padding="0" ToolTipService.ToolTip="紫色">
+                                    <Ellipse Width="32" Height="32" Fill="#8764B8"/>
+                                </Button>
+                                <Button x:ConnectionId='9' Tag="#E3008C"                           Width="40" Height="40" Padding="0" ToolTipService.ToolTip="粉色">
+                                    <Ellipse Width="32" Height="32" Fill="#E3008C"/>
+                                </Button>
+                                <Button x:ConnectionId='10' Tag="#C4314B"                           Width="40" Height="40" Padding="0" ToolTipService.ToolTip="红色">
+                                    <Ellipse Width="32" Height="32" Fill="#C4314B"/>
+                                </Button>
+                                <Button x:ConnectionId='11' Tag="#CA5010"                           Width="40" Height="40" Padding="0" ToolTipService.ToolTip="橙色">
+                                    <Ellipse Width="32" Height="32" Fill="#CA5010"/>
+                                </Button>
+                                <Button x:ConnectionId='12' Tag="#107C10"                           Width="40" Height="40" Padding="0" ToolTipService.ToolTip="绿色">
+                                    <Ellipse Width="32" Height="32" Fill="#107C10"/>
+                                </Button>
+                                <Button x:ConnectionId='13' Tag="#038387"                           Width="40" Height="40" Padding="0" ToolTipService.ToolTip="青色">
+                                    <Ellipse Width="32" Height="32" Fill="#038387"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
 

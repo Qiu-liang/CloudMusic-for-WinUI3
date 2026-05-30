@@ -102,7 +102,8 @@
                         <ScrollViewer x:Name="PlaylistScroller"
                                       HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
-                                      ViewChanged="PlaylistScroller_ViewChanged">
+                                      ViewChanged="PlaylistScroller_ViewChanged"
+                                      PointerWheelChanged="PlaylistScroller_PointerWheelChanged">
                             <ItemsControl x:Name="PlaylistItems">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -205,7 +206,8 @@
                         <ScrollViewer x:Name="PersonalizedScroller"
                                       HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
-                                      ViewChanged="PersonalizedScroller_ViewChanged">
+                                      ViewChanged="PersonalizedScroller_ViewChanged"
+                                      PointerWheelChanged="PersonalizedScroller_PointerWheelChanged">
                             <ItemsControl x:Name="PersonalizedItems">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -292,6 +294,7 @@
                                         <ColumnDefinition Width="48"/>
                                         <ColumnDefinition Width="12"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="60"/>
                                     </Grid.ColumnDefinitions>
 
@@ -353,6 +356,14 @@
                                     </StackPanel>
 
                                     <TextBlock Grid.Column="5"
+                                               Text="{x:Bind AlbumName}"
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               MaxLines="1"
+                                               TextTrimming="CharacterEllipsis"/>
+
+                                    <TextBlock Grid.Column="6"
                                                Text="{x:Bind DurationFormatted}"
                                                FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"

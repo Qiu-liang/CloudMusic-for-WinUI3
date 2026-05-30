@@ -72,11 +72,24 @@
                 </NavigationViewItem.Icon>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <StackPanel VerticalAlignment="Center" Spacing="1">
-                        <TextBlock x:ConnectionId='9' x:Name="LoginStatusText" 
-                                   Text="未登录"
-                                   Style="{StaticResource BodyStrongTextBlockStyle}"
-                                   FontSize="13"/>
-                        <TextBlock x:ConnectionId='10' x:Name="LoginSubText" 
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock x:ConnectionId='10' x:Name="LoginStatusText" 
+                                       Text="未登录"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                                       FontSize="13"/>
+                            <Border x:ConnectionId='11' x:Name="VipBadge"
+                                    Visibility="Collapsed"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="VIP"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock x:ConnectionId='9' x:Name="LoginSubText" 
                                    Text="点击登录"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
@@ -100,11 +113,10 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- 顶部返回按钮栏 -->
-            <Grid x:ConnectionId='11' Grid.Row="0" 
+            <Grid x:ConnectionId='12' Grid.Row="0" 
                   x:Name="BackBar"
                   Height="48" 
                   Padding="8,0"
@@ -116,7 +128,7 @@
                         <EntranceThemeTransition FromVerticalOffset="-48"/>
                     </TransitionCollection>
                 </Grid.Transitions>
-                <Button x:ConnectionId='43' x:Name="BackButton"
+                <Button x:ConnectionId='44' x:Name="BackButton"
                                                 
                         Padding="8,6"
                         Background="Transparent"
@@ -129,19 +141,21 @@
                 </Button>
             </Grid>
 
-            <Frame x:ConnectionId='12' x:Name="ContentFrame" Grid.Row="1"/>
+            <!-- 内容区域（占满整个空间） -->
+            <Frame x:ConnectionId='13' x:Name="ContentFrame" Grid.Row="1"/>
 
-            <!-- 底部播放控件 -->
-            <Grid x:ConnectionId='13' Grid.Row="2" 
+            <!-- 底部播放控件（覆盖在内容区域上方） -->
+            <Grid x:ConnectionId='14' Grid.Row="1" 
                   x:Name="PlayerBar"
                   Height="72"
-                  Padding="16,0"
-                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                  BorderThickness="0,1,0,0">
+                  Padding="8,0"
+                  VerticalAlignment="Bottom"
+                  Canvas.ZIndex="100">
                 <Grid.Background>
                     <AcrylicBrush TintColor="{ThemeResource CardBackgroundFillColorDefault}"
                                   TintOpacity="0.8"
-                                  FallbackColor="{ThemeResource CardBackgroundFillColorDefault}"/>
+                                  FallbackColor="{ThemeResource CardBackgroundFillColorDefault}"
+                                  AlwaysUseFallback="False"/>
                 </Grid.Background>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1*"/>
@@ -156,24 +170,27 @@
                             VerticalAlignment="Center" 
                             HorizontalAlignment="Left" 
                             Margin="16,0,0,0">
-                    <Border x:ConnectionId='38' x:Name="AlbumCover" 
+                    <Border x:ConnectionId='39' x:Name="AlbumCover" 
                             Width="48" Height="48" 
                             CornerRadius="4"
-                            Background="{ThemeResource ControlFillColorDefaultBrush}">
+                            Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                      
+                                                                      
+                                                                    >
                         <Grid>
-                            <FontIcon x:ConnectionId='41' x:Name="AlbumCoverIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8D6;" FontSize="22"
+                            <FontIcon x:ConnectionId='42' x:Name="AlbumCoverIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8D6;" FontSize="22"
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Image x:ConnectionId='42' x:Name="AlbumImage" Stretch="UniformToFill" Visibility="Collapsed"/>
+                            <Image x:ConnectionId='43' x:Name="AlbumImage" Stretch="UniformToFill" Visibility="Collapsed"/>
                         </Grid>
                     </Border>
                     <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock x:ConnectionId='39' x:Name="SongTitle" 
+                        <TextBlock x:ConnectionId='40' x:Name="SongTitle" 
                                    Text="未播放"
                                    Style="{StaticResource BodyStrongTextBlockStyle}"
                                    FontSize="14"
                                    MaxWidth="160"
                                    TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:ConnectionId='40' x:Name="ArtistName" 
+                        <TextBlock x:ConnectionId='41' x:Name="ArtistName" 
                                    Text=""
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="12"
@@ -191,7 +208,7 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Button x:ConnectionId='31' x:Name="ShuffleButton" 
+                        <Button x:ConnectionId='32' x:Name="ShuffleButton" 
                                                            
                                 Padding="8,6"
                                 Background="Transparent"
@@ -199,7 +216,7 @@
                                 Height="32">
                             <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B1;" FontSize="15"/>
                         </Button>
-                        <Button x:ConnectionId='32' x:Name="PrevButton" 
+                        <Button x:ConnectionId='33' x:Name="PrevButton" 
                                                         
                                 Padding="8,6"
                                 Background="Transparent"
@@ -207,14 +224,14 @@
                                 Height="32">
                             <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE892;" FontSize="15"/>
                         </Button>
-                        <Button x:ConnectionId='33' x:Name="PlayPauseButton" 
+                        <Button x:ConnectionId='34' x:Name="PlayPauseButton" 
                                 Style="{StaticResource AccentButtonStyle}"
                                                              
                                 Width="36" Height="36"
                                 Padding="0">
-                            <FontIcon x:ConnectionId='37' x:Name="PlayPauseIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE768;" FontSize="18"/>
+                            <FontIcon x:ConnectionId='38' x:Name="PlayPauseIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE768;" FontSize="18"/>
                         </Button>
-                        <Button x:ConnectionId='34' x:Name="NextButton" 
+                        <Button x:ConnectionId='35' x:Name="NextButton" 
                                                         
                                 Padding="8,6"
                                 Background="Transparent"
@@ -222,37 +239,51 @@
                                 Height="32">
                             <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE893;" FontSize="15"/>
                         </Button>
-                        <Button x:ConnectionId='35' x:Name="RepeatButton" 
+                        <Button x:ConnectionId='36' x:Name="RepeatButton" 
                                                           
                                 Padding="8,6"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Height="32">
-                            <FontIcon x:ConnectionId='36' x:Name="RepeatIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8EE;" FontSize="15"/>
+                            <FontIcon x:ConnectionId='37' x:Name="RepeatIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8EE;" FontSize="15"/>
                         </Button>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                        <TextBlock x:ConnectionId='28' x:Name="CurrentTime" 
+                    <Grid Grid.Row="1" VerticalAlignment="Center" Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock x:ConnectionId='29' x:Name="CurrentTime" 
+                                   Grid.Column="0"
                                    Text="00:00" 
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
-                                   Width="32"
+                                   Width="36"
                                    TextAlignment="Right"
-                                   VerticalAlignment="Center"/>
-                        <Slider x:ConnectionId='29' x:Name="ProgressSlider" 
-                                Width="180" 
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <Slider x:ConnectionId='30' x:Name="ProgressSlider" 
+                                Grid.Column="1"
+                                MinWidth="150"
                                 Height="24"
                                 Minimum="0" Maximum="100" 
                                                                           
-                                IsThumbToolTipEnabled="False"/>
-                        <TextBlock x:ConnectionId='30' x:Name="TotalTime" 
+                                                                              
+                                                                            
+                                IsThumbToolTipEnabled="False"
+                                VerticalAlignment="Center"/>
+                        <TextBlock x:ConnectionId='31' x:Name="TotalTime" 
+                                   Grid.Column="2"
                                    Text="00:00" 
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
-                                   Width="32"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
+                                   Width="36"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"/>
+                    </Grid>
                 </Grid>
 
                 <!-- 音量控制 -->
@@ -261,44 +292,44 @@
                             Spacing="8" 
                             VerticalAlignment="Center" 
                             HorizontalAlignment="Right" 
-                            Margin="0,0,16,0">
+                            Margin="0,0,8,0">
                     <!-- 音质选择 -->
-                    <DropDownButton x:ConnectionId='14' x:Name="QualityButton"
+                    <DropDownButton x:ConnectionId='15' x:Name="QualityButton"
                                     Padding="8,4"
                                     VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE7F4;" FontSize="14"/>
-                            <TextBlock x:ConnectionId='18' x:Name="QualityText" 
+                            <TextBlock x:ConnectionId='19' x:Name="QualityText" 
                                        Text="标准" 
                                        FontSize="12"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                         <DropDownButton.Flyout>
                             <MenuFlyout Placement="TopEdgeAlignedRight">
-                                <MenuFlyoutItem x:ConnectionId='19' Text="标准"                       Tag="standard"/>
-                                <MenuFlyoutItem x:ConnectionId='20' Text="较高"                       Tag="higher"/>
-                                <MenuFlyoutItem x:ConnectionId='21' Text="极高"                       Tag="exhigh"/>
+                                <MenuFlyoutItem x:ConnectionId='20' Text="标准"                       Tag="standard"/>
+                                <MenuFlyoutItem x:ConnectionId='21' Text="较高"                       Tag="higher"/>
+                                <MenuFlyoutItem x:ConnectionId='22' Text="极高"                       Tag="exhigh"/>
                                 <MenuFlyoutSeparator/>
-                                <MenuFlyoutItem x:ConnectionId='22' Text="无损 (VIP)"                       Tag="lossless"/>
-                                <MenuFlyoutItem x:ConnectionId='23' Text="Hi-Res (VIP)"                       Tag="hires"/>
+                                <MenuFlyoutItem x:ConnectionId='23' Text="无损 (VIP)"                       Tag="lossless"/>
+                                <MenuFlyoutItem x:ConnectionId='24' Text="Hi-Res (VIP)"                       Tag="hires"/>
                                 <MenuFlyoutSeparator/>
-                                <MenuFlyoutItem x:ConnectionId='24' Text="高清臻音 (VIP)"                       Tag="jyeffect"/>
-                                <MenuFlyoutItem x:ConnectionId='25' Text="沉浸环绕声"                       Tag="sky"/>
-                                <MenuFlyoutItem x:ConnectionId='26' Text="杜比全景声"                       Tag="dolby"/>
-                                <MenuFlyoutItem x:ConnectionId='27' Text="超清母带 (VIP)"                       Tag="jymaster"/>
+                                <MenuFlyoutItem x:ConnectionId='25' Text="高清臻音 (VIP)"                       Tag="jyeffect"/>
+                                <MenuFlyoutItem x:ConnectionId='26' Text="沉浸环绕声"                       Tag="sky"/>
+                                <MenuFlyoutItem x:ConnectionId='27' Text="杜比全景声"                       Tag="dolby"/>
+                                <MenuFlyoutItem x:ConnectionId='28' Text="超清母带 (VIP)"                       Tag="jymaster"/>
                             </MenuFlyout>
                         </DropDownButton.Flyout>
                     </DropDownButton>
 
-                    <Button x:ConnectionId='15' x:Name="VolumeButton" 
+                    <Button x:ConnectionId='16' x:Name="VolumeButton" 
                                                       
                             Padding="8,4"
                             Background="Transparent"
                             BorderThickness="0"
                             VerticalAlignment="Center">
-                        <FontIcon x:ConnectionId='17' x:Name="VolumeIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE767;" FontSize="14"/>
+                        <FontIcon x:ConnectionId='18' x:Name="VolumeIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE767;" FontSize="14"/>
                     </Button>
-                    <Slider x:ConnectionId='16' x:Name="VolumeSlider" 
+                    <Slider x:ConnectionId='17' x:Name="VolumeSlider" 
                             Width="90" 
                             VerticalAlignment="Center"
                             Minimum="0" Maximum="100" 

@@ -226,7 +226,7 @@ namespace music.music_XamlTypeInfo
         
         private void InitTypeTables()
         {
-            _typeNameTable = new string[70];
+            _typeNameTable = new string[71];
             _typeNameTable[0] = "Microsoft.UI.Xaml.Controls.XamlControlsResources";
             _typeNameTable[1] = "Microsoft.UI.Xaml.ResourceDictionary";
             _typeNameTable[2] = "Object";
@@ -288,17 +288,18 @@ namespace music.music_XamlTypeInfo
             _typeNameTable[58] = "music.Pages.HomePage";
             _typeNameTable[59] = "music.Pages.LikedPage";
             _typeNameTable[60] = "music.Pages.LocalPage";
-            _typeNameTable[61] = "music.Pages.PlaylistDetailPage";
-            _typeNameTable[62] = "music.Pages.PlaylistPage";
-            _typeNameTable[63] = "music.Pages.RecentPage";
-            _typeNameTable[64] = "music.Pages.RecommendPage";
-            _typeNameTable[65] = "music.Pages.SearchPage";
-            _typeNameTable[66] = "music.Pages.SettingsPage";
-            _typeNameTable[67] = "Microsoft.UI.Xaml.Controls.TreeViewNode";
-            _typeNameTable[68] = "System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>";
-            _typeNameTable[69] = "Int32";
+            _typeNameTable[61] = "music.Pages.LyricsPage";
+            _typeNameTable[62] = "music.Pages.PlaylistDetailPage";
+            _typeNameTable[63] = "music.Pages.PlaylistPage";
+            _typeNameTable[64] = "music.Pages.RecentPage";
+            _typeNameTable[65] = "music.Pages.RecommendPage";
+            _typeNameTable[66] = "music.Pages.SearchPage";
+            _typeNameTable[67] = "music.Pages.SettingsPage";
+            _typeNameTable[68] = "Microsoft.UI.Xaml.Controls.TreeViewNode";
+            _typeNameTable[69] = "System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>";
+            _typeNameTable[70] = "Int32";
 
-            _typeTable = new global::System.Type[70];
+            _typeTable = new global::System.Type[71];
             _typeTable[0] = typeof(global::Microsoft.UI.Xaml.Controls.XamlControlsResources);
             _typeTable[1] = typeof(global::Microsoft.UI.Xaml.ResourceDictionary);
             _typeTable[2] = typeof(global::System.Object);
@@ -360,15 +361,16 @@ namespace music.music_XamlTypeInfo
             _typeTable[58] = typeof(global::music.Pages.HomePage);
             _typeTable[59] = typeof(global::music.Pages.LikedPage);
             _typeTable[60] = typeof(global::music.Pages.LocalPage);
-            _typeTable[61] = typeof(global::music.Pages.PlaylistDetailPage);
-            _typeTable[62] = typeof(global::music.Pages.PlaylistPage);
-            _typeTable[63] = typeof(global::music.Pages.RecentPage);
-            _typeTable[64] = typeof(global::music.Pages.RecommendPage);
-            _typeTable[65] = typeof(global::music.Pages.SearchPage);
-            _typeTable[66] = typeof(global::music.Pages.SettingsPage);
-            _typeTable[67] = typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode);
-            _typeTable[68] = typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>);
-            _typeTable[69] = typeof(global::System.Int32);
+            _typeTable[61] = typeof(global::music.Pages.LyricsPage);
+            _typeTable[62] = typeof(global::music.Pages.PlaylistDetailPage);
+            _typeTable[63] = typeof(global::music.Pages.PlaylistPage);
+            _typeTable[64] = typeof(global::music.Pages.RecentPage);
+            _typeTable[65] = typeof(global::music.Pages.RecommendPage);
+            _typeTable[66] = typeof(global::music.Pages.SearchPage);
+            _typeTable[67] = typeof(global::music.Pages.SettingsPage);
+            _typeTable[68] = typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode);
+            _typeTable[69] = typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>);
+            _typeTable[70] = typeof(global::System.Int32);
         }
 
         private int LookupTypeIndexByName(string typeName)
@@ -426,13 +428,14 @@ namespace music.music_XamlTypeInfo
         private object Activate_58_HomePage() { return new global::music.Pages.HomePage(); }
         private object Activate_59_LikedPage() { return new global::music.Pages.LikedPage(); }
         private object Activate_60_LocalPage() { return new global::music.Pages.LocalPage(); }
-        private object Activate_61_PlaylistDetailPage() { return new global::music.Pages.PlaylistDetailPage(); }
-        private object Activate_62_PlaylistPage() { return new global::music.Pages.PlaylistPage(); }
-        private object Activate_63_RecentPage() { return new global::music.Pages.RecentPage(); }
-        private object Activate_64_RecommendPage() { return new global::music.Pages.RecommendPage(); }
-        private object Activate_65_SearchPage() { return new global::music.Pages.SearchPage(); }
-        private object Activate_66_SettingsPage() { return new global::music.Pages.SettingsPage(); }
-        private object Activate_67_TreeViewNode() { return new global::Microsoft.UI.Xaml.Controls.TreeViewNode(); }
+        private object Activate_61_LyricsPage() { return new global::music.Pages.LyricsPage(); }
+        private object Activate_62_PlaylistDetailPage() { return new global::music.Pages.PlaylistDetailPage(); }
+        private object Activate_63_PlaylistPage() { return new global::music.Pages.PlaylistPage(); }
+        private object Activate_64_RecentPage() { return new global::music.Pages.RecentPage(); }
+        private object Activate_65_RecommendPage() { return new global::music.Pages.RecommendPage(); }
+        private object Activate_66_SearchPage() { return new global::music.Pages.SearchPage(); }
+        private object Activate_67_SettingsPage() { return new global::music.Pages.SettingsPage(); }
+        private object Activate_68_TreeViewNode() { return new global::Microsoft.UI.Xaml.Controls.TreeViewNode(); }
         private void StaticInitializer_0_XamlControlsResources() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::Microsoft.UI.Xaml.Controls.XamlControlsResources).TypeHandle);
         private void StaticInitializer_4_ProgressRing() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::Microsoft.UI.Xaml.Controls.ProgressRing).TypeHandle);
         private void StaticInitializer_7_ProgressRingTemplateSettings() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::Microsoft.UI.Xaml.Controls.ProgressRingTemplateSettings).TypeHandle);
@@ -471,14 +474,15 @@ namespace music.music_XamlTypeInfo
         private void StaticInitializer_58_HomePage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.HomePage).TypeHandle);
         private void StaticInitializer_59_LikedPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.LikedPage).TypeHandle);
         private void StaticInitializer_60_LocalPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.LocalPage).TypeHandle);
-        private void StaticInitializer_61_PlaylistDetailPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.PlaylistDetailPage).TypeHandle);
-        private void StaticInitializer_62_PlaylistPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.PlaylistPage).TypeHandle);
-        private void StaticInitializer_63_RecentPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.RecentPage).TypeHandle);
-        private void StaticInitializer_64_RecommendPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.RecommendPage).TypeHandle);
-        private void StaticInitializer_65_SearchPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.SearchPage).TypeHandle);
-        private void StaticInitializer_66_SettingsPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.SettingsPage).TypeHandle);
-        private void StaticInitializer_67_TreeViewNode() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode).TypeHandle);
-        private void StaticInitializer_68_IList() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>).TypeHandle);
+        private void StaticInitializer_61_LyricsPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.LyricsPage).TypeHandle);
+        private void StaticInitializer_62_PlaylistDetailPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.PlaylistDetailPage).TypeHandle);
+        private void StaticInitializer_63_PlaylistPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.PlaylistPage).TypeHandle);
+        private void StaticInitializer_64_RecentPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.RecentPage).TypeHandle);
+        private void StaticInitializer_65_RecommendPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.RecommendPage).TypeHandle);
+        private void StaticInitializer_66_SearchPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.SearchPage).TypeHandle);
+        private void StaticInitializer_67_SettingsPage() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::music.Pages.SettingsPage).TypeHandle);
+        private void StaticInitializer_68_TreeViewNode() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::Microsoft.UI.Xaml.Controls.TreeViewNode).TypeHandle);
+        private void StaticInitializer_69_IList() => global::System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(global::System.Collections.Generic.IList<global::Microsoft.UI.Xaml.Controls.TreeViewNode>).TypeHandle);
         private void MapAdd_0_XamlControlsResources(object instance, object key, object item)
         {
             var collection = (global::System.Collections.Generic.IDictionary<global::System.Object, global::System.Object>)instance;
@@ -492,7 +496,7 @@ namespace music.music_XamlTypeInfo
             var newItem = (global::System.Object)item;
             collection.Add(newItem);
         }
-        private void VectorAdd_68_IList(object instance, object item)
+        private void VectorAdd_69_IList(object instance, object item)
         {
             var collection = (global::System.Collections.Generic.ICollection<global::Microsoft.UI.Xaml.Controls.TreeViewNode>)instance;
             var newItem = (global::Microsoft.UI.Xaml.Controls.TreeViewNode)item;
@@ -955,58 +959,66 @@ namespace music.music_XamlTypeInfo
                 xamlType = userType;
                 break;
 
-            case 61:   //  music.Pages.PlaylistDetailPage
+            case 61:   //  music.Pages.LyricsPage
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Controls.Page"));
-                userType.Activator = Activate_61_PlaylistDetailPage;
-                userType.StaticInitializer = StaticInitializer_61_PlaylistDetailPage;
+                userType.Activator = Activate_61_LyricsPage;
+                userType.StaticInitializer = StaticInitializer_61_LyricsPage;
                 userType.SetIsLocalType();
                 xamlType = userType;
                 break;
 
-            case 62:   //  music.Pages.PlaylistPage
+            case 62:   //  music.Pages.PlaylistDetailPage
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Controls.Page"));
-                userType.Activator = Activate_62_PlaylistPage;
-                userType.StaticInitializer = StaticInitializer_62_PlaylistPage;
+                userType.Activator = Activate_62_PlaylistDetailPage;
+                userType.StaticInitializer = StaticInitializer_62_PlaylistDetailPage;
                 userType.SetIsLocalType();
                 xamlType = userType;
                 break;
 
-            case 63:   //  music.Pages.RecentPage
+            case 63:   //  music.Pages.PlaylistPage
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Controls.Page"));
-                userType.Activator = Activate_63_RecentPage;
-                userType.StaticInitializer = StaticInitializer_63_RecentPage;
+                userType.Activator = Activate_63_PlaylistPage;
+                userType.StaticInitializer = StaticInitializer_63_PlaylistPage;
                 userType.SetIsLocalType();
                 xamlType = userType;
                 break;
 
-            case 64:   //  music.Pages.RecommendPage
+            case 64:   //  music.Pages.RecentPage
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Controls.Page"));
-                userType.Activator = Activate_64_RecommendPage;
-                userType.StaticInitializer = StaticInitializer_64_RecommendPage;
+                userType.Activator = Activate_64_RecentPage;
+                userType.StaticInitializer = StaticInitializer_64_RecentPage;
                 userType.SetIsLocalType();
                 xamlType = userType;
                 break;
 
-            case 65:   //  music.Pages.SearchPage
+            case 65:   //  music.Pages.RecommendPage
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Controls.Page"));
-                userType.Activator = Activate_65_SearchPage;
-                userType.StaticInitializer = StaticInitializer_65_SearchPage;
+                userType.Activator = Activate_65_RecommendPage;
+                userType.StaticInitializer = StaticInitializer_65_RecommendPage;
                 userType.SetIsLocalType();
                 xamlType = userType;
                 break;
 
-            case 66:   //  music.Pages.SettingsPage
+            case 66:   //  music.Pages.SearchPage
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Controls.Page"));
-                userType.Activator = Activate_66_SettingsPage;
-                userType.StaticInitializer = StaticInitializer_66_SettingsPage;
+                userType.Activator = Activate_66_SearchPage;
+                userType.StaticInitializer = StaticInitializer_66_SearchPage;
                 userType.SetIsLocalType();
                 xamlType = userType;
                 break;
 
-            case 67:   //  Microsoft.UI.Xaml.Controls.TreeViewNode
+            case 67:   //  music.Pages.SettingsPage
+                userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.Controls.Page"));
+                userType.Activator = Activate_67_SettingsPage;
+                userType.StaticInitializer = StaticInitializer_67_SettingsPage;
+                userType.SetIsLocalType();
+                xamlType = userType;
+                break;
+
+            case 68:   //  Microsoft.UI.Xaml.Controls.TreeViewNode
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, GetXamlTypeByName("Microsoft.UI.Xaml.DependencyObject"));
-                userType.Activator = Activate_67_TreeViewNode;
-                userType.StaticInitializer = StaticInitializer_67_TreeViewNode;
+                userType.Activator = Activate_68_TreeViewNode;
+                userType.StaticInitializer = StaticInitializer_68_TreeViewNode;
                 userType.AddMemberName("Children");
                 userType.AddMemberName("Content");
                 userType.AddMemberName("Depth");
@@ -1018,15 +1030,15 @@ namespace music.music_XamlTypeInfo
                 xamlType = userType;
                 break;
 
-            case 68:   //  System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>
+            case 69:   //  System.Collections.Generic.IList`1<Microsoft.UI.Xaml.Controls.TreeViewNode>
                 userType = new global::music.music_XamlTypeInfo.XamlUserType(this, typeName, type, null);
-                userType.StaticInitializer = StaticInitializer_68_IList;
-                userType.CollectionAdd = VectorAdd_68_IList;
+                userType.StaticInitializer = StaticInitializer_69_IList;
+                userType.CollectionAdd = VectorAdd_69_IList;
                 userType.SetIsReturnTypeStub();
                 xamlType = userType;
                 break;
 
-            case 69:   //  Int32
+            case 70:   //  Int32
                 xamlType = new global::music.music_XamlTypeInfo.XamlSystemBaseType(typeName, type);
                 break;
             }

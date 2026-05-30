@@ -178,3 +178,8 @@ D:\code\WinUI\music\music\obj\Debug\net8.0-windows10.0.19041.0\Pages\AllPlaylist
 D:\code\WinUI\music\music\obj\Debug\net8.0-windows10.0.19041.0\Pages\AllPlaylistsPage.xbf
 D:\code\WinUI\music\music\bin\Debug\net8.0-windows10.0.19041.0\resources.pri
 D:\code\WinUI\music\music\obj\Debug\net8.0-windows10.0.19041.0\music.sourcelink.json
+D:\code\WinUI\music\music\obj\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.g.i.cs
+D:\code\WinUI\music\music\obj\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.g.cs
+D:\code\WinUI\music\music\obj\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.xaml
+D:\code\WinUI\music\music\obj\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.xbf
+D:\code\WinUI\music\music\bin\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.xbf

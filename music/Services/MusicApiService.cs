@@ -291,6 +291,41 @@ namespace music.Services
             return null;
         }
 
+        public bool GetVipStatus()
+        {
+            var settings = ApplicationData.Current.LocalSettings;
+            return settings.Values.ContainsKey("IsVip") && (bool)settings.Values["IsVip"];
+        }
+
+        public async Task<bool> CheckVipStatusAsync()
+        {
+            try
+            {
+                var json = await GetAsync("/vip/info");
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                var isVip = false;
+                if (result.TryGetProperty("data", out var data))
+                {
+                    if (data.TryGetProperty("redVipLevel", out var redVipLevel))
+                    {
+                        isVip = redVipLevel.GetInt32() > 0;
+                    }
+                }
+
+                var settings = ApplicationData.Current.LocalSettings;
+                settings.Values["IsVip"] = isVip;
+
+                System.Diagnostics.Debug.WriteLine($"[API] VIP Status: {isVip}");
+                return isVip;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] CheckVipStatus Error: {ex.Message}");
+                return false;
+            }
+        }
+
         public async Task InitializeAsync()
         {
             var settings = ApplicationData.Current.LocalSettings;
@@ -576,6 +611,36 @@ namespace music.Services
             {
                 System.Diagnostics.Debug.WriteLine($"[API] Search Error: {ex.Message}");
                 return new List<Song>();
+            }
+        }
+
+        public async Task<LyricInfo?> GetLyricsAsync(string songId)
+        {
+            try
+            {
+                var json = await GetAsync($"/lyric?id={songId}");
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                var lyricInfo = new LyricInfo();
+
+                if (result.TryGetProperty("lrc", out var lrc) &&
+                    lrc.TryGetProperty("lyric", out var lyric))
+                {
+                    lyricInfo.LrcLyric = lyric.GetString() ?? string.Empty;
+                }
+
+                if (result.TryGetProperty("tlyric", out var tlyric) &&
+                    tlyric.TryGetProperty("lyric", out var tLyric))
+                {
+                    lyricInfo.TranslatedLyric = tLyric.GetString() ?? string.Empty;
+                }
+
+                return lyricInfo;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetLyrics Error: {ex.Message}");
+                return null;
             }
         }
 
@@ -899,6 +964,80 @@ namespace music.Services
             return await GetSongUrlAsync(songId);
         }
 
+        public async Task<List<RecentSong>> GetRecentSongsAsync(int limit = 100)
+        {
+            try
+            {
+                var json = await GetAsync($"/record/recent/song?limit={limit}");
+                System.Diagnostics.Debug.WriteLine($"[API] Recent songs response: {json.Substring(0, Math.Min(500, json.Length))}");
+                
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                var songs = new List<RecentSong>();
+                if (result.TryGetProperty("data", out var data) &&
+                    data.TryGetProperty("list", out var items))
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        try
+                        {
+                            var song = new RecentSong();
+                            
+                            if (item.TryGetProperty("playTime", out var playTime))
+                                song.PlayTime = playTime.GetInt64();
+                            
+                            if (item.TryGetProperty("resourceId", out var resourceId))
+                                song.ResourceId = resourceId.GetString() ?? string.Empty;
+                            
+                            if (item.TryGetProperty("resourceType", out var resourceType))
+                                song.ResourceType = resourceType.GetString() ?? string.Empty;
+                            
+                            // 解析歌曲信息
+                            if (item.TryGetProperty("data", out var songData))
+                            {
+                                song.Id = songData.GetProperty("id").GetInt64().ToString();
+                                song.Name = songData.GetProperty("name").GetString() ?? string.Empty;
+                                
+                                if (songData.TryGetProperty("ar", out var artists))
+                                {
+                                    var artistNames = new List<string>();
+                                    foreach (var artist in artists.EnumerateArray())
+                                    {
+                                        artistNames.Add(artist.GetProperty("name").GetString() ?? string.Empty);
+                                    }
+                                    song.Artist = string.Join(" / ", artistNames);
+                                }
+                                
+                                if (songData.TryGetProperty("al", out var album))
+                                    song.AlbumName = album.GetProperty("name").GetString() ?? string.Empty;
+                                
+                                if (songData.TryGetProperty("dt", out var duration))
+                                    song.Duration = duration.GetInt64();
+                                
+                                // VIP信息
+                                if (songData.TryGetProperty("fee", out var fee))
+                                    song.Fee = fee.GetInt32();
+                            }
+                            
+                            songs.Add(song);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[API] Recent song parse error: {ex.Message}");
+                        }
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[API] Recent songs: {songs.Count}");
+                return songs;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetRecentSongs Error: {ex.Message}");
+                return new List<RecentSong>();
+            }
+        }
+
         public async Task<List<FollowUser>> GetFollowsAsync(long uid, int limit = 30, int offset = 0)
         {
             try
@@ -1127,5 +1266,73 @@ namespace music.Services
         public int FollowCount { get; set; }
         public int FollowedCount { get; set; }
         public int EventCount { get; set; }
+    }
+
+    public class RecentSong
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Artist { get; set; } = string.Empty;
+        public string AlbumName { get; set; } = string.Empty;
+        public long PlayTime { get; set; }
+        public string ResourceId { get; set; } = string.Empty;
+        public string ResourceType { get; set; } = string.Empty;
+        public long Duration { get; set; }
+        public int Fee { get; set; } = 0;
+
+        public string DurationFormatted
+        {
+            get
+            {
+                var seconds = Duration / 1000;
+                var minutes = seconds / 60;
+                seconds = seconds % 60;
+                return $"{minutes:D2}:{seconds:D2}";
+            }
+        }
+
+        public string PlayTimeFormatted
+        {
+            get
+            {
+                var dateTime = DateTimeOffset.FromUnixTimeMilliseconds(PlayTime).LocalDateTime;
+                var now = DateTime.Now;
+                var diff = now - dateTime;
+
+                if (diff.TotalMinutes < 1)
+                    return "刚刚";
+                if (diff.TotalHours < 1)
+                    return $"{(int)diff.TotalMinutes}分钟前";
+                if (diff.TotalDays < 1)
+                    return $"{(int)diff.TotalHours}小时前";
+                if (diff.TotalDays < 7)
+                    return $"{(int)diff.TotalDays}天前";
+                return dateTime.ToString("MM-dd HH:mm");
+            }
+        }
+
+        public string PlatformName
+        {
+            get
+            {
+                return ResourceType switch
+                {
+                    "android" => "手机",
+                    "iphone" => "手机",
+                    "pc" => "PC",
+                    "web" => "PC",
+                    "linux" => "PC",
+                    _ => "手机"
+                };
+            }
+        }
+
+        public bool IsVip => Fee == 1;
+    }
+
+    public class LyricInfo
+    {
+        public string LrcLyric { get; set; } = string.Empty;
+        public string TranslatedLyric { get; set; } = string.Empty;
     }
 }

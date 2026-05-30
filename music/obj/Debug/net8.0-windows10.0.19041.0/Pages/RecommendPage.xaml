@@ -30,7 +30,7 @@
                        FontWeight="Bold"
                        VerticalAlignment="Center"/>
 
-            <Button x:ConnectionId='39' Grid.Column="1"
+            <Button x:ConnectionId='40' Grid.Column="1"
                     x:Name="RefreshButton" 
                                                
                     VerticalAlignment="Center"
@@ -61,12 +61,12 @@
                 <FontIcon Glyph="&#xE783;" FontSize="48" 
                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                           HorizontalAlignment="Center"/>
-                <TextBlock x:ConnectionId='37' x:Name="ErrorText"
+                <TextBlock x:ConnectionId='38' x:Name="ErrorText"
                            Text="加载失败"
                            FontSize="16"
                            HorizontalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                <Button x:ConnectionId='38' Content="重试"                             Padding="16,8"/>
+                <Button x:ConnectionId='39' Content="重试"                             Padding="16,8"/>
             </StackPanel>
         </Grid>
 
@@ -87,7 +87,7 @@
                                    Text="推荐歌单" 
                                    FontSize="22" 
                                    FontWeight="SemiBold"/>
-                        <Button x:ConnectionId='36' Grid.Column="1"
+                        <Button x:ConnectionId='37' Grid.Column="1"
                                 Padding="12,6"
                                 Style="{StaticResource AccentButtonStyle}"
                                                                     >
@@ -99,11 +99,12 @@
                     </Grid>
                     
                     <Grid Margin="24,0,24,0">
-                        <ScrollViewer x:ConnectionId='26' x:Name="PlaylistScroller"
+                        <ScrollViewer x:ConnectionId='27' x:Name="PlaylistScroller"
                                       HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
-                                                                                >
-                            <ItemsControl x:ConnectionId='29' x:Name="PlaylistItems">
+                                                                                
+                                                                                                >
+                            <ItemsControl x:ConnectionId='30' x:Name="PlaylistItems">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <StackPanel Orientation="Horizontal" Spacing="16"/>
@@ -111,7 +112,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate                                >
-                                        <Border x:ConnectionId='31' Width="160" 
+                                        <Border x:ConnectionId='32' Width="160" 
                                                 CornerRadius="12"
                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                 Padding="0,0,0,12"
@@ -119,7 +120,7 @@
                                             <StackPanel Spacing="8">
                                                 <Border Height="160" CornerRadius="12,12,0,0">
                                                     <Grid>
-                                                        <Image x:ConnectionId='34'                          
+                                                        <Image x:ConnectionId='35'                          
                                                                Stretch="UniformToFill"/>
                                                         <Border Background="#40000000" 
                                                                 CornerRadius="12,12,0,0"
@@ -128,19 +129,19 @@
                                                                 MinHeight="28">
                                                             <StackPanel Orientation="Horizontal" Spacing="4">
                                                                 <FontIcon Glyph="&#xE768;" FontSize="10" Foreground="White" VerticalAlignment="Center"/>
-                                                                <TextBlock x:ConnectionId='35'                                    
+                                                                <TextBlock x:ConnectionId='36'                                    
                                                                            FontSize="11" Foreground="White" VerticalAlignment="Center"/>
                                                             </StackPanel>
                                                         </Border>
                                                     </Grid>
                                                 </Border>
                                                 <StackPanel Padding="8,0,8,0" Spacing="2">
-                                                    <TextBlock x:ConnectionId='32'                      
+                                                    <TextBlock x:ConnectionId='33'                      
                                                                FontSize="13"
                                                                FontWeight="SemiBold"
                                                                MaxLines="2"
                                                                TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock x:ConnectionId='33'                                                                            
+                                                    <TextBlock x:ConnectionId='34'                                                                            
                                                                FontSize="11"
                                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                                MaxLines="1"/>
@@ -152,7 +153,7 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Button x:ConnectionId='27' x:Name="PlaylistLeftButton"
+                        <Button x:ConnectionId='28' x:Name="PlaylistLeftButton"
                                                                 
                                 Padding="8,12"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -165,7 +166,7 @@
                             <FontIcon Glyph="&#xE76B;" FontSize="14"/>
                         </Button>
 
-                        <Button x:ConnectionId='28' x:Name="PlaylistRightButton"
+                        <Button x:ConnectionId='29' x:Name="PlaylistRightButton"
                                                                  
                                 Padding="8,12"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -190,7 +191,7 @@
                                    Text="精选歌曲" 
                                    FontSize="22" 
                                    FontWeight="SemiBold"/>
-                        <Button x:ConnectionId='25' Grid.Column="1"
+                        <Button x:ConnectionId='26' Grid.Column="1"
                                 Padding="12,6"
                                 Style="{StaticResource AccentButtonStyle}"
                                                            >
@@ -202,11 +203,12 @@
                     </Grid>
                     
                     <Grid Margin="24,0,24,0">
-                        <ScrollViewer x:ConnectionId='16' x:Name="PersonalizedScroller"
+                        <ScrollViewer x:ConnectionId='17' x:Name="PersonalizedScroller"
                                       HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
-                                                                                    >
-                            <ItemsControl x:ConnectionId='19' x:Name="PersonalizedItems">
+                                                                                    
+                                                                                                    >
+                            <ItemsControl x:ConnectionId='20' x:Name="PersonalizedItems">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <StackPanel Orientation="Horizontal" Spacing="16"/>
@@ -214,23 +216,23 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate                            >
-                                        <Border x:ConnectionId='21' Width="160" 
+                                        <Border x:ConnectionId='22' Width="160" 
                                                 CornerRadius="12"
                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                 Padding="0,0,0,12"
                                                                                                 >
                                             <StackPanel Spacing="8">
                                                 <Border Height="160" CornerRadius="12,12,0,0">
-                                                    <Image x:ConnectionId='24'                            
+                                                    <Image x:ConnectionId='25'                            
                                                            Stretch="UniformToFill"/>
                                                 </Border>
                                                 <StackPanel Padding="8,0,8,0" Spacing="2">
-                                                    <TextBlock x:ConnectionId='22'                      
+                                                    <TextBlock x:ConnectionId='23'                      
                                                                FontSize="13"
                                                                FontWeight="SemiBold"
                                                                MaxLines="1"
                                                                TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock x:ConnectionId='23'                             
+                                                    <TextBlock x:ConnectionId='24'                             
                                                                FontSize="11"
                                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                                MaxLines="1"
@@ -243,7 +245,7 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Button x:ConnectionId='17' x:Name="PersonalizedLeftButton"
+                        <Button x:ConnectionId='18' x:Name="PersonalizedLeftButton"
                                                                     
                                 Padding="8,12"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -256,7 +258,7 @@
                             <FontIcon Glyph="&#xE76B;" FontSize="14"/>
                         </Button>
 
-                        <Button x:ConnectionId='18' x:Name="PersonalizedRightButton"
+                        <Button x:ConnectionId='19' x:Name="PersonalizedRightButton"
                                                                      
                                 Padding="8,12"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -292,6 +294,7 @@
                                         <ColumnDefinition Width="48"/>
                                         <ColumnDefinition Width="12"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="60"/>
                                     </Grid.ColumnDefinitions>
 
@@ -310,7 +313,7 @@
                                             Width="48" Height="48" 
                                             CornerRadius="8"
                                             VerticalAlignment="Center">
-                                        <Image x:ConnectionId='15'                            
+                                        <Image x:ConnectionId='16'                            
                                                Stretch="UniformToFill"/>
                                     </Border>
 
@@ -318,12 +321,12 @@
                                                 VerticalAlignment="Center"
                                                 Margin="0,0,16,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock x:ConnectionId='11'                     
+                                            <TextBlock x:ConnectionId='12'                     
                                                        FontSize="15"
                                                        FontWeight="SemiBold"
                                                        MaxLines="1"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <Border x:ConnectionId='12' x:Name="VipBadge"
+                                            <Border x:ConnectionId='13' x:Name="VipBadge"
                                                                                        
                                                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                                                     CornerRadius="4"
@@ -334,18 +337,18 @@
                                                            FontWeight="Bold"
                                                            Foreground="White"/>
                                             </Border>
-                                            <Border x:ConnectionId='13' x:Name="PaidBadge"
+                                            <Border x:ConnectionId='14' x:Name="PaidBadge"
                                                                                         
                                                     Background="{ThemeResource CardStrokeColorDefaultBrush}"
                                                     CornerRadius="4"
                                                     Padding="6,2"
                                                     VerticalAlignment="Center">
-                                                <TextBlock x:ConnectionId='14'                        
+                                                <TextBlock x:ConnectionId='15'                        
                                                            FontSize="10"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                             </Border>
                                         </StackPanel>
-                                        <TextBlock x:ConnectionId='10'                            
+                                        <TextBlock x:ConnectionId='11'                            
                                                    FontSize="12"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                    MaxLines="1"
@@ -353,6 +356,14 @@
                                     </StackPanel>
 
                                     <TextBlock x:ConnectionId='9' Grid.Column="5"
+                                                                        
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               MaxLines="1"
+                                               TextTrimming="CharacterEllipsis"/>
+
+                                    <TextBlock x:ConnectionId='10' Grid.Column="6"
                                                                                 
                                                FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"

@@ -172,3 +172,8 @@ D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\MultipleQuali
 D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\ProjectArchitectures.txt
 D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\.winmd_cache\$Microsoft.Web.WebView2.Core.winmd_639039823460000000.json
 D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\music.sourcelink.json
+D:\code\WinUI\music\music\bin\x64\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.xbf
+D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.g.i.cs
+D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.g.cs
+D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.xaml
+D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\Pages\LyricsPage.xbf

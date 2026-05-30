@@ -28,7 +28,7 @@
     <AppXManifest Include="D:\code\WinUI\music\music\bin\x64\Debug\net8.0-windows10.0.19041.0\AppxManifest.xml">
       <PackagePath>AppxManifest.xml</PackagePath>
       <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>
-      <Modified>2026-05-29T10:42:19.902</Modified>
+      <Modified>2026-05-30T00:56:07.772</Modified>
     </AppXManifest>
   </ItemGroup>
   <ItemGroup>
@@ -38,11 +38,11 @@
     </AppxPackagedFile>
     <AppxPackagedFile Include="D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\apphost.exe">
       <PackagePath>music.exe</PackagePath>
-      <Modified>2026-05-29T10:42:19.730</Modified>
+      <Modified>2026-05-30T00:56:07.667</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="D:\code\WinUI\music\music\obj\x64\Debug\net8.0-windows10.0.19041.0\music.dll">
       <PackagePath>music.dll</PackagePath>
-      <Modified>2026-05-29T10:42:19.726</Modified>
+      <Modified>2026-05-30T00:56:07.663</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\q1234\.nuget\packages\microsoft.windows.sdk.net.ref\10.0.19041.57\lib\net8.0\Microsoft.Windows.SDK.NET.dll">
       <PackagePath>Microsoft.Windows.SDK.NET.dll</PackagePath>
@@ -302,7 +302,7 @@
     </AppxPackagedFile>
     <AppxPackagedFile Include="D:\code\WinUI\music\music\bin\x64\Debug\net8.0-windows10.0.19041.0\resources.pri">
       <PackagePath>resources.pri</PackagePath>
-      <Modified>2026-05-29T10:42:19.854</Modified>
+      <Modified>2026-05-30T00:56:07.732</Modified>
     </AppxPackagedFile>
   </ItemGroup>
   <ItemGroup>
