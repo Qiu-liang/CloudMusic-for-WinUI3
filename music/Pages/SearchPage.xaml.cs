@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using music.Models;
 using music.Services;
@@ -17,10 +18,30 @@ namespace music.Pages
         private readonly ObservableCollection<AlbumItem> _albums = new();
         private List<Song> _songModels = new();
         private string _currentQuery = string.Empty;
+        private readonly List<Border> _songCardBorders = new();
 
         public SearchPage()
         {
             this.InitializeComponent();
+            this.ActualThemeChanged += SearchPage_ActualThemeChanged;
+        }
+
+        private void SearchPage_ActualThemeChanged(FrameworkElement sender, object args)
+        {
+            RefreshSongCardBackgrounds();
+        }
+
+        private void RefreshSongCardBackgrounds()
+        {
+            foreach (var border in _songCardBorders)
+            {
+                ApplyCardBackground(border);
+            }
+        }
+
+        private void ApplyCardBackground(Border border)
+        {
+            border.Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -46,7 +67,7 @@ namespace music.Pages
             try
             {
                 var artistsTask = App.ApiService.SearchArtistsAsync(keywords, 10);
-                var songsTask = App.ApiService.SearchSongsAsync(keywords, 6);
+                var songsTask = App.ApiService.SearchSongsAsync(keywords, 39);
                 var playlistsTask = App.ApiService.SearchPlaylistsAsync(keywords, 20);
                 var albumsTask = App.ApiService.SearchAlbumsAsync(keywords, 20);
 
@@ -72,15 +93,13 @@ namespace music.Pages
                 ArtistsItems.ItemsSource = _artists;
                 ArtistsSection.Visibility = _artists.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-                // 更新单曲 (3x2 矩阵)
+                // 更新单曲 (每列3首，横向排列)
                 _songModels = songs;
                 _songs.Clear();
-                SongsGrid.Children.Clear();
-                SongsGrid.RowDefinitions.Clear();
-                SongsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                SongsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                SongsContainer.Children.Clear();
+                _songCardBorders.Clear();
 
-                for (int i = 0; i < songs.Count && i < 6; i++)
+                for (int i = 0; i < songs.Count && i < 39; i++)
                 {
                     var song = songs[i];
                     var songItem = new SongItem
@@ -99,14 +118,23 @@ namespace music.Pages
                         FeeText = song.FeeText
                     };
                     _songs.Add(songItem);
+                }
 
-                    var row = i / 3;
-                    var col = i % 3;
-
-                    var card = CreateSongCard(songItem, i);
-                    Grid.SetRow(card, row);
-                    Grid.SetColumn(card, col);
-                    SongsGrid.Children.Add(card);
+                // 每3首歌一组，创建列
+                for (int col = 0; col < (_songs.Count + 2) / 3; col++)
+                {
+                    var column = new StackPanel { Spacing = 8, Width = 300 };
+                    for (int row = 0; row < 3; row++)
+                    {
+                        int index = col * 3 + row;
+                        if (index < _songs.Count)
+                        {
+                            var card = CreateSongCard(_songs[index], index);
+                            _songCardBorders.Add(card);
+                            column.Children.Add(card);
+                        }
+                    }
+                    SongsContainer.Children.Add(column);
                 }
                 SongsSection.Visibility = songs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -168,11 +196,11 @@ namespace music.Pages
             {
                 Width = double.NaN,
                 CornerRadius = new CornerRadius(8),
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
                 Padding = new Thickness(8),
                 Margin = new Thickness(0, 0, 0, 8),
                 Tag = index
             };
+            ApplyCardBackground(border);
             border.PointerPressed += SongCard_PointerPressed;
 
             var grid = new Grid();
@@ -379,6 +407,34 @@ namespace music.Pages
         }
 
         private void ArtistsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+        {
+            var scroller = sender as ScrollViewer;
+            if (scroller != null)
+            {
+                var delta = e.GetCurrentPoint(scroller).Properties.MouseWheelDelta;
+                scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
+                e.Handled = true;
+            }
+        }
+
+        // 相关单曲左右箭头
+        private void SongsLeftButton_Click(object sender, RoutedEventArgs e)
+        {
+            SongsScroller.ChangeView(SongsScroller.HorizontalOffset - 300, null, null);
+        }
+
+        private void SongsRightButton_Click(object sender, RoutedEventArgs e)
+        {
+            SongsScroller.ChangeView(SongsScroller.HorizontalOffset + 300, null, null);
+        }
+
+        private void SongsScroller_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+        {
+            SongsLeftButton.Visibility = SongsScroller.HorizontalOffset > 0 ? Visibility.Visible : Visibility.Collapsed;
+            SongsRightButton.Visibility = SongsScroller.HorizontalOffset < SongsScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void SongsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
             var scroller = sender as ScrollViewer;
             if (scroller != null)

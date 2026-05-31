@@ -172,6 +172,9 @@
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
+            <ListView.Footer>
+                <Grid Height="80"/>
+            </ListView.Footer>
         </ListView>
     </Grid>
 </Page>

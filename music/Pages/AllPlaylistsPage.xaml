@@ -97,6 +97,9 @@
                     </Border>
                 </DataTemplate>
             </GridView.ItemTemplate>
+            <GridView.Footer>
+                <Grid Height="80"/>
+            </GridView.Footer>
         </GridView>
     </Grid>
 </Page>

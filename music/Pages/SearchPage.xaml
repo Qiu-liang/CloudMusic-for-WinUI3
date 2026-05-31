@@ -165,16 +165,39 @@
                             </StackPanel>
                         </Button>
                     </Grid>
-                    <Grid x:Name="SongsGrid" Margin="24,0,24,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:Name="SongsScroller"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      ViewChanged="SongsScroller_ViewChanged"
+                                      PointerWheelChanged="SongsScroller_PointerWheelChanged">
+                            <StackPanel x:Name="SongsContainer" Orientation="Horizontal" Spacing="16"/>
+                        </ScrollViewer>
+
+                        <Button x:Name="SongsLeftButton"
+                                Click="SongsLeftButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
+
+                        <Button x:Name="SongsRightButton"
+                                Click="SongsRightButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
                     </Grid>
                 </StackPanel>
 
@@ -395,6 +418,7 @@
                     </Grid>
                 </StackPanel>
 
+                <Grid Height="80"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>

@@ -285,6 +285,7 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+                <Grid Height="80"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>

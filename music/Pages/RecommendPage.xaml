@@ -373,6 +373,7 @@
                         </ListView.ItemTemplate>
                     </ListView>
                 </StackPanel>
+                <Grid Height="80"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>
