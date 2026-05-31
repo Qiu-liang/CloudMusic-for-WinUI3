@@ -955,5 +955,42 @@ namespace music.Pages
                 }
             }
         }
+
+        // 查看全部按钮点击事件
+        private void ViewAllDailySongsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var mainWindow = App.m_window as MainWindow;
+            if (mainWindow != null)
+            {
+                mainWindow.MainContentFrame.Navigate(typeof(RecommendDailySongsPage), "daily");
+            }
+        }
+
+        private void ViewAllIntelligenceButton_Click(object sender, RoutedEventArgs e)
+        {
+            var mainWindow = App.m_window as MainWindow;
+            if (mainWindow != null)
+            {
+                mainWindow.MainContentFrame.Navigate(typeof(RecommendDailySongsPage), "intelligence");
+            }
+        }
+
+        private void ViewAllRadarButton_Click(object sender, RoutedEventArgs e)
+        {
+            var mainWindow = App.m_window as MainWindow;
+            if (mainWindow != null)
+            {
+                mainWindow.MainContentFrame.Navigate(typeof(RecommendRadarPage));
+            }
+        }
+
+        private void ViewAllGuessButton_Click(object sender, RoutedEventArgs e)
+        {
+            var mainWindow = App.m_window as MainWindow;
+            if (mainWindow != null)
+            {
+                mainWindow.MainContentFrame.Navigate(typeof(RecommendDailySongsPage), "guess");
+            }
+        }
     }
 }

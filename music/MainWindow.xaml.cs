@@ -80,7 +80,9 @@ namespace music
                                currentPage == typeof(Pages.AllPlaylistsPage) ||
                                currentPage == typeof(Pages.SearchPage) ||
                                currentPage == typeof(Pages.SearchAllResultsPage) ||
-                               currentPage == typeof(Pages.SearchAllSongsPage);
+                               currentPage == typeof(Pages.SearchAllSongsPage) ||
+                               currentPage == typeof(Pages.RecommendDailySongsPage) ||
+                               currentPage == typeof(Pages.RecommendRadarPage);
                 
                 if (showBack)
                 {

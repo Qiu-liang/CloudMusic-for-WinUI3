@@ -277,11 +277,21 @@
                     <Grid Margin="24,0,24,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" 
                                    Text="推荐歌曲" 
                                    FontSize="22" 
                                    FontWeight="SemiBold"/>
+                        <Button Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Click="ViewAllDailySongsButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE721;" FontSize="14"/>
+                                <TextBlock Text="查看全部"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="DailySongsScroller"
@@ -324,11 +334,21 @@
                     <Grid Margin="24,0,24,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" 
                                    Text="你的红心歌曲和相似推荐" 
                                    FontSize="22" 
                                    FontWeight="SemiBold"/>
+                        <Button Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Click="ViewAllIntelligenceButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE721;" FontSize="14"/>
+                                <TextBlock Text="查看全部"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="IntelligenceScroller"
@@ -371,11 +391,21 @@
                     <Grid Margin="24,0,24,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" 
                                    Text="你的雷达歌单" 
                                    FontSize="22" 
                                    FontWeight="SemiBold"/>
+                        <Button Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Click="ViewAllRadarButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE721;" FontSize="14"/>
+                                <TextBlock Text="查看全部"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="RadarScroller"
@@ -464,11 +494,21 @@
                     <Grid Margin="24,0,24,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" 
                                    Text="猜你喜欢的歌" 
                                    FontSize="22" 
                                    FontWeight="SemiBold"/>
+                        <Button Grid.Column="1"
+                                Padding="12,6"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Click="ViewAllGuessButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE721;" FontSize="14"/>
+                                <TextBlock Text="查看全部"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="GuessScroller"
