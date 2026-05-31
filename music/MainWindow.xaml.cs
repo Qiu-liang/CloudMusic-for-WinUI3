@@ -105,6 +105,36 @@ namespace music
             }
         }
 
+        private double _paneStartWidth;
+        private double _startX;
+        private bool _isPaneResizing = false;
+
+        private void PaneResizer_PointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            _isPaneResizing = true;
+            _paneStartWidth = NavView.OpenPaneLength;
+            _startX = e.GetCurrentPoint(PaneResizer).Position.X;
+            PaneResizer.CapturePointer(e.Pointer);
+        }
+
+        private void PaneResizer_PointerMoved(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_isPaneResizing) return;
+
+            var currentX = e.GetCurrentPoint(PaneResizer).Position.X;
+            var delta = currentX - _startX;
+            var newWidth = Math.Clamp(_paneStartWidth + delta, 180, 500);
+            NavView.OpenPaneLength = newWidth;
+        }
+
+        private void PaneResizer_PointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_isPaneResizing) return;
+
+            _isPaneResizing = false;
+            PaneResizer.ReleasePointerCapture(e.Pointer);
+        }
+
         private void SetWindowIcon()
         {
             try
