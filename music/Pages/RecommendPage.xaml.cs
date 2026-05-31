@@ -55,8 +55,8 @@ namespace music.Pages
 
             try
             {
-                var playlistsTask = App.ApiService.GetRecommendedPlaylistsAsync(10);
-                var personalizedTask = App.ApiService.GetPersonalizedSongsAsync(10);
+                var playlistsTask = App.ApiService.GetRecommendedPlaylistsAsync(20);
+                var personalizedTask = App.ApiService.GetPersonalizedSongsAsync(20);
                 var dailyTask = App.ApiService.GetDailyRecommendSongsAsync(30);
 
                 await System.Threading.Tasks.Task.WhenAll(playlistsTask, personalizedTask, dailyTask);

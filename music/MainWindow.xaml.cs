@@ -623,5 +623,29 @@ namespace music
                 ContentFrame.Navigate(typeof(Pages.SearchPage), queryText);
             }
         }
+
+        public void RefreshPlayerBarBackground()
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                // 强制刷新播放控件背景，使其跟随主题变化
+                var isDark = PlayerBar.ActualTheme == ElementTheme.Dark;
+                PlayerBar.Background = isDark 
+                    ? new AcrylicBrush
+                    {
+                        TintColor = Windows.UI.Color.FromArgb(255, 32, 32, 32),
+                        TintOpacity = 0.8,
+                        FallbackColor = Windows.UI.Color.FromArgb(255, 32, 32, 32),
+                        AlwaysUseFallback = false
+                    }
+                    : new AcrylicBrush
+                    {
+                        TintColor = Windows.UI.Color.FromArgb(255, 243, 243, 243),
+                        TintOpacity = 0.8,
+                        FallbackColor = Windows.UI.Color.FromArgb(255, 243, 243, 243),
+                        AlwaysUseFallback = false
+                    };
+            });
+        }
     }
 }

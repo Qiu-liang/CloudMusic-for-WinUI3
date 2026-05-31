@@ -1,35 +1,14 @@
 using System;
 using System.Collections.Generic;
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage;
-using Windows.UI;
 
 namespace music.Pages
 {
-    public class ThemeColorItem
-    {
-        public string Name { get; set; } = string.Empty;
-        public string HexColor { get; set; } = string.Empty;
-    }
-
     public sealed partial class SettingsPage : Page
     {
-        private readonly List<ThemeColorItem> _themeColors = new()
-        {
-            new ThemeColorItem { Name = "蓝色", HexColor = "#0078D4" },
-            new ThemeColorItem { Name = "紫色", HexColor = "#8764B8" },
-            new ThemeColorItem { Name = "粉色", HexColor = "#E3008C" },
-            new ThemeColorItem { Name = "红色", HexColor = "#C4314B" },
-            new ThemeColorItem { Name = "橙色", HexColor = "#CA5010" },
-            new ThemeColorItem { Name = "黄色", HexColor = "#986F0B" },
-            new ThemeColorItem { Name = "绿色", HexColor = "#107C10" },
-            new ThemeColorItem { Name = "青色", HexColor = "#038387" },
-        };
-
         public SettingsPage()
         {
             this.InitializeComponent();
@@ -88,7 +67,7 @@ namespace music.Pages
             };
             settings.Values["Theme"] = theme;
 
-            // 应用主题
+            // 应用主题到主窗口内容
             var root = App.m_window?.Content as FrameworkElement;
             if (root != null)
             {
@@ -99,18 +78,48 @@ namespace music.Pages
                     _ => ElementTheme.Default
                 };
             }
+
+            // 更新标题栏颜色
+            UpdateTitleBarColor(theme);
+
+            // 刷新播放控件背景
+            if (App.m_window is MainWindow mainWindow)
+            {
+                mainWindow.RefreshPlayerBarBackground();
+            }
         }
 
-        private void ColorButton_Click(object sender, RoutedEventArgs e)
+        private void UpdateTitleBarColor(string theme)
         {
-            if (sender is Button button && button.Tag is string hexColor)
+            try
             {
-                var settings = ApplicationData.Current.LocalSettings;
-                settings.Values["ThemeColor"] = hexColor;
-
-                // 全局应用主题色
-                App.ApplyThemeColor();
+                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(App.m_window);
+                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
+                var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+                
+                if (appWindow?.TitleBar != null)
+                {
+                    var isDark = theme == "Dark" || 
+                                 (theme == "System" && IsSystemDarkMode());
+                    
+                    var backgroundColor = isDark 
+                        ? Windows.UI.Color.FromArgb(255, 32, 32, 32)  // 深色背景
+                        : Windows.UI.Color.FromArgb(255, 243, 243, 243); // 浅色背景
+                    
+                    appWindow.TitleBar.BackgroundColor = backgroundColor;
+                    appWindow.TitleBar.ButtonBackgroundColor = backgroundColor;
+                }
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateTitleBarColor error: {ex.Message}");
+            }
+        }
+
+        private bool IsSystemDarkMode()
+        {
+            // 默认返回浅色模式
+            return false;
         }
 
         private void SaveServerButton_Click(object sender, RoutedEventArgs e)

@@ -47,8 +47,8 @@ namespace music.Pages
             {
                 var artistsTask = App.ApiService.SearchArtistsAsync(keywords, 10);
                 var songsTask = App.ApiService.SearchSongsAsync(keywords, 6);
-                var playlistsTask = App.ApiService.SearchPlaylistsAsync(keywords, 10);
-                var albumsTask = App.ApiService.SearchAlbumsAsync(keywords, 10);
+                var playlistsTask = App.ApiService.SearchPlaylistsAsync(keywords, 20);
+                var albumsTask = App.ApiService.SearchAlbumsAsync(keywords, 20);
 
                 await System.Threading.Tasks.Task.WhenAll(artistsTask, songsTask, playlistsTask, albumsTask);
 
