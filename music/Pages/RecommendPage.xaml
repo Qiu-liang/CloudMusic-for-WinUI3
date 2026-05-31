@@ -272,106 +272,238 @@
                     </Grid>
                 </StackPanel>
 
-                <!-- 每日推荐歌曲 -->
-                <StackPanel Spacing="12">
-                    <TextBlock Text="每日推荐" 
-                               FontSize="22" 
-                               FontWeight="SemiBold"
-                               Margin="24,0,24,0"/>
-                    
-                    <ListView x:Name="SongsListView"
-                              IsItemClickEnabled="True"
-                              ItemClick="SongsListView_ItemClick"
-                              SelectionMode="None"
-                              Padding="0,0,0,0"
-                              Margin="0,0,0,0">
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="local:SongItem">
-                                <Grid Height="64" Padding="0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1"/>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="48"/>
-                                        <ColumnDefinition Width="12"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="120"/>
-                                        <ColumnDefinition Width="60"/>
-                                    </Grid.ColumnDefinitions>
+                <!-- 推荐歌曲 -->
+                <StackPanel Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="推荐歌曲" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                    </Grid>
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:Name="DailySongsScroller"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      ViewChanged="DailySongsScroller_ViewChanged"
+                                      PointerWheelChanged="DailySongsScroller_PointerWheelChanged">
+                            <StackPanel x:Name="DailySongsContainer" Orientation="Horizontal" Spacing="16"/>
+                        </ScrollViewer>
 
-                                    <!-- 左边距 -->
-                                    <TextBlock Grid.Column="0" Text=""/>
+                        <Button x:Name="DailySongsLeftButton"
+                                Click="DailySongsLeftButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
 
-                                    <TextBlock Grid.Column="1"
-                                               Text="{x:Bind Index}"
-                                               FontSize="14"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               VerticalAlignment="Center"
-                                               TextAlignment="Right"
-                                               Margin="0,0,12,0"/>
+                        <Button x:Name="DailySongsRightButton"
+                                Click="DailySongsRightButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
 
-                                    <Border Grid.Column="2" 
-                                            Width="48" Height="48" 
-                                            CornerRadius="8"
-                                            VerticalAlignment="Center">
-                                        <Image Source="{x:Bind CoverUrl}" 
-                                               Stretch="UniformToFill"/>
-                                    </Border>
+                <!-- 你的红心歌曲和相似推荐 -->
+                <StackPanel x:Name="IntelligenceSection" Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="你的红心歌曲和相似推荐" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                    </Grid>
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:Name="IntelligenceScroller"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      ViewChanged="IntelligenceScroller_ViewChanged"
+                                      PointerWheelChanged="IntelligenceScroller_PointerWheelChanged">
+                            <StackPanel x:Name="IntelligenceContainer" Orientation="Horizontal" Spacing="16"/>
+                        </ScrollViewer>
 
-                                    <StackPanel Grid.Column="4"
-                                                VerticalAlignment="Center"
-                                                Margin="0,0,16,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="{x:Bind Name}"
-                                                       FontSize="15"
-                                                       FontWeight="SemiBold"
-                                                       MaxLines="1"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <Border x:Name="VipBadge"
-                                                    Visibility="{x:Bind VipVisibility}"
-                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                    CornerRadius="4"
-                                                    Padding="6,2"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="VIP"
-                                                           FontSize="10"
-                                                           FontWeight="Bold"
-                                                           Foreground="White"/>
-                                            </Border>
-                                            <Border x:Name="PaidBadge"
-                                                    Visibility="{x:Bind PaidVisibility}"
-                                                    Background="{ThemeResource CardStrokeColorDefaultBrush}"
-                                                    CornerRadius="4"
-                                                    Padding="6,2"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{x:Bind FeeText}"
-                                                           FontSize="10"
-                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock Text="{x:Bind ArtistNames}"
-                                                   FontSize="12"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                   MaxLines="1"
-                                                   TextTrimming="CharacterEllipsis"/>
-                                    </StackPanel>
+                        <Button x:Name="IntelligenceLeftButton"
+                                Click="IntelligenceLeftButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
 
-                                    <TextBlock Grid.Column="5"
-                                               Text="{x:Bind AlbumName}"
-                                               FontSize="12"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               VerticalAlignment="Center"
-                                               MaxLines="1"
-                                               TextTrimming="CharacterEllipsis"/>
+                        <Button x:Name="IntelligenceRightButton"
+                                Click="IntelligenceRightButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
 
-                                    <TextBlock Grid.Column="6"
-                                               Text="{x:Bind DurationFormatted}"
-                                               FontSize="12"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                <!-- 你的雷达歌单 -->
+                <StackPanel x:Name="RadarSection" Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="你的雷达歌单" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                    </Grid>
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:Name="RadarScroller"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      ViewChanged="RadarScroller_ViewChanged"
+                                      PointerWheelChanged="RadarScroller_PointerWheelChanged">
+                            <ItemsControl x:Name="RadarItems">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="16"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:PlaylistItem">
+                                        <Border Width="160" 
+                                                CornerRadius="12"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                Padding="0,0,0,12"
+                                                PointerPressed="RadarItem_PointerPressed">
+                                            <StackPanel Spacing="8">
+                                                <Border Height="160" CornerRadius="12,12,0,0">
+                                                    <Grid>
+                                                        <Image Source="{x:Bind PicUrl}" 
+                                                               Stretch="UniformToFill"/>
+                                                        <Border Background="#40000000" 
+                                                                CornerRadius="12,12,0,0"
+                                                                VerticalAlignment="Bottom"
+                                                                Padding="8,4"
+                                                                MinHeight="28">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <FontIcon Glyph="&#xE768;" FontSize="10" Foreground="White" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{x:Bind PlayCountFormatted}" 
+                                                                           FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+                                                <StackPanel Padding="8,0,8,0" Spacing="2">
+                                                    <TextBlock Text="{x:Bind Name}" 
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               MaxLines="2"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind TrackCount, Converter={StaticResource TrackCountConverter}}" 
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               MaxLines="1"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Button x:Name="RadarLeftButton"
+                                Click="RadarLeftButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
+
+                        <Button x:Name="RadarRightButton"
+                                Click="RadarRightButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+
+                <!-- 猜你喜欢的歌 -->
+                <StackPanel Spacing="16">
+                    <Grid Margin="24,0,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="猜你喜欢的歌" 
+                                   FontSize="22" 
+                                   FontWeight="SemiBold"/>
+                    </Grid>
+                    <Grid Margin="24,0,24,0">
+                        <ScrollViewer x:Name="GuessScroller"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      ViewChanged="GuessScroller_ViewChanged"
+                                      PointerWheelChanged="GuessScroller_PointerWheelChanged">
+                            <StackPanel x:Name="GuessContainer" Orientation="Horizontal" Spacing="16"/>
+                        </ScrollViewer>
+
+                        <Button x:Name="GuessLeftButton"
+                                Click="GuessLeftButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE76B;" FontSize="14"/>
+                        </Button>
+
+                        <Button x:Name="GuessRightButton"
+                                Click="GuessRightButton_Click"
+                                Padding="8,12"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+                            <FontIcon Glyph="&#xE76C;" FontSize="14"/>
+                        </Button>
+                    </Grid>
                 </StackPanel>
                 <Grid Height="80"/>
             </StackPanel>

@@ -987,6 +987,115 @@ namespace music.Services
             }
         }
 
+        // 获取红心歌曲列表
+        public async Task<List<Song>> GetLikedSongsListAsync()
+        {
+            try
+            {
+                if (!IsLoggedIn)
+                {
+                    return new List<Song>();
+                }
+
+                var json = await GetAsync($"/likelist?uid={_userId}");
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                var ids = new List<string>();
+                if (result.TryGetProperty("ids", out var idsArray))
+                {
+                    foreach (var id in idsArray.EnumerateArray())
+                    {
+                        ids.Add(id.GetInt64().ToString());
+                    }
+                }
+
+                if (ids.Count == 0)
+                {
+                    return new List<Song>();
+                }
+
+                // 获取歌曲详情
+                var idsParam = string.Join(",", ids.Take(50));
+                var songsJson = await GetAsync($"/song/detail?ids={idsParam}");
+                var songsResult = JsonSerializer.Deserialize<JsonElement>(songsJson);
+
+                var songs = new List<Song>();
+                if (songsResult.TryGetProperty("songs", out var songsItems))
+                {
+                    foreach (var item in songsItems.EnumerateArray())
+                    {
+                        songs.Add(ParseSongFromJson(item));
+                    }
+                }
+
+                return songs;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetLikedSongsList Error: {ex.Message}");
+                return new List<Song>();
+            }
+        }
+
+        // 每日推荐歌单 - 雷达歌单
+        public async Task<List<RecommendedPlaylist>> GetRecommendResourceAsync()
+        {
+            try
+            {
+                // 如果未登录，使用推荐歌单接口替代
+                if (!IsLoggedIn)
+                {
+                    return await GetRecommendedPlaylistsAsync(10);
+                }
+
+                var json = await GetAsync("/recommend/resource");
+                System.Diagnostics.Debug.WriteLine($"[API] RecommendResource Response: {json}");
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                // 检查是否需要登录
+                if (result.TryGetProperty("code", out var code) && code.GetInt32() == 301)
+                {
+                    // 未登录，使用推荐歌单替代
+                    return await GetRecommendedPlaylistsAsync(10);
+                }
+
+                var playlists = new List<RecommendedPlaylist>();
+                if (result.TryGetProperty("recommend", out var items))
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        // 调试输出每个字段
+                        System.Diagnostics.Debug.WriteLine($"[API] Recommend item: {item}");
+                        
+                        var playCount = 0L;
+                        // 尝试多种可能的字段名
+                        if (item.TryGetProperty("playCount", out var pc))
+                            playCount = pc.GetInt64();
+                        else if (item.TryGetProperty("played", out var played))
+                            playCount = played.GetInt64();
+                        else if (item.TryGetProperty("playcount", out var playcount))
+                            playCount = playcount.GetInt64();
+                        
+                        playlists.Add(new RecommendedPlaylist
+                        {
+                            Id = item.GetProperty("id").GetInt64().ToString(),
+                            Name = item.GetProperty("name").GetString() ?? string.Empty,
+                            PicUrl = item.TryGetProperty("picUrl", out var picUrl) ? picUrl.GetString() ?? string.Empty : string.Empty,
+                            PlayCount = playCount,
+                            TrackCount = item.TryGetProperty("trackCount", out var trackCount) ? trackCount.GetInt32() : 0
+                        });
+                    }
+                }
+
+                return playlists;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetRecommendResource Error: {ex.Message}");
+                return new List<RecommendedPlaylist>();
+            }
+        }
+
         public async Task<List<RecommendedPlaylist>> GetRecommendedPlaylistsAsync(int limit = 10)
         {
             try
@@ -1024,6 +1133,7 @@ namespace music.Services
             try
             {
                 var json = await GetAsync($"/personalized/newsong?limit={limit}");
+                System.Diagnostics.Debug.WriteLine($"[API] PersonalizedSongs Response: {json}");
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
 
                 var songs = new List<Song>();
@@ -1058,12 +1168,24 @@ namespace music.Services
                                     Id = album.GetProperty("id").GetInt64().ToString(),
                                     Name = album.GetProperty("name").GetString() ?? string.Empty
                                 };
+                                // 从 album 获取封面
+                                if (album.TryGetProperty("picUrl", out var albumPicUrl))
+                                {
+                                    song.CoverImgUrl = albumPicUrl.GetString() ?? string.Empty;
+                                }
+                            }
+
+                            // 解析时长 - 字段名是 duration
+                            if (songObj.TryGetProperty("duration", out var duration))
+                            {
+                                song.Duration = duration.GetInt64();
                             }
                         }
 
-                        if (item.TryGetProperty("picUrl", out var picUrl))
+                        // 从外层获取封面（如果 song 对象没有）
+                        if (string.IsNullOrEmpty(song.CoverImgUrl) && item.TryGetProperty("picUrl", out var outerPicUrl))
                         {
-                            song.CoverImgUrl = picUrl.GetString() ?? string.Empty;
+                            song.CoverImgUrl = outerPicUrl.GetString() ?? string.Empty;
                         }
 
                         songs.Add(song);
