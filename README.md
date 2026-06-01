@@ -1,6 +1,6 @@
 # Cloud Music Win易云音乐(bushi)
 
-基于 WinUI 3 的网易云音乐第三方客户端，使用 [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi) 作为后端 API。  
+基于 WinUI 3 的网易云音乐第三方客户端，使用 [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 作为后端 API。  
 项目还在慢慢完善，部分功能暂未添加。
 
 ## 功能特性
