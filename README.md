@@ -58,7 +58,7 @@ dotnet build music/music.csproj -p:Platform=x64
 dotnet run --project music/music.csproj -p:Platform=x64
 ```
 
-也可以在 Visual Studio 2022 中打开 `music.slnx`，选择 x64 平台后按 F5 运行。
+也可以在 Visual Studio  中打开 `music.slnx`，选择 x64 平台后按 F5 运行。
 
 ### 3. 配置 API 地址
 
