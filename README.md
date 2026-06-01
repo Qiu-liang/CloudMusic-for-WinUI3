@@ -36,15 +36,7 @@
 ## 快速开始
 
 ### 1. 启动 API 服务端
-
-```bash
-# 克隆并启动 NeteaseCloudMusicApi
-git clone https://github.com/Binaryify/NeteaseCloudMusicApi.git
-cd NeteaseCloudMusicApi
-node app.js
-```
-
-默认监听地址：`http://localhost:3000`
+请参照[NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)
 
 ### 2. 编译运行
 
