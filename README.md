@@ -23,7 +23,8 @@
 
 ## 截图
 
-<!-- TODO: 添加截图 -->
+<img width="1798" height="1183" alt="57339c9393ba52db6a446c2d03d413af" src="https://github.com/user-attachments/assets/4d5a8426-36a7-41b5-8146-2d4e824365af" />
+
 
 ## 环境要求
 
