@@ -31,7 +31,7 @@
 
 - Windows 10 版本 1809 (10.0.17763.0) 或更高
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi) 服务端（本地或远程部署）
+- [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 服务端（本地或远程部署）
 
 ## 快速开始
 
