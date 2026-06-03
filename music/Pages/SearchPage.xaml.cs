@@ -19,6 +19,9 @@ namespace music.Pages
         private List<Song> _songModels = new();
         private string _currentQuery = string.Empty;
         private readonly List<Border> _songCardBorders = new();
+        private readonly List<TextBlock> _songNameTexts = new();
+        private readonly List<TextBlock> _songArtistTexts = new();
+        private readonly List<TextBlock> _songDurationTexts = new();
 
         public SearchPage()
         {
@@ -33,15 +36,33 @@ namespace music.Pages
 
         private void RefreshSongCardBackgrounds()
         {
-            foreach (var border in _songCardBorders)
+            var isDark = this.ActualTheme == ElementTheme.Dark;
+            var primaryBrush = isDark
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+            var secondaryBrush = isDark
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 153, 153, 153))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102));
+
+            for (int i = 0; i < _songCardBorders.Count; i++)
             {
-                ApplyCardBackground(border);
+                ApplyCardBackground(_songCardBorders[i]);
+                if (i < _songNameTexts.Count) _songNameTexts[i].Foreground = primaryBrush;
+                if (i < _songArtistTexts.Count) _songArtistTexts[i].Foreground = secondaryBrush;
+                if (i < _songDurationTexts.Count) _songDurationTexts[i].Foreground = secondaryBrush;
             }
         }
 
         private void ApplyCardBackground(Border border)
         {
-            border.Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+            if (this.ActualTheme == ElementTheme.Dark)
+            {
+                border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 39, 39, 39));
+            }
+            else
+            {
+                border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 249, 249, 249));
+            }
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -98,6 +119,9 @@ namespace music.Pages
                 _songs.Clear();
                 SongsContainer.Children.Clear();
                 _songCardBorders.Clear();
+                _songNameTexts.Clear();
+                _songArtistTexts.Clear();
+                _songDurationTexts.Clear();
 
                 for (int i = 0; i < songs.Count && i < 39; i++)
                 {
@@ -137,6 +161,7 @@ namespace music.Pages
                     SongsContainer.Children.Add(column);
                 }
                 SongsSection.Visibility = songs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                RefreshSongCardBackgrounds();
 
                 // 更新歌单
                 _playlists.Clear();
@@ -259,6 +284,7 @@ namespace music.Pages
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _songNameTexts.Add(nameText);
             namePanel.Children.Add(nameText);
 
             if (song.IsVip)
@@ -287,10 +313,10 @@ namespace music.Pages
             {
                 Text = song.ArtistNames,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _songArtistTexts.Add(artistText);
             infoPanel.Children.Add(artistText);
 
             Grid.SetColumn(infoPanel, 1);
@@ -301,10 +327,10 @@ namespace music.Pages
             {
                 Text = song.DurationFormatted,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
+            _songDurationTexts.Add(durationText);
             Grid.SetColumn(durationText, 2);
             grid.Children.Add(durationText);
 

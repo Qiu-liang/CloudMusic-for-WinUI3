@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using music.Models;
 using music.Services;
 
@@ -42,6 +43,15 @@ namespace music.Pages
         private readonly List<Border> _dailySongCardBorders = new();
         private readonly List<Border> _intelligenceCardBorders = new();
         private readonly List<Border> _guessCardBorders = new();
+        private readonly List<TextBlock> _dailySongNameTexts = new();
+        private readonly List<TextBlock> _dailySongArtistTexts = new();
+        private readonly List<TextBlock> _dailySongDurationTexts = new();
+        private readonly List<TextBlock> _intelligenceNameTexts = new();
+        private readonly List<TextBlock> _intelligenceArtistTexts = new();
+        private readonly List<TextBlock> _intelligenceDurationTexts = new();
+        private readonly List<TextBlock> _guessNameTexts = new();
+        private readonly List<TextBlock> _guessArtistTexts = new();
+        private readonly List<TextBlock> _guessDurationTexts = new();
 
         public RecommendPage()
         {
@@ -60,13 +70,38 @@ namespace music.Pages
 
         private void RefreshCardBackgrounds()
         {
-            var brush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
-            foreach (var border in _dailySongCardBorders)
-                border.Background = brush;
-            foreach (var border in _intelligenceCardBorders)
-                border.Background = brush;
-            foreach (var border in _guessCardBorders)
-                border.Background = brush;
+            var isDark = this.ActualTheme == ElementTheme.Dark;
+            var cardBrush = isDark
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 39, 39, 39))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 249, 249, 249));
+            var primaryBrush = isDark
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+            var secondaryBrush = isDark
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 153, 153, 153))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102));
+
+            for (int i = 0; i < _dailySongCardBorders.Count; i++)
+            {
+                _dailySongCardBorders[i].Background = cardBrush;
+                if (i < _dailySongNameTexts.Count) _dailySongNameTexts[i].Foreground = primaryBrush;
+                if (i < _dailySongArtistTexts.Count) _dailySongArtistTexts[i].Foreground = secondaryBrush;
+                if (i < _dailySongDurationTexts.Count) _dailySongDurationTexts[i].Foreground = secondaryBrush;
+            }
+            for (int i = 0; i < _intelligenceCardBorders.Count; i++)
+            {
+                _intelligenceCardBorders[i].Background = cardBrush;
+                if (i < _intelligenceNameTexts.Count) _intelligenceNameTexts[i].Foreground = primaryBrush;
+                if (i < _intelligenceArtistTexts.Count) _intelligenceArtistTexts[i].Foreground = secondaryBrush;
+                if (i < _intelligenceDurationTexts.Count) _intelligenceDurationTexts[i].Foreground = secondaryBrush;
+            }
+            for (int i = 0; i < _guessCardBorders.Count; i++)
+            {
+                _guessCardBorders[i].Background = cardBrush;
+                if (i < _guessNameTexts.Count) _guessNameTexts[i].Foreground = primaryBrush;
+                if (i < _guessArtistTexts.Count) _guessArtistTexts[i].Foreground = secondaryBrush;
+                if (i < _guessDurationTexts.Count) _guessDurationTexts[i].Foreground = secondaryBrush;
+            }
         }
 
         private async void RecommendPage_Loaded(object sender, RoutedEventArgs e)
@@ -132,6 +167,9 @@ namespace music.Pages
                 _songs.Clear();
                 DailySongsContainer.Children.Clear();
                 _dailySongCardBorders.Clear();
+                _dailySongNameTexts.Clear();
+                _dailySongArtistTexts.Clear();
+                _dailySongDurationTexts.Clear();
                 
                 if (daily != null)
                 {
@@ -202,6 +240,9 @@ namespace music.Pages
                 _intelligenceSongs.Clear();
                 IntelligenceContainer.Children.Clear();
                 _intelligenceCardBorders.Clear();
+                _intelligenceNameTexts.Clear();
+                _intelligenceArtistTexts.Clear();
+                _intelligenceDurationTexts.Clear();
                 
                 if (isLoggedIn && liked != null && liked.Count > 0)
                 {
@@ -249,6 +290,9 @@ namespace music.Pages
                 _guessSongs.Clear();
                 GuessContainer.Children.Clear();
                 _guessCardBorders.Clear();
+                _guessNameTexts.Clear();
+                _guessArtistTexts.Clear();
+                _guessDurationTexts.Clear();
                 
                 if (guess != null)
                 {
@@ -291,6 +335,7 @@ namespace music.Pages
                     }
                 }
 
+                RefreshCardBackgrounds();
                 ShowContent();
             }
             catch (Exception ex)
@@ -445,7 +490,6 @@ namespace music.Pages
             {
                 Width = double.NaN,
                 CornerRadius = new CornerRadius(8),
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
                 Padding = new Thickness(8),
                 Margin = new Thickness(0, 0, 0, 8),
                 Tag = index
@@ -508,6 +552,7 @@ namespace music.Pages
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _dailySongNameTexts.Add(nameText);
             namePanel.Children.Add(nameText);
 
             if (song.IsVip)
@@ -536,10 +581,10 @@ namespace music.Pages
             {
                 Text = song.ArtistNames,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _dailySongArtistTexts.Add(artistText);
             infoPanel.Children.Add(artistText);
 
             Grid.SetColumn(infoPanel, 1);
@@ -550,10 +595,10 @@ namespace music.Pages
             {
                 Text = song.DurationFormatted,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
+            _dailySongDurationTexts.Add(durationText);
             Grid.SetColumn(durationText, 2);
             grid.Children.Add(durationText);
 
@@ -607,7 +652,6 @@ namespace music.Pages
             {
                 Width = double.NaN,
                 CornerRadius = new CornerRadius(8),
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
                 Padding = new Thickness(8),
                 Margin = new Thickness(0, 0, 0, 8),
                 Tag = index
@@ -667,6 +711,7 @@ namespace music.Pages
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _guessNameTexts.Add(nameText);
             namePanel.Children.Add(nameText);
 
             if (song.IsVip)
@@ -695,10 +740,10 @@ namespace music.Pages
             {
                 Text = song.ArtistNames,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _guessArtistTexts.Add(artistText);
             infoPanel.Children.Add(artistText);
 
             Grid.SetColumn(infoPanel, 1);
@@ -708,10 +753,10 @@ namespace music.Pages
             {
                 Text = song.DurationFormatted,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
+            _guessDurationTexts.Add(durationText);
             Grid.SetColumn(durationText, 2);
             grid.Children.Add(durationText);
 
@@ -833,7 +878,6 @@ namespace music.Pages
             {
                 Width = double.NaN,
                 CornerRadius = new CornerRadius(8),
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
                 Padding = new Thickness(8),
                 Margin = new Thickness(0, 0, 0, 8),
                 Tag = index
@@ -893,6 +937,7 @@ namespace music.Pages
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _intelligenceNameTexts.Add(nameText);
             namePanel.Children.Add(nameText);
 
             if (song.IsVip)
@@ -921,10 +966,10 @@ namespace music.Pages
             {
                 Text = song.ArtistNames,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            _intelligenceArtistTexts.Add(artistText);
             infoPanel.Children.Add(artistText);
 
             Grid.SetColumn(infoPanel, 1);
@@ -934,10 +979,10 @@ namespace music.Pages
             {
                 Text = song.DurationFormatted,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
+            _intelligenceDurationTexts.Add(durationText);
             Grid.SetColumn(durationText, 2);
             grid.Children.Add(durationText);
 
