@@ -33,7 +33,7 @@ namespace music.Services
         public event EventHandler<double>? VolumeChanged;
 
         public bool IsPlaying => _isPlaying;
-        public Song? CurrentSong => _currentIndex >= 0 && _currentIndex < _playlist.Count ? _playlist[_currentIndex] : null;
+        public Song? CurrentSong { get; private set; }
         public List<Song> GetPlaylist() => new List<Song>(_playlist);
         public double Volume
         {
@@ -91,6 +91,7 @@ namespace music.Services
                         _mediaPlayer.Source = source;
                         _mediaPlayer.Play();
                         _isPlaying = true;
+                        CurrentSong = song;
                         CurrentSongChanged?.Invoke(this, song);
                         PlaybackStateChanged?.Invoke(this, true);
                     }
