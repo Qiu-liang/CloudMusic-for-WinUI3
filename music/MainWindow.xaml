@@ -116,6 +116,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- 侧边栏拖拽调整宽度 -->
@@ -124,7 +125,7 @@
                     HorizontalAlignment="Left"
                     VerticalAlignment="Stretch"
                     Background="Transparent"
-                    Grid.RowSpan="2"
+                    Grid.RowSpan="3"
                     Margin="0"
                     PointerPressed="PaneResizer_PointerPressed"
                     PointerMoved="PaneResizer_PointerMoved"
@@ -157,15 +158,103 @@
                 </Button>
             </Grid>
 
-            <!-- 内容区域（占满整个空间） -->
-            <Frame x:Name="ContentFrame" Grid.Row="1"/>
+            <!-- 中间内容区域: 内容 + 播放列表 -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" x:Name="ContentColumn"/>
+                    <ColumnDefinition Width="0" x:Name="PlaylistColumn"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- 底部播放控件（覆盖在内容区域上方） -->
-            <Grid Grid.Row="1" 
+                <!-- 内容区域 -->
+                <Frame x:Name="ContentFrame" Grid.Column="0"/>
+
+                <!-- 播放列表面板 -->
+                <Grid x:Name="PlaylistPanel"
+                      Grid.Column="1"
+                      Width="360"
+                      Background="{ThemeResource SolidBackgroundFillColorBase}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 标题栏 -->
+                    <Grid Grid.Row="0" Padding="16,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" 
+                                   Text="播放列表"
+                                   FontSize="16" 
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1"
+                                   x:Name="PlaylistCountText"
+                                   Text="0首歌曲"
+                                   FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- 歌曲列表 -->
+                    <ScrollViewer Grid.Row="1" 
+                                  x:Name="PlaylistScrollViewer"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ListView x:Name="PlaylistListView"
+                                  SelectionMode="None"
+                                  IsItemClickEnabled="True"
+                                  ItemClick="PlaylistListView_ItemClick">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Grid Padding="12,8" Tag="{Binding}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="40"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" 
+                                                Width="40" Height="40" 
+                                                CornerRadius="4"
+                                                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE8D6;" 
+                                                      FontSize="16"
+                                                      HorizontalAlignment="Center" 
+                                                      VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1" 
+                                                    Margin="12,0,0,0" 
+                                                    VerticalAlignment="Center"
+                                                    Spacing="2">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       MaxLines="1"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+
+            <!-- 底部播放控件（独立行，不受播放列表影响） -->
+            <Grid Grid.Row="2" 
                   x:Name="PlayerBar"
                   Height="72"
                   Padding="8,0"
-                  VerticalAlignment="Bottom"
                   Canvas.ZIndex="100">
                 <Grid.Background>
                     <AcrylicBrush TintColor="{ThemeResource CardBackgroundFillColorDefault}"
@@ -336,6 +425,16 @@
                             </MenuFlyout>
                         </DropDownButton.Flyout>
                     </DropDownButton>
+
+                    <!-- 播放列表按钮 -->
+                    <Button x:Name="PlaylistButton" 
+                            Click="PlaylistButton_Click"
+                            Padding="8,4"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE8F2;" FontSize="14"/>
+                    </Button>
 
                     <Button x:Name="VolumeButton" 
                             Click="VolumeButton_Click"

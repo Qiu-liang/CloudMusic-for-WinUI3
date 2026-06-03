@@ -24,6 +24,7 @@ namespace music
         public static PlaybackService PlaybackService { get; private set; } = null!;
         public Frame MainContentFrame => ContentFrame;
         private bool _isProgressDragging = false;
+        private bool _isPlaylistPanelOpen = false;
 
         public MainWindow()
         {
@@ -648,6 +649,128 @@ namespace music
                         AlwaysUseFallback = false
                     };
             });
+        }
+
+        private void PlaylistButton_Click(object sender, RoutedEventArgs e)
+        {
+            TogglePlaylistPanel();
+        }
+
+        private void TogglePlaylistPanel()
+        {
+            if (_isPlaylistPanelOpen)
+            {
+                HidePlaylistPanel();
+            }
+            else
+            {
+                ShowPlaylistPanel();
+            }
+        }
+
+        private void ShowPlaylistPanel()
+        {
+            _isPlaylistPanelOpen = true;
+            UpdatePlaylistPanel();
+            PlaylistColumn.Width = new GridLength(360);
+            PlaylistPanelSlideIn();
+        }
+
+        private void HidePlaylistPanel()
+        {
+            _isPlaylistPanelOpen = false;
+            PlaylistPanelSlideOut();
+        }
+
+        private void PlaylistPanelSlideIn()
+        {
+            PlaylistPanel.Translation = new System.Numerics.Vector3(360, 0, 0);
+            PlaylistPanel.Opacity = 0;
+
+            double progress = 0;
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(16);
+            timer.Tick += (s, e) =>
+            {
+                progress += 0.06;
+                if (progress >= 1)
+                {
+                    progress = 1;
+                    timer.Stop();
+                }
+                var eased = BackEaseOut(progress);
+                var width = 360 * Math.Min(1, eased);
+                PlaylistColumn.Width = new GridLength(Math.Max(0, width));
+                PlaylistPanel.Translation = new System.Numerics.Vector3((float)Math.Max(0, 360 - width), 0, 0);
+                PlaylistPanel.Opacity = (float)Math.Min(1, progress * 5);
+            };
+            timer.Start();
+        }
+
+        private void PlaylistPanelSlideOut()
+        {
+            double startWidth = PlaylistColumn.Width.Value;
+            double progress = 0;
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(16);
+            timer.Tick += (s, e) =>
+            {
+                progress += 0.08;
+                if (progress >= 1)
+                {
+                    progress = 1;
+                    timer.Stop();
+                    PlaylistColumn.Width = new GridLength(0);
+                }
+                var eased = CubicEaseIn(progress);
+                PlaylistColumn.Width = new GridLength(startWidth * (1 - eased));
+                PlaylistPanel.Translation = new System.Numerics.Vector3((float)(360 * eased), 0, 0);
+                PlaylistPanel.Opacity = (float)(1 - eased);
+            };
+            timer.Start();
+        }
+
+        // 平滑缓出带轻微过冲 - 无晃动
+        private double BackEaseOut(double t)
+        {
+            const double c1 = 1.70158;
+            const double c3 = c1 + 1;
+            return 1 + c3 * Math.Pow(t - 1, 3) + c1 * Math.Pow(t - 1, 2);
+        }
+
+        // 三次缓入
+        private double CubicEaseIn(double t)
+        {
+            return t * t * t;
+        }
+
+        private void UpdatePlaylistPanel()
+        {
+            PlaylistListView.Items.Clear();
+
+            var currentSong = PlaybackService.CurrentSong;
+            var playlist = PlaybackService.GetPlaylist();
+
+            PlaylistCountText.Text = $"{playlist.Count}首歌曲";
+
+            foreach (var song in playlist)
+            {
+                PlaylistListView.Items.Add(song.Name);
+            }
+        }
+
+        private void PlaylistListView_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is string songName)
+            {
+                var playlist = PlaybackService.GetPlaylist();
+                var index = playlist.FindIndex(s => s.Name == songName);
+                if (index >= 0)
+                {
+                    _ = PlaybackService.PlayAsync(playlist, index);
+                }
+                HidePlaylistPanel();
+            }
         }
     }
 }
