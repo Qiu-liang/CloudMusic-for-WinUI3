@@ -386,7 +386,7 @@ namespace music.Pages
                 var mainWindow = App.m_window as MainWindow;
                 if (mainWindow != null)
                 {
-                    mainWindow.MainContentFrame.Navigate(typeof(PlaylistDetailPage), $"artist_{artist.Id}");
+                    mainWindow.MainContentFrame.Navigate(typeof(ArtistDetailPage), artist.Id);
                 }
             }
         }

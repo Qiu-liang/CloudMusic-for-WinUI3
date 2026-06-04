@@ -75,9 +75,10 @@ namespace music
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                // 在歌单详情、全部歌单、搜索页面、搜索结果页面显示返回按钮（歌词页面不显示）
+                // 在歌单详情、歌手详情、全部歌单、搜索页面、搜索结果页面显示返回按钮（歌词页面不显示）
                 var currentPage = ContentFrame.CurrentSourcePageType;
                 var showBack = currentPage == typeof(Pages.PlaylistDetailPage) || 
+                               currentPage == typeof(Pages.ArtistDetailPage) ||
                                currentPage == typeof(Pages.AllPlaylistsPage) ||
                                currentPage == typeof(Pages.SearchPage) ||
                                currentPage == typeof(Pages.SearchAllResultsPage) ||
