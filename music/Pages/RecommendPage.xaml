@@ -295,7 +295,7 @@
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="DailySongsScroller"
-                                      HorizontalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
                                       ViewChanged="DailySongsScroller_ViewChanged"
                                       PointerWheelChanged="DailySongsScroller_PointerWheelChanged">
@@ -352,7 +352,7 @@
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="IntelligenceScroller"
-                                      HorizontalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
                                       ViewChanged="IntelligenceScroller_ViewChanged"
                                       PointerWheelChanged="IntelligenceScroller_PointerWheelChanged">
@@ -512,7 +512,7 @@
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="GuessScroller"
-                                      HorizontalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
                                       ViewChanged="GuessScroller_ViewChanged"
                                       PointerWheelChanged="GuessScroller_PointerWheelChanged">

@@ -167,7 +167,7 @@
                     </Grid>
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="SongsScroller"
-                                      HorizontalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Hidden"
                                       VerticalScrollBarVisibility="Disabled"
                                       ViewChanged="SongsScroller_ViewChanged"
                                       PointerWheelChanged="SongsScroller_PointerWheelChanged">
