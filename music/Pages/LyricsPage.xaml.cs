@@ -62,6 +62,27 @@ namespace music.Pages
             {
                 TotalTimeText.Text = FormatTime(playbackService.GetDuration());
                 PlayPauseIcon.Glyph = playbackService.IsPlaying ? "\uE769" : "\uE768";
+                
+                // 同步随机播放按钮状态
+                ShuffleButton.Opacity = playbackService.IsShuffleEnabled ? 1.0 : 0.5;
+                
+                // 同步循环播放按钮状态
+                var repeatMode = playbackService.GetRepeatMode();
+                switch (repeatMode)
+                {
+                    case RepeatMode.None:
+                        RepeatIcon.Glyph = "\uE8EE";
+                        RepeatButton.Opacity = 0.5;
+                        break;
+                    case RepeatMode.All:
+                        RepeatIcon.Glyph = "\uE8EE";
+                        RepeatButton.Opacity = 1.0;
+                        break;
+                    case RepeatMode.One:
+                        RepeatIcon.Glyph = "\uE8ED";
+                        RepeatButton.Opacity = 1.0;
+                        break;
+                }
             }
         }
 
@@ -315,11 +336,36 @@ namespace music.Pages
                 MainWindow.PlaybackService.Volume = e.NewValue / 100;
         }
 
-        private void ShuffleButton_Click(object sender, RoutedEventArgs e) => MainWindow.PlaybackService?.ToggleShuffle();
+        private void ShuffleButton_Click(object sender, RoutedEventArgs e)
+        {
+            MainWindow.PlaybackService?.ToggleShuffle();
+            ShuffleButton.Opacity = MainWindow.PlaybackService?.IsShuffleEnabled == true ? 1.0 : 0.5;
+        }
+
         private async void PrevButton_Click(object sender, RoutedEventArgs e) { if (MainWindow.PlaybackService != null) await MainWindow.PlaybackService.PreviousAsync(); }
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e) => MainWindow.PlaybackService?.TogglePlayPause();
         private async void NextButton_Click(object sender, RoutedEventArgs e) { if (MainWindow.PlaybackService != null) await MainWindow.PlaybackService.NextAsync(); }
-        private void RepeatButton_Click(object sender, RoutedEventArgs e) => MainWindow.PlaybackService?.ToggleRepeat();
+
+        private void RepeatButton_Click(object sender, RoutedEventArgs e)
+        {
+            MainWindow.PlaybackService?.ToggleRepeat();
+            var mode = MainWindow.PlaybackService?.GetRepeatMode();
+            switch (mode)
+            {
+                case RepeatMode.None:
+                    RepeatIcon.Glyph = "\uE8EE";
+                    RepeatButton.Opacity = 0.5;
+                    break;
+                case RepeatMode.All:
+                    RepeatIcon.Glyph = "\uE8EE";
+                    RepeatButton.Opacity = 1.0;
+                    break;
+                case RepeatMode.One:
+                    RepeatIcon.Glyph = "\uE8ED";
+                    RepeatButton.Opacity = 1.0;
+                    break;
+            }
+        }
     }
 
     public class LyricLine

@@ -1,21 +1,16 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using music.Dialogs;
+using music.Models;
+using music.Services;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Windows.Storage;
-using music.Services;
-using music.Models;
-using music.Dialogs;
 
 namespace music
 {
@@ -40,6 +35,11 @@ namespace music
             UpdateLoginStatus();
             LoadQualitySetting();
 
+            // 初始化随机播放和循环播放按钮状态（默认关闭）
+            ShuffleButton.Opacity = 0.5;
+            RepeatIcon.Glyph = "\uE8EE";
+            RepeatButton.Opacity = 0.5;
+
             // 监听Frame导航事件，更新返回按钮
             ContentFrame.Navigated += ContentFrame_Navigated;
         }
@@ -48,7 +48,7 @@ namespace music
         {
             var settings = ApplicationData.Current.LocalSettings;
             var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-            
+
             var qualityName = quality switch
             {
                 "standard" => "标准",
@@ -62,7 +62,7 @@ namespace music
                 "jymaster" => "超清母带",
                 _ => "标准"
             };
-            
+
             QualityText.Text = qualityName;
         }
 
@@ -77,7 +77,7 @@ namespace music
             {
                 // 在歌单详情、歌手详情、全部歌单、搜索页面、搜索结果页面显示返回按钮（歌词页面不显示）
                 var currentPage = ContentFrame.CurrentSourcePageType;
-                var showBack = currentPage == typeof(Pages.PlaylistDetailPage) || 
+                var showBack = currentPage == typeof(Pages.PlaylistDetailPage) ||
                                currentPage == typeof(Pages.ArtistDetailPage) ||
                                currentPage == typeof(Pages.AllPlaylistsPage) ||
                                currentPage == typeof(Pages.SearchPage) ||
@@ -85,7 +85,7 @@ namespace music
                                currentPage == typeof(Pages.SearchAllSongsPage) ||
                                currentPage == typeof(Pages.RecommendDailySongsPage) ||
                                currentPage == typeof(Pages.RecommendRadarPage);
-                
+
                 if (showBack)
                 {
                     BackBar.Visibility = Visibility.Visible;
@@ -146,7 +146,7 @@ namespace music
                 var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
                 var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-                
+
                 var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
                 if (System.IO.File.Exists(iconPath))
                 {
@@ -223,7 +223,7 @@ namespace music
                     LoginSubText.Text = "已登录";
                     LoginIcon.Symbol = Symbol.Contact;
                     LogoutButton.Visibility = Visibility.Visible;
-                    
+
                     // 检查VIP状态
                     var isVip = App.ApiService.GetVipStatus();
                     VipBadge.Visibility = isVip ? Visibility.Visible : Visibility.Collapsed;
@@ -254,7 +254,7 @@ namespace music
             {
                 // 获取VIP状态
                 var isVip = await App.ApiService.CheckVipStatusAsync();
-                
+
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     LoginStatusText.Text = userInfo.Nickname;
@@ -273,7 +273,7 @@ namespace music
         {
             App.ApiService.ResetLogin();
             UpdateLoginStatus();
-            
+
             // 清除歌单项
             DispatcherQueue.TryEnqueue(() =>
             {
@@ -332,7 +332,7 @@ namespace music
                     };
                     item.Icon = new FontIcon { Glyph = "\uE8B8" };
                     ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
-                    
+
                     NavView.MenuItems.Insert(insertIndex, item);
                     _createdPlaylistItems.Add(item);
                     insertIndex++;
@@ -343,7 +343,7 @@ namespace music
                 {
                     CollectedPlaylistHeader.Visibility = Visibility.Visible;
                     insertIndex = NavView.MenuItems.IndexOf(CollectedPlaylistHeader) + 1;
-                    
+
                     foreach (var playlist in collectedPlaylists)
                     {
                         var item = new NavigationViewItem
@@ -353,7 +353,7 @@ namespace music
                         };
                         item.Icon = new FontIcon { Glyph = "\uE8B8" };
                         ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
-                        
+
                         NavView.MenuItems.Insert(insertIndex, item);
                         _collectedPlaylistItems.Add(item);
                         insertIndex++;
@@ -447,14 +447,14 @@ namespace music
 
         private void ShuffleButton_Click(object sender, RoutedEventArgs e)
         {
-            PlaybackService.ToggleShuffle();
-            ShuffleButton.Opacity = PlaybackService.IsShuffleEnabled ? 1.0 : 0.5;
+            PlaybackService?.ToggleShuffle();
+            ShuffleButton.Opacity = PlaybackService?.IsShuffleEnabled == true ? 1.0 : 0.5;
         }
 
         private void RepeatButton_Click(object sender, RoutedEventArgs e)
         {
-            PlaybackService.ToggleRepeat();
-            var mode = PlaybackService.GetRepeatMode();
+            PlaybackService?.ToggleRepeat();
+            var mode = PlaybackService?.GetRepeatMode();
             switch (mode)
             {
                 case RepeatMode.None:
@@ -594,7 +594,7 @@ namespace music
             {
                 var settings = ApplicationData.Current.LocalSettings;
                 settings.Values["AudioQuality"] = quality;
-                
+
                 var qualityName = quality switch
                 {
                     "standard" => "标准",
@@ -608,7 +608,7 @@ namespace music
                     "jymaster" => "超清母带",
                     _ => "标准"
                 };
-                
+
                 QualityText.Text = qualityName;
                 System.Diagnostics.Debug.WriteLine($"[Settings] Audio quality changed to: {quality}");
             }
@@ -634,7 +634,7 @@ namespace music
             {
                 // 强制刷新播放控件背景，使其跟随主题变化
                 var isDark = PlayerBar.ActualTheme == ElementTheme.Dark;
-                PlayerBar.Background = isDark 
+                PlayerBar.Background = isDark
                     ? new AcrylicBrush
                     {
                         TintColor = Windows.UI.Color.FromArgb(255, 32, 32, 32),
