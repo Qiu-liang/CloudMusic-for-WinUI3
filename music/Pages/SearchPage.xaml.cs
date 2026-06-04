@@ -437,9 +437,13 @@ namespace music.Pages
             var scroller = sender as ScrollViewer;
             if (scroller != null)
             {
-                var delta = e.GetCurrentPoint(scroller).Properties.MouseWheelDelta;
-                scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                e.Handled = true;
+                var properties = e.GetCurrentPoint(scroller).Properties;
+                if (properties.IsHorizontalMouseWheel)
+                {
+                    var delta = properties.MouseWheelDelta;
+                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
+                    e.Handled = true;
+                }
             }
         }
 
@@ -465,9 +469,13 @@ namespace music.Pages
             var scroller = sender as ScrollViewer;
             if (scroller != null)
             {
-                var delta = e.GetCurrentPoint(scroller).Properties.MouseWheelDelta;
-                scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                e.Handled = true;
+                var properties = e.GetCurrentPoint(scroller).Properties;
+                if (properties.IsHorizontalMouseWheel)
+                {
+                    var delta = properties.MouseWheelDelta;
+                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
+                    e.Handled = true;
+                }
             }
         }
 
@@ -493,9 +501,13 @@ namespace music.Pages
             var scroller = sender as ScrollViewer;
             if (scroller != null)
             {
-                var delta = e.GetCurrentPoint(scroller).Properties.MouseWheelDelta;
-                scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                e.Handled = true;
+                var properties = e.GetCurrentPoint(scroller).Properties;
+                if (properties.IsHorizontalMouseWheel)
+                {
+                    var delta = properties.MouseWheelDelta;
+                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
+                    e.Handled = true;
+                }
             }
         }
 
@@ -521,9 +533,13 @@ namespace music.Pages
             var scroller = sender as ScrollViewer;
             if (scroller != null)
             {
-                var delta = e.GetCurrentPoint(scroller).Properties.MouseWheelDelta;
-                scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                e.Handled = true;
+                var properties = e.GetCurrentPoint(scroller).Properties;
+                if (properties.IsHorizontalMouseWheel)
+                {
+                    var delta = properties.MouseWheelDelta;
+                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
+                    e.Handled = true;
+                }
             }
         }
 

@@ -66,7 +66,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="ArtistsScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="ArtistsScroller_ViewChanged"
                                       PointerWheelChanged="ArtistsScroller_PointerWheelChanged">
                             <ItemsControl x:Name="ArtistsItems">
@@ -168,7 +168,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="SongsScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="SongsScroller_ViewChanged"
                                       PointerWheelChanged="SongsScroller_PointerWheelChanged">
                             <StackPanel x:Name="SongsContainer" Orientation="Horizontal" Spacing="16"/>
@@ -226,7 +226,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="PlaylistsScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="PlaylistsScroller_ViewChanged"
                                       PointerWheelChanged="PlaylistsScroller_PointerWheelChanged">
                             <ItemsControl x:Name="PlaylistsItems">
@@ -333,7 +333,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="AlbumsScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="AlbumsScroller_ViewChanged"
                                       PointerWheelChanged="AlbumsScroller_PointerWheelChanged">
                             <ItemsControl x:Name="AlbumsItems">

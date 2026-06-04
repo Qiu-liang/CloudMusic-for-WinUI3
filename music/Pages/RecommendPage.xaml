@@ -101,7 +101,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="PlaylistScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="PlaylistScroller_ViewChanged"
                                       PointerWheelChanged="PlaylistScroller_PointerWheelChanged">
                             <ItemsControl x:Name="PlaylistItems">
@@ -205,7 +205,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="PersonalizedScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="PersonalizedScroller_ViewChanged"
                                       PointerWheelChanged="PersonalizedScroller_PointerWheelChanged">
                             <ItemsControl x:Name="PersonalizedItems">
@@ -296,7 +296,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="DailySongsScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="DailySongsScroller_ViewChanged"
                                       PointerWheelChanged="DailySongsScroller_PointerWheelChanged">
                             <StackPanel x:Name="DailySongsContainer" Orientation="Horizontal" Spacing="16"/>
@@ -353,7 +353,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="IntelligenceScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="IntelligenceScroller_ViewChanged"
                                       PointerWheelChanged="IntelligenceScroller_PointerWheelChanged">
                             <StackPanel x:Name="IntelligenceContainer" Orientation="Horizontal" Spacing="16"/>
@@ -410,7 +410,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="RadarScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="RadarScroller_ViewChanged"
                                       PointerWheelChanged="RadarScroller_PointerWheelChanged">
                             <ItemsControl x:Name="RadarItems">
@@ -513,7 +513,7 @@
                     <Grid Margin="24,0,24,0">
                         <ScrollViewer x:Name="GuessScroller"
                                       HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden"
                                       ViewChanged="GuessScroller_ViewChanged"
                                       PointerWheelChanged="GuessScroller_PointerWheelChanged">
                             <StackPanel x:Name="GuessContainer" Orientation="Horizontal" Spacing="16"/>
