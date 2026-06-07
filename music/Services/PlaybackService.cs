@@ -8,12 +8,7 @@ using music.Models;
 
 namespace music.Services
 {
-    public enum RepeatMode
-    {
-        None,
-        All,
-        One
-    }
+    public enum RepeatMode { None, All, One }
 
     public class PlaybackService
     {
@@ -38,14 +33,7 @@ namespace music.Services
         public double Volume
         {
             get => _mediaPlayer?.Volume ?? 0.8;
-            set
-            {
-                if (_mediaPlayer != null)
-                {
-                    _mediaPlayer.Volume = Math.Clamp(value, 0, 1);
-                    VolumeChanged?.Invoke(this, _mediaPlayer.Volume);
-                }
-            }
+            set { if (_mediaPlayer != null) { _mediaPlayer.Volume = Math.Clamp(value, 0, 1); VolumeChanged?.Invoke(this, _mediaPlayer.Volume); } }
         }
 
         public PlaybackService()
@@ -53,7 +41,6 @@ namespace music.Services
             _mediaPlayer = new MediaPlayer();
             _mediaPlayer.Volume = 0.8;
             _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
-
             _mediaPlayer.PlaybackSession.PlaybackStateChanged += OnPlaybackStateChanged;
             _mediaPlayer.PlaybackSession.PositionChanged += OnPositionChanged;
             _mediaPlayer.MediaEnded += OnMediaEnded;
