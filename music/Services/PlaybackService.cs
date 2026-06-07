@@ -72,23 +72,14 @@ namespace music.Services
 
             try
             {
-                System.Diagnostics.Debug.WriteLine($"[Playback] Getting URL for: {song.Name} (ID: {song.Id})");
                 var url = await App.ApiService.GetSongUrlAsync(song.Id);
-                
-                if (string.IsNullOrEmpty(url))
-                {
-                    System.Diagnostics.Debug.WriteLine($"[Playback] No URL for song: {song.Name}");
-                    return;
-                }
-
-                System.Diagnostics.Debug.WriteLine($"[Playback] Playing: {url}");
+                if (string.IsNullOrEmpty(url)) return;
 
                 _dispatcherQueue.TryEnqueue(() =>
                 {
                     try
                     {
-                        var source = MediaSource.CreateFromUri(new Uri(url));
-                        _mediaPlayer.Source = source;
+                        _mediaPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
                         _mediaPlayer.Play();
                         _isPlaying = true;
                         CurrentSong = song;
@@ -110,12 +101,9 @@ namespace music.Services
         public async Task PlayAsync(List<Song> songs, int index = 0)
         {
             if (songs == null || songs.Count == 0) return;
-            
             SetPlaylist(songs, index);
             if (index >= 0 && index < songs.Count)
-            {
                 await PlayAsync(songs[index]);
-            }
         }
 
         public void Play()
@@ -142,64 +130,32 @@ namespace music.Services
                 _ = PlayAsync(_playlist[Math.Max(0, _currentIndex)]);
                 return;
             }
-
-            if (_isPlaying)
-                Pause();
-            else
-                Play();
+            if (_isPlaying) Pause(); else Play();
         }
 
         public async Task NextAsync()
         {
             if (_playlist.Count == 0) return;
-
-            int nextIndex;
-            if (_isShuffleEnabled)
-            {
-                nextIndex = _random.Next(_playlist.Count);
-            }
-            else
-            {
-                nextIndex = (_currentIndex + 1) % _playlist.Count;
-            }
-
-            _currentIndex = nextIndex;
+            _currentIndex = _isShuffleEnabled ? _random.Next(_playlist.Count) : (_currentIndex + 1) % _playlist.Count;
             await PlayAsync(_playlist[_currentIndex]);
         }
 
         public async Task PreviousAsync()
         {
             if (_playlist.Count == 0) return;
-
-            int prevIndex;
-            if (_isShuffleEnabled)
-            {
-                prevIndex = _random.Next(_playlist.Count);
-            }
-            else
-            {
-                prevIndex = (_currentIndex - 1 + _playlist.Count) % _playlist.Count;
-            }
-
-            _currentIndex = prevIndex;
+            _currentIndex = _isShuffleEnabled ? _random.Next(_playlist.Count) : (_currentIndex - 1 + _playlist.Count) % _playlist.Count;
             await PlayAsync(_playlist[_currentIndex]);
         }
 
-        public void ToggleShuffle()
-        {
-            _isShuffleEnabled = !_isShuffleEnabled;
-        }
+        public void ToggleShuffle() => _isShuffleEnabled = !_isShuffleEnabled;
 
-        public void ToggleRepeat()
+        public void ToggleRepeat() => _repeatMode = _repeatMode switch
         {
-            _repeatMode = _repeatMode switch
-            {
-                RepeatMode.None => RepeatMode.All,
-                RepeatMode.All => RepeatMode.One,
-                RepeatMode.One => RepeatMode.None,
-                _ => RepeatMode.None
-            };
-        }
+            RepeatMode.None => RepeatMode.All,
+            RepeatMode.All => RepeatMode.One,
+            RepeatMode.One => RepeatMode.None,
+            _ => RepeatMode.None
+        };
 
         public RepeatMode GetRepeatMode() => _repeatMode;
         public bool IsShuffleEnabled => _isShuffleEnabled;
@@ -207,20 +163,11 @@ namespace music.Services
         public void Seek(TimeSpan position)
         {
             if (_mediaPlayer?.PlaybackSession != null)
-            {
                 _mediaPlayer.PlaybackSession.Position = position;
-            }
         }
 
-        public TimeSpan GetCurrentPosition()
-        {
-            return _mediaPlayer?.PlaybackSession?.Position ?? TimeSpan.Zero;
-        }
-
-        public TimeSpan GetDuration()
-        {
-            return _mediaPlayer?.PlaybackSession?.NaturalDuration ?? TimeSpan.Zero;
-        }
+        public TimeSpan GetCurrentPosition() => _mediaPlayer?.PlaybackSession?.Position ?? TimeSpan.Zero;
+        public TimeSpan GetDuration() => _mediaPlayer?.PlaybackSession?.NaturalDuration ?? TimeSpan.Zero;
 
         private void OnPlaybackStateChanged(MediaPlaybackSession sender, object args)
         {
@@ -243,45 +190,27 @@ namespace music.Services
 
         private async void OnMediaEnded(MediaPlayer sender, object args)
         {
-            System.Diagnostics.Debug.WriteLine($"[Playback] Media ended, repeat mode: {_repeatMode}");
-            
             switch (_repeatMode)
             {
                 case RepeatMode.One:
-                    if (CurrentSong != null)
-                        await PlayAsync(CurrentSong);
+                    if (CurrentSong != null) await PlayAsync(CurrentSong);
                     break;
                 case RepeatMode.All:
                     await NextAsync();
                     break;
                 case RepeatMode.None:
-                    if (_currentIndex < _playlist.Count - 1)
-                        await NextAsync();
-                    else
-                    {
-                        _isPlaying = false;
-                        _dispatcherQueue.TryEnqueue(() =>
-                        {
-                            PlaybackStateChanged?.Invoke(this, false);
-                        });
-                    }
+                    if (_currentIndex < _playlist.Count - 1) await NextAsync();
+                    else { _isPlaying = false; _dispatcherQueue.TryEnqueue(() => PlaybackStateChanged?.Invoke(this, false)); }
                     break;
             }
         }
 
         private void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
         {
-            System.Diagnostics.Debug.WriteLine($"[Playback] Media failed: {args.Error} - {args.ErrorMessage}");
             _isPlaying = false;
-            _dispatcherQueue.TryEnqueue(() =>
-            {
-                PlaybackStateChanged?.Invoke(this, false);
-            });
+            _dispatcherQueue.TryEnqueue(() => PlaybackStateChanged?.Invoke(this, false));
         }
 
-        public void Dispose()
-        {
-            _mediaPlayer?.Dispose();
-        }
+        public void Dispose() => _mediaPlayer?.Dispose();
     }
 }
