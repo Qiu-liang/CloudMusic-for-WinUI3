@@ -118,6 +118,12 @@ namespace music.Pages
                 CoverImage.Visibility = Visibility.Visible;
             }
 
+            // 私密歌单锁头图标
+            if (info.Privacy == 10)
+            {
+                PrivateOverlay.Visibility = Visibility.Visible;
+            }
+
             // 标题
             InfoTitle.Text = info.Name;
 

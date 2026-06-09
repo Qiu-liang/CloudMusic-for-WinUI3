@@ -96,6 +96,16 @@
                             <Image x:Name="CoverImage"
                                    Stretch="UniformToFill"
                                    Visibility="Collapsed"/>
+                            <Border x:Name="PrivateOverlay"
+                                    Visibility="Collapsed"
+                                    Background="#80000000"
+                                    CornerRadius="12">
+                                <FontIcon Glyph="&#xE72E;"
+                                          FontFamily="Segoe MDL2 Assets"
+                                          FontSize="48"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Foreground="White"/>
+                            </Border>
                         </Grid>
                     </Border>
 

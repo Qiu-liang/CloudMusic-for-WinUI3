@@ -520,7 +520,8 @@ namespace music.Services
                         PlayCount = playlist.TryGetProperty("playCount", out var playCount) ? playCount.GetInt64() : 0,
                         SubscribedCount = playlist.TryGetProperty("subscribedCount", out var subscribedCount) ? subscribedCount.GetInt64() : 0,
                         ShareCount = playlist.TryGetProperty("shareCount", out var shareCount) ? shareCount.GetInt64() : 0,
-                        CommentCount = playlist.TryGetProperty("commentCount", out var commentCount) ? commentCount.GetInt64() : 0
+                        CommentCount = playlist.TryGetProperty("commentCount", out var commentCount) ? commentCount.GetInt64() : 0,
+                        Privacy = playlist.TryGetProperty("privacy", out var privacy) ? privacy.GetInt32() : 0
                     };
 
                     if (playlist.TryGetProperty("creator", out var creator))
@@ -1837,6 +1838,7 @@ namespace music.Services
         public long SubscribedCount { get; set; }
         public long ShareCount { get; set; }
         public long CommentCount { get; set; }
+        public int Privacy { get; set; }
         public List<string> Tags { get; set; } = new();
 
         public string PlayCountFormatted
