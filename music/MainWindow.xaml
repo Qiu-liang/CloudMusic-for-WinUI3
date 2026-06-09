@@ -64,6 +64,12 @@
             </NavigationViewItem>
 
             <NavigationViewItemHeader Content="创建的歌单" x:Name="CreatedPlaylistHeader"/>
+            <NavigationViewItem x:Name="CreatePlaylistItem" Tag="create_playlist" SelectsOnInvoked="False" Tapped="CreatePlaylistItem_Tapped">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE710;" FontSize="12"/>
+                    <TextBlock Text="新建歌单" FontSize="14"/>
+                </StackPanel>
+            </NavigationViewItem>
 
             <NavigationViewItemHeader Content="收藏的歌单" x:Name="CollectedPlaylistHeader" Visibility="Collapsed"/>
         </NavigationView.MenuItems>

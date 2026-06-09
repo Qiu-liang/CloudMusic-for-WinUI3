@@ -438,11 +438,16 @@ namespace music.Services
             }
         }
 
-        public async Task<List<PlaylistInfo>> GetUserPlaylistsAsync(long uid)
+        public async Task<List<PlaylistInfo>> GetUserPlaylistsAsync(long uid, bool bypassCache = false)
         {
             try
             {
-                var json = await GetAsync($"/user/playlist?uid={uid}");
+                var url = $"/user/playlist?uid={uid}";
+                if (bypassCache)
+                {
+                    url += $"&timestamp={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                }
+                var json = await GetAsync(url);
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
 
                 var playlists = new List<PlaylistInfo>();
@@ -456,7 +461,8 @@ namespace music.Services
                             Name = item.GetProperty("name").GetString() ?? string.Empty,
                             CoverImgUrl = item.GetProperty("coverImgUrl").GetString() ?? string.Empty,
                             TrackCount = item.GetProperty("trackCount").GetInt32(),
-                            CreatorName = item.GetProperty("creator").GetProperty("nickname").GetString() ?? string.Empty
+                            CreatorName = item.GetProperty("creator").GetProperty("nickname").GetString() ?? string.Empty,
+                            CreatorId = item.GetProperty("creator").GetProperty("userId").GetInt64()
                         });
                     }
                 }
@@ -1535,6 +1541,33 @@ namespace music.Services
                 return null;
             }
         }
+
+        public async Task<bool> CreatePlaylistAsync(string name)
+        {
+            try
+            {
+                var url = $"/playlist/create?name={Uri.EscapeDataString(name)}";
+                System.Diagnostics.Debug.WriteLine($"[API] CreatePlaylist Request: {_baseUrl}{url}");
+
+                var json = await GetAsync(url);
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                if (result.TryGetProperty("code", out var code) && code.GetInt32() == 200)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[API] CreatePlaylist success");
+                    return true;
+                }
+
+                var message = result.TryGetProperty("message", out var msg) ? msg.GetString() ?? "未知错误" : "未知错误";
+                System.Diagnostics.Debug.WriteLine($"[API] CreatePlaylist failed: {message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] CreatePlaylist Error: {ex.Message}");
+                return false;
+            }
+        }
     }
 
     public class PlaylistInfo
@@ -1544,6 +1577,7 @@ namespace music.Services
         public string CoverImgUrl { get; set; } = string.Empty;
         public int TrackCount { get; set; }
         public string CreatorName { get; set; } = string.Empty;
+        public long CreatorId { get; set; }
     }
 
     public class SearchSuggestion

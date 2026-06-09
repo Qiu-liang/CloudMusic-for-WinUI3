@@ -294,12 +294,12 @@ namespace music
         private List<NavigationViewItem> _createdPlaylistItems = new();
         private List<NavigationViewItem> _collectedPlaylistItems = new();
 
-        private async System.Threading.Tasks.Task LoadPlaylistsAsync()
+        private async System.Threading.Tasks.Task LoadPlaylistsAsync(bool bypassCache = false)
         {
             if (!App.ApiService.IsLoggedIn) return;
 
             var userId = App.ApiService.UserId;
-            var playlists = await App.ApiService.GetUserPlaylistsAsync(userId);
+            var playlists = await App.ApiService.GetUserPlaylistsAsync(userId, bypassCache);
 
             if (playlists == null || playlists.Count == 0) return;
 
@@ -318,11 +318,11 @@ namespace music
                 _collectedPlaylistItems.Clear();
 
                 // 分类歌单：创建的和收藏的
-                var createdPlaylists = playlists.Where(p => p.CreatorName == App.ApiService.GetCachedUserInfo()?.Nickname).ToList();
-                var collectedPlaylists = playlists.Where(p => p.CreatorName != App.ApiService.GetCachedUserInfo()?.Nickname).ToList();
+                var createdPlaylists = playlists.Where(p => p.CreatorId == App.ApiService.UserId).ToList();
+                var collectedPlaylists = playlists.Where(p => p.CreatorId != App.ApiService.UserId).ToList();
 
                 // 添加创建的歌单
-                int insertIndex = NavView.MenuItems.IndexOf(CreatedPlaylistHeader) + 1;
+                int insertIndex = NavView.MenuItems.IndexOf(CreatePlaylistItem) + 1;
                 foreach (var playlist in createdPlaylists)
                 {
                     var item = new NavigationViewItem
@@ -537,7 +537,7 @@ namespace music
             else if (args.SelectedItemContainer != null)
             {
                 var tag = args.SelectedItemContainer.Tag.ToString();
-                if (tag == "login")
+                if (tag == "login" || tag == "create_playlist")
                 {
                     return;
                 }
@@ -771,6 +771,45 @@ namespace music
                     _ = PlaybackService.PlayAsync(playlist, index);
                 }
                 HidePlaylistPanel();
+            }
+        }
+
+        private async void CreatePlaylistItem_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            if (!App.ApiService.IsLoggedIn)
+            {
+                var dialog = new LoginDialog();
+                dialog.XamlRoot = ContentFrame.XamlRoot;
+                await dialog.ShowAsync();
+                return;
+            }
+
+            var inputTextBox = new TextBox
+            {
+                PlaceholderText = "请输入歌单名称",
+                MaxLength = 40,
+                Width = 300
+            };
+
+            var dialog2 = new ContentDialog
+            {
+                Title = "新建歌单",
+                Content = inputTextBox,
+                PrimaryButtonText = "创建",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = ContentFrame.XamlRoot
+            };
+
+            var result = await dialog2.ShowAsync();
+            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(inputTextBox.Text))
+            {
+                var name = inputTextBox.Text.Trim();
+                var success = await App.ApiService.CreatePlaylistAsync(name);
+                if (success)
+                {
+                    await LoadPlaylistsAsync(bypassCache: true);
+                }
             }
         }
     }
