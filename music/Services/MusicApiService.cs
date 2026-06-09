@@ -1568,6 +1568,60 @@ namespace music.Services
                 return false;
             }
         }
+
+        public async Task<bool> DeletePlaylistAsync(string playlistId)
+        {
+            try
+            {
+                var url = $"/playlist/delete?id={playlistId}";
+                System.Diagnostics.Debug.WriteLine($"[API] DeletePlaylist Request: {_baseUrl}{url}");
+
+                var json = await GetAsync(url);
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                if (result.TryGetProperty("code", out var code) && code.GetInt32() == 200)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[API] DeletePlaylist success");
+                    return true;
+                }
+
+                var message = result.TryGetProperty("message", out var msg) ? msg.GetString() ?? "未知错误" : "未知错误";
+                System.Diagnostics.Debug.WriteLine($"[API] DeletePlaylist failed: {message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] DeletePlaylist Error: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> UnsubscribePlaylistAsync(string playlistId)
+        {
+            try
+            {
+                var url = $"/playlist/subscribe?t=2&id={playlistId}";
+                System.Diagnostics.Debug.WriteLine($"[API] UnsubscribePlaylist Request: {_baseUrl}{url}");
+
+                var json = await GetAsync(url);
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                if (result.TryGetProperty("code", out var code) && code.GetInt32() == 200)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[API] UnsubscribePlaylist success");
+                    return true;
+                }
+
+                var message = result.TryGetProperty("message", out var msg) ? msg.GetString() ?? "未知错误" : "未知错误";
+                System.Diagnostics.Debug.WriteLine($"[API] UnsubscribePlaylist failed: {message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] UnsubscribePlaylist Error: {ex.Message}");
+                return false;
+            }
+        }
     }
 
     public class PlaylistInfo

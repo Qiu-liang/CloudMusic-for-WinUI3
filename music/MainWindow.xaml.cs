@@ -333,6 +333,12 @@ namespace music
                     item.Icon = new FontIcon { Glyph = "\uE8B8" };
                     ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
 
+                    var deleteButton = new MenuFlyoutItem { Text = "删除歌单", Tag = playlist.Id };
+                    deleteButton.Click += DeletePlaylist_Click;
+                    var flyout = new MenuFlyout();
+                    flyout.Items.Add(deleteButton);
+                    item.ContextFlyout = flyout;
+
                     NavView.MenuItems.Insert(insertIndex, item);
                     _createdPlaylistItems.Add(item);
                     insertIndex++;
@@ -353,6 +359,12 @@ namespace music
                         };
                         item.Icon = new FontIcon { Glyph = "\uE8B8" };
                         ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
+
+                        var deleteButton = new MenuFlyoutItem { Text = "取消收藏", Tag = playlist.Id };
+                        deleteButton.Click += UnsubscribePlaylist_Click;
+                        var flyout = new MenuFlyout();
+                        flyout.Items.Add(deleteButton);
+                        item.ContextFlyout = flyout;
 
                         NavView.MenuItems.Insert(insertIndex, item);
                         _collectedPlaylistItems.Add(item);
@@ -806,6 +818,44 @@ namespace music
             {
                 var name = inputTextBox.Text.Trim();
                 var success = await App.ApiService.CreatePlaylistAsync(name);
+                if (success)
+                {
+                    await LoadPlaylistsAsync(bypassCache: true);
+                }
+            }
+        }
+
+        private async void DeletePlaylist_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuFlyoutItem button && button.Tag is string playlistId)
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "删除歌单",
+                    Content = "确定要删除这个歌单吗？此操作不可撤销。",
+                    PrimaryButtonText = "删除",
+                    CloseButtonText = "取消",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = ContentFrame.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    var success = await App.ApiService.DeletePlaylistAsync(playlistId);
+                    if (success)
+                    {
+                        await LoadPlaylistsAsync(bypassCache: true);
+                    }
+                }
+            }
+        }
+
+        private async void UnsubscribePlaylist_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuFlyoutItem button && button.Tag is string playlistId)
+            {
+                var success = await App.ApiService.UnsubscribePlaylistAsync(playlistId);
                 if (success)
                 {
                     await LoadPlaylistsAsync(bypassCache: true);
