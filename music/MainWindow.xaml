@@ -179,8 +179,13 @@
                 <!-- 播放列表面板 -->
                 <Grid x:Name="PlaylistPanel"
                       Grid.Column="1"
-                      Width="360"
-                      Background="{ThemeResource SolidBackgroundFillColorBase}">
+                      Width="360">
+                    <Grid.Background>
+                        <AcrylicBrush TintColor="{ThemeResource SolidBackgroundFillColorBase}"
+                                      TintOpacity="0.8"
+                                      FallbackColor="{ThemeResource SolidBackgroundFillColorBase}"
+                                      AlwaysUseFallback="False"/>
+                    </Grid.Background>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -258,16 +263,15 @@
                 </Grid>
             </Grid>
 
-            <!-- 底部播放控件（独立行，不受播放列表影响） -->
+            <!-- 底部播放控件 -->
             <Grid Grid.Row="2" 
                   x:Name="PlayerBar"
                   Height="72"
-                  Padding="8,0"
-                  Canvas.ZIndex="100">
+                  Padding="8,0">
                 <Grid.Background>
-                    <AcrylicBrush TintColor="{ThemeResource CardBackgroundFillColorDefault}"
-                                  TintOpacity="0.8"
-                                  FallbackColor="{ThemeResource CardBackgroundFillColorDefault}"
+                    <AcrylicBrush TintColor="{ThemeResource SolidBackgroundFillColorBase}"
+                                  TintOpacity="0.6"
+                                  FallbackColor="{ThemeResource SolidBackgroundFillColorBase}"
                                   AlwaysUseFallback="False"/>
                 </Grid.Background>
                 <Grid.ColumnDefinitions>
