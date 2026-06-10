@@ -557,6 +557,7 @@ namespace music
                 ClearBackStack();
 
                 switch (tag)
+
                 {
                     case "recommend":
                         ContentFrame.Navigate(typeof(Pages.RecommendPage));
@@ -597,6 +598,18 @@ namespace music
             BackBar.Opacity = 0;
             BackBar.Translation = new System.Numerics.Vector3(0, -48, 0);
             BackBar.Visibility = Visibility.Collapsed;
+        }
+
+        private void NavView_PaneClosing(NavigationView sender, NavigationViewPaneClosingEventArgs args)
+        {
+            CreatePlaylistItem.Visibility = Visibility.Collapsed;
+            CreatedPlaylistHeader.Visibility = Visibility.Collapsed;
+        }
+
+        private void NavView_PaneOpening(NavigationView sender, object args)
+        {
+            CreatePlaylistItem.Visibility = Visibility.Visible;
+            CreatedPlaylistHeader.Visibility = Visibility.Visible;
         }
 
         private void Quality_Click(object sender, RoutedEventArgs e)
