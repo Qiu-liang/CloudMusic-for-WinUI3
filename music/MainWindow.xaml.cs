@@ -208,6 +208,7 @@ namespace music
                     UpdateLoginStatus();
                     await LoadUserInfoAsync();
                     await LoadPlaylistsAsync();
+                    RefreshCurrentPage();
                 }
             };
         }
@@ -288,6 +289,8 @@ namespace music
                 _collectedPlaylistItems.Clear();
                 CollectedPlaylistHeader.Visibility = Visibility.Collapsed;
             });
+
+            RefreshCurrentPage();
         }
 
         private List<NavigationViewItem> _createdPlaylistItems = new();
@@ -598,6 +601,14 @@ namespace music
             BackBar.Opacity = 0;
             BackBar.Translation = new System.Numerics.Vector3(0, -48, 0);
             BackBar.Visibility = Visibility.Collapsed;
+        }
+
+        private void RefreshCurrentPage()
+        {
+            if (ContentFrame.CurrentSourcePageType == typeof(Pages.RecommendPage))
+            {
+                ContentFrame.Navigate(typeof(Pages.RecommendPage));
+            }
         }
 
         private void NavView_PaneClosing(NavigationView sender, NavigationViewPaneClosingEventArgs args)
