@@ -345,6 +345,7 @@ namespace music.Services
             var settings = ApplicationData.Current.LocalSettings;
             settings.Values.Remove("Cookie");
             settings.Values.Remove("UserId");
+            settings.Values.Remove("IsVip");
             _cookie = string.Empty;
             _userId = 0;
             _isInitialized = false;

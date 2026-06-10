@@ -224,9 +224,8 @@ namespace music
                     LoginIcon.Symbol = Symbol.Contact;
                     LogoutButton.Visibility = Visibility.Visible;
 
-                    // 检查VIP状态
-                    var isVip = App.ApiService.GetVipStatus();
-                    VipBadge.Visibility = isVip ? Visibility.Visible : Visibility.Collapsed;
+                    // 先隐藏VIP，等待异步检查后再显示
+                    VipBadge.Visibility = Visibility.Collapsed;
                 }
                 else if (App.ApiService.IsLoggedIn)
                 {
