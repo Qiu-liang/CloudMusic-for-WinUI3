@@ -31,7 +31,7 @@
                   SelectionMode="None"
                   Visibility="Collapsed">
             <ListView.Header>
-                <Grid Height="36" Padding="24,0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <Grid Height="36" Padding="24,0,40,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="40"/>
                         <ColumnDefinition Width="*"/>
