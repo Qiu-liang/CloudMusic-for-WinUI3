@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using music.Models;
@@ -12,6 +13,7 @@ namespace music.Services
     public class MusicApiService
     {
         private readonly HttpClient _httpClient;
+        private readonly SemaphoreSlim _requestSemaphore = new SemaphoreSlim(1, 1);
         private string _baseUrl;
         private string _cookie = string.Empty;
         private long _userId = 0;
@@ -83,6 +85,7 @@ namespace music.Services
 
         public async Task<string> GetAsync(string url)
         {
+            await _requestSemaphore.WaitAsync();
             try
             {
                 // 添加设备ID参数
@@ -115,6 +118,10 @@ namespace music.Services
                 System.Diagnostics.Debug.WriteLine($"[API] Error: {ex.Message}");
                 return "{}";
             }
+            finally
+            {
+                _requestSemaphore.Release();
+            }
         }
 
         private void UpdateCookiesFromResponse(IEnumerable<string> setCookies)
@@ -140,6 +147,7 @@ namespace music.Services
 
         public async Task<string> GetWithoutCookieAsync(string url)
         {
+            await _requestSemaphore.WaitAsync();
             try
             {
                 System.Diagnostics.Debug.WriteLine($"[API] Request (no cookie): {_baseUrl}{url}");
@@ -152,6 +160,10 @@ namespace music.Services
             {
                 System.Diagnostics.Debug.WriteLine($"[API] Error: {ex.Message}");
                 return "{}";
+            }
+            finally
+            {
+                _requestSemaphore.Release();
             }
         }
 

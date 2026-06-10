@@ -87,17 +87,10 @@ namespace music.Pages
 
             try
             {
-                var artistsTask = App.ApiService.SearchArtistsAsync(keywords, 10);
-                var songsTask = App.ApiService.SearchSongsAsync(keywords, 39);
-                var playlistsTask = App.ApiService.SearchPlaylistsAsync(keywords, 20);
-                var albumsTask = App.ApiService.SearchAlbumsAsync(keywords, 20);
-
-                await System.Threading.Tasks.Task.WhenAll(artistsTask, songsTask, playlistsTask, albumsTask);
-
-                var artists = artistsTask.Result;
-                var songs = songsTask.Result;
-                var playlists = playlistsTask.Result;
-                var albums = albumsTask.Result;
+                var artists = await App.ApiService.SearchArtistsAsync(keywords, 10);
+                var songs = await App.ApiService.SearchSongsAsync(keywords, 39);
+                var playlists = await App.ApiService.SearchPlaylistsAsync(keywords, 20);
+                var albums = await App.ApiService.SearchAlbumsAsync(keywords, 20);
 
                 // 更新歌手
                 _artists.Clear();

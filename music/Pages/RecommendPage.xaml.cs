@@ -115,21 +115,12 @@ namespace music.Pages
 
             try
             {
-                var playlistsTask = App.ApiService.GetRecommendedPlaylistsAsync(20);
-                var personalizedTask = App.ApiService.GetPersonalizedSongsAsync(20);
-                var dailyTask = App.ApiService.GetDailyRecommendSongsAsync(38);
-                var radarTask = App.ApiService.GetRecommendResourceAsync();
-                var guessTask = App.ApiService.GetPersonalizedSongsAsync(38);
-                var likedTask = App.ApiService.GetLikedSongsListAsync();
-
-                await System.Threading.Tasks.Task.WhenAll(playlistsTask, personalizedTask, dailyTask, radarTask, guessTask, likedTask);
-
-                var playlists = playlistsTask.Result;
-                var personalized = personalizedTask.Result;
-                var daily = dailyTask.Result;
-                var radar = radarTask.Result;
-                var guess = guessTask.Result;
-                var liked = likedTask.Result;
+                var playlists = await App.ApiService.GetRecommendedPlaylistsAsync(20);
+                var personalized = await App.ApiService.GetPersonalizedSongsAsync(20);
+                var daily = await App.ApiService.GetDailyRecommendSongsAsync(38);
+                var radar = await App.ApiService.GetRecommendResourceAsync();
+                var guess = await App.ApiService.GetPersonalizedSongsAsync(38);
+                var liked = await App.ApiService.GetLikedSongsListAsync();
 
                 _playlists.Clear();
                 foreach (var playlist in playlists)
