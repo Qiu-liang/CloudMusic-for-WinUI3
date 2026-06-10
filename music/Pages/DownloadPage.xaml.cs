@@ -132,11 +132,6 @@ namespace music.Pages
             SongsListView.Visibility = Visibility.Visible;
         }
 
-        private void DownloadButton_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO: 打开下载对话框
-        }
-
         private async void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
         {
             if (e.ClickedItem is DownloadedSongItem song)

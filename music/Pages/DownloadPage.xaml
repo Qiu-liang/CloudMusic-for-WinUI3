@@ -15,28 +15,11 @@
 
         <!-- 顶部操作栏 -->
         <Grid Margin="24,8,24,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Grid.Column="0"
-                       x:Name="CountText"
+            <TextBlock x:Name="CountText"
                        Text="共 0 首"
                        Style="{StaticResource BodyTextBlockStyle}"
                        VerticalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-
-            <Button Grid.Column="1"
-                    x:Name="DownloadButton"
-                    Click="DownloadButton_Click"
-                    Padding="12,6"
-                    Style="{StaticResource AccentButtonStyle}">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xE896;" FontSize="14"/>
-                    <TextBlock Text="下载歌曲"/>
-                </StackPanel>
-            </Button>
         </Grid>
 
         <!-- 加载中 -->
@@ -60,10 +43,6 @@
                 <TextBlock Text="还没有下载的歌曲"
                            Style="{StaticResource SubtitleTextBlockStyle}"
                            HorizontalAlignment="Center"/>
-                <TextBlock Text="点击上方按钮下载歌曲"
-                           Style="{StaticResource BodyTextBlockStyle}"
-                           HorizontalAlignment="Center"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
         </Grid>
 
