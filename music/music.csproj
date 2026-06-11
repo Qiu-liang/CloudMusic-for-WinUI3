@@ -12,6 +12,7 @@
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+    <NoWarn>IL2026;IL2059</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -17,3 +17,4 @@ music/*.user
 
 # Ignore generated XBF/XAML build outputs
 **/Pages/*.xbf
+/输出信息.txt
