@@ -122,7 +122,6 @@
 
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -133,21 +132,22 @@
                     HorizontalAlignment="Left"
                     VerticalAlignment="Stretch"
                     Background="Transparent"
-                    Grid.RowSpan="3"
+                    Grid.RowSpan="2"
                     Margin="0"
                     PointerPressed="PaneResizer_PointerPressed"
                     PointerMoved="PaneResizer_PointerMoved"
                     PointerReleased="PaneResizer_PointerReleased">
             </Border>
 
-            <!-- 顶部返回按钮栏 -->
+            <!-- 顶部返回按钮栏 (悬浮在内容之上) -->
             <Grid Grid.Row="0" 
                   x:Name="BackBar"
                   Height="48" 
                   Padding="8,0"
                   Visibility="Collapsed"
                   Opacity="0"
-                  Translation="0,-48,0">
+                  Translation="0,-48,0"
+                  IsHitTestVisible="False">
                 <Grid.Transitions>
                     <TransitionCollection>
                         <EntranceThemeTransition FromVerticalOffset="-48"/>
@@ -158,7 +158,8 @@
                         Padding="8,6"
                         Background="Transparent"
                         BorderThickness="0"
-                        VerticalAlignment="Center">
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="True">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE72B;" FontSize="16"/>
                         <TextBlock Text="返回" FontSize="14" VerticalAlignment="Center"/>
@@ -166,15 +167,15 @@
                 </Button>
             </Grid>
 
-            <!-- 中间内容区域: 内容 + 播放列表 -->
-            <Grid Grid.Row="1">
+            <!-- 中间内容区域: 内容 + 播放列表 (占满整个窗口高度) -->
+            <Grid Grid.RowSpan="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" x:Name="ContentColumn"/>
                     <ColumnDefinition Width="0" x:Name="PlaylistColumn"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- 内容区域 -->
-                <Frame x:Name="ContentFrame" Grid.Column="0"/>
+                <Frame x:Name="ContentFrame" Grid.Column="0" Background="Transparent"/>
 
                 <!-- 播放列表面板 -->
                 <Grid x:Name="PlaylistPanel"
@@ -263,8 +264,8 @@
                 </Grid>
             </Grid>
 
-            <!-- 底部播放控件 -->
-            <Grid Grid.Row="2" 
+            <!-- 底部播放控件 (悬浮在内容之上) -->
+            <Grid Grid.Row="1" 
                   x:Name="PlayerBar"
                   Height="72"
                   Padding="8,0">
