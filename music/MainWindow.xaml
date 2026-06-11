@@ -267,7 +267,7 @@
             <!-- 底部播放控件 (悬浮在内容之上) -->
             <Grid Grid.Row="1" 
                   x:Name="PlayerBar"
-                  Height="72"
+                  Height="88"
                   Padding="8,0">
                 <Grid.Background>
                     <AcrylicBrush TintColor="{ThemeResource SolidBackgroundFillColorBase}"
