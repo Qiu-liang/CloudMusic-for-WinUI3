@@ -24,6 +24,16 @@ namespace music
         public MainWindow()
         {
             InitializeComponent();
+
+            // 设置窗口默认大小
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 1460, Height = 1064 });
+
+            // 通过SizeChanged事件强制最小尺寸
+            this.SizeChanged += MainWindow_SizeChanged;
+
             NavView.SelectedItem = NavView.MenuItems[0];
 
             // 设置窗口图标
@@ -156,6 +166,25 @@ namespace music
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Set icon error: {ex.Message}");
+            }
+        }
+
+        private void MainWindow_SizeChanged(object sender, Microsoft.UI.Xaml.WindowSizeChangedEventArgs e)
+        {
+            const int minWidth = 800;
+            const int minHeight = 700;
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+
+            if (appWindow.Size.Width < minWidth || appWindow.Size.Height < minHeight)
+            {
+                var newSize = new Windows.Graphics.SizeInt32
+                {
+                    Width = Math.Max(appWindow.Size.Width, minWidth),
+                    Height = Math.Max(appWindow.Size.Height, minHeight)
+                };
+                appWindow.Resize(newSize);
             }
         }
 
