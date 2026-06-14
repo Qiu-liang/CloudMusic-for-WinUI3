@@ -41,8 +41,6 @@
 - **音乐云盘** — 上传、播放、删除云盘歌曲
 
 ### 社交与互动
-- **关注/粉丝** — 查看关注列表和粉丝列表
-- **关注用户** — 关注/取消关注其他用户
 - **收藏歌曲** — 喜欢/取消喜欢歌曲
 - **收藏歌单** — 收藏/取消收藏歌单
 
@@ -117,7 +115,6 @@ CloudMusic-for-WinUI3/
     │   ├── RecommendDailySongsPage  # 每日推荐完整列表
     │   ├── RecommendRadarPage       # 雷达歌单
     │   ├── AllPlaylistsPage         # 全部推荐歌单
-    │   ├── FollowPage               # 关注/粉丝列表
     │   ├── LikedPage                # 喜欢的歌曲
     │   ├── RecentPage               # 最近播放
     │   ├── DownloadedPage           # 下载管理（容器）
