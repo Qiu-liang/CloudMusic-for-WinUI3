@@ -69,13 +69,14 @@
         </StackPanel>
 
         <!-- 二维码登录 -->
-        <StackPanel x:Name="QRLoginPanel" Spacing="12" Visibility="Collapsed" HorizontalAlignment="Center">
+        <StackPanel x:Name="QRLoginPanel" Spacing="8" Visibility="Collapsed" HorizontalAlignment="Center">
             <Border Width="200" Height="200" 
                     Background="{ThemeResource ControlFillColorDefaultBrush}"
-                    CornerRadius="8">
+                    CornerRadius="8"
+                    HorizontalAlignment="Center">
                 <Image x:Name="QRCodeImage" Stretch="Uniform"/>
             </Border>
-            <ProgressRing x:Name="QRLoadingRing" IsActive="False" Width="40" Height="40"/>
+            <ProgressRing x:Name="QRLoadingRing" IsActive="False" Width="40" Height="40" HorizontalAlignment="Center"/>
             <TextBlock x:Name="QRStatusText"
                        Text="请使用网易云音乐APP扫码登录"
                        Style="{StaticResource CaptionTextBlockStyle}"
