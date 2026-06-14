@@ -565,9 +565,6 @@ namespace music
                     case "recommend":
                         ContentFrame.Navigate(typeof(Pages.RecommendPage));
                         break;
-                    case "follow":
-                        ContentFrame.Navigate(typeof(Pages.FollowPage));
-                        break;
                     case "liked":
                         ContentFrame.Navigate(typeof(Pages.LikedPage));
                         break;

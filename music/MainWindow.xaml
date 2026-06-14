@@ -36,11 +36,6 @@
                     <SymbolIcon Symbol="Home"/>
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Content="关注" Tag="follow">
-                <NavigationViewItem.Icon>
-                    <SymbolIcon Symbol="Contact"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
 
             <NavigationViewItemHeader Content="我的"/>
 

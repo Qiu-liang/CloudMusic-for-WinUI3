@@ -1440,92 +1440,6 @@ namespace music.Services
             }
         }
 
-        public async Task<List<FollowUser>> GetFollowsAsync(long uid, int limit = 30, int offset = 0)
-        {
-            try
-            {
-                var json = await GetAsync($"/user/follows?uid={uid}&limit={limit}&offset={offset}");
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-
-                var users = new List<FollowUser>();
-                if (result.TryGetProperty("follow", out var items))
-                {
-                    foreach (var item in items.EnumerateArray())
-                    {
-                        users.Add(new FollowUser
-                        {
-                            UserId = item.GetProperty("userId").GetInt64(),
-                            Nickname = item.GetProperty("nickname").GetString() ?? string.Empty,
-                            AvatarUrl = item.TryGetProperty("avatarUrl", out var avatar) ? avatar.GetString() ?? string.Empty : string.Empty,
-                            Followed = item.TryGetProperty("followed", out var followed) && followed.GetBoolean(),
-                            Signature = item.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty
-                        });
-                    }
-                }
-
-                return users;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetFollows Error: {ex.Message}");
-                return new List<FollowUser>();
-            }
-        }
-
-        public async Task<List<FollowUser>> GetFollowedsAsync(long uid, int limit = 30, int offset = 0)
-        {
-            try
-            {
-                var json = await GetAsync($"/user/followeds?uid={uid}&limit={limit}&offset={offset}");
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-
-                var users = new List<FollowUser>();
-                if (result.TryGetProperty("followeds", out var items))
-                {
-                    foreach (var item in items.EnumerateArray())
-                    {
-                        users.Add(new FollowUser
-                        {
-                            UserId = item.GetProperty("userId").GetInt64(),
-                            Nickname = item.GetProperty("nickname").GetString() ?? string.Empty,
-                            AvatarUrl = item.TryGetProperty("avatarUrl", out var avatar) ? avatar.GetString() ?? string.Empty : string.Empty,
-                            Followed = item.TryGetProperty("followed", out var followed) && followed.GetBoolean(),
-                            Signature = item.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty
-                        });
-                    }
-                }
-
-                return users;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetFolloweds Error: {ex.Message}");
-                return new List<FollowUser>();
-            }
-        }
-
-        public async Task<bool> FollowUserAsync(long userId, bool follow = true)
-        {
-            try
-            {
-                var t = follow ? 1 : 0;
-                var json = await GetAsync($"/follow?id={userId}&t={t}");
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-
-                if (result.TryGetProperty("code", out var code) && code.GetInt32() == 200)
-                {
-                    return true;
-                }
-
-                return false;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] FollowUser Error: {ex.Message}");
-                return false;
-            }
-        }
-
         public async Task<UserDetailInfo?> GetUserDetailAsync(long uid)
         {
             try
@@ -1730,15 +1644,6 @@ namespace music.Services
                 return PlayCount.ToString();
             }
         }
-    }
-
-    public class FollowUser
-    {
-        public long UserId { get; set; }
-        public string Nickname { get; set; } = string.Empty;
-        public string AvatarUrl { get; set; } = string.Empty;
-        public string Signature { get; set; } = string.Empty;
-        public bool Followed { get; set; }
     }
 
     public class UserDetailInfo

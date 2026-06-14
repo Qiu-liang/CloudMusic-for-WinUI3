@@ -49,25 +49,23 @@ namespace music.Pages
 
             try
             {
+                // 先尝试歌手接口
                 var detailJson = await App.ApiService.GetAsync($"/artist/detail?id={artistId}");
-                System.Diagnostics.Debug.WriteLine($"[ArtistDetail] API Response: {detailJson}");
                 var detailResult = JsonSerializer.Deserialize<JsonElement>(detailJson);
 
                 if (detailResult.TryGetProperty("data", out var data) &&
-                    data.TryGetProperty("artist", out var artist))
+                    data.TryGetProperty("artist", out var artist) &&
+                    artist.TryGetProperty("name", out var nameEl) &&
+                    !string.IsNullOrEmpty(nameEl.GetString()))
                 {
-                    var name = artist.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? string.Empty : string.Empty;
+                    // 是歌手，显示歌手信息
+                    var name = nameEl.GetString() ?? string.Empty;
                     var cover = artist.TryGetProperty("cover", out var coverEl) ? coverEl.GetString() ?? string.Empty : string.Empty;
                     var avatar = artist.TryGetProperty("avatar", out var avatarEl) ? avatarEl.GetString() ?? string.Empty : string.Empty;
                     var alias = artist.TryGetProperty("alias", out var aliasEl) ? aliasEl : default;
                     var desc = artist.TryGetProperty("briefDesc", out var descEl) ? descEl.GetString() ?? string.Empty : string.Empty;
 
-                    // 优先使用 cover，如果为空则使用 avatar
                     var picUrl = !string.IsNullOrEmpty(cover) ? cover : avatar;
-
-                    System.Diagnostics.Debug.WriteLine($"[ArtistDetail] Name: {name}");
-                    System.Diagnostics.Debug.WriteLine($"[ArtistDetail] Cover: {cover}");
-                    System.Diagnostics.Debug.WriteLine($"[ArtistDetail] Avatar: {avatar}");
 
                     TitleText.Text = "歌手详情";
                     ArtistNameText.Text = name;
@@ -92,11 +90,59 @@ namespace music.Pages
                     }
 
                     ArtistInfoSection.Visibility = Visibility.Visible;
+                    ArtistNavView.Visibility = Visibility.Visible;
+                    PlayAllButton.Visibility = Visibility.Visible;
+                    LoadingPanel.Visibility = Visibility.Collapsed;
+                    return;
                 }
+
+                // 不是歌手，尝试用户接口
+                if (long.TryParse(artistId, out var uid))
+                {
+                    var userInfo = await App.ApiService.GetUserDetailAsync(uid);
+                    if (userInfo != null)
+                    {
+                        TitleText.Text = "用户详情";
+                        ArtistNameText.Text = userInfo.Nickname;
+
+                        if (!string.IsNullOrEmpty(userInfo.AvatarUrl))
+                        {
+                            ArtistImage.Source = new BitmapImage(new Uri(userInfo.AvatarUrl));
+                            ArtistImage.Visibility = Visibility.Visible;
+                        }
+
+                        var stats = $"关注 {userInfo.FollowCount}  |  粉丝 {userInfo.FollowedCount}";
+                        ArtistAliasText.Text = stats;
+                        ArtistAliasText.Visibility = Visibility.Visible;
+
+                        if (!string.IsNullOrEmpty(userInfo.Signature))
+                        {
+                            ArtistDescriptionText.Text = userInfo.Signature;
+                            ArtistDescriptionText.Visibility = Visibility.Visible;
+                        }
+
+                        ArtistInfoSection.Visibility = Visibility.Visible;
+                        // 用户不是歌手，隐藏歌手相关功能
+                        ArtistNavView.Visibility = Visibility.Collapsed;
+                        PlayAllButton.Visibility = Visibility.Collapsed;
+                        LoadingPanel.Visibility = Visibility.Collapsed;
+                        return;
+                    }
+                }
+
+                // 都失败了
+                TitleText.Text = "未找到";
+                ArtistNameText.Text = "无法加载信息";
+                ArtistInfoSection.Visibility = Visibility.Visible;
+                ArtistNavView.Visibility = Visibility.Collapsed;
+                PlayAllButton.Visibility = Visibility.Collapsed;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ArtistDetail] LoadArtistInfo Error: {ex.Message}");
+                TitleText.Text = "加载失败";
+                ArtistNameText.Text = ex.Message;
+                ArtistInfoSection.Visibility = Visibility.Visible;
             }
 
             LoadingPanel.Visibility = Visibility.Collapsed;
