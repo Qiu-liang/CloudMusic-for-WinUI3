@@ -208,6 +208,17 @@
                                 <TextBlock Grid.Column="1" Text="NeteaseCloudMusicApi" FontSize="14"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </Grid>
+                            <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="项目地址" FontSize="14" 
+                                            VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="https://github.com/Qiu-liang/CloudMusic-for-WinUI3" FontSize="14"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                 </StackPanel>
