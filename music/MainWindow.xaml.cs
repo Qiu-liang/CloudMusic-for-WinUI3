@@ -94,7 +94,8 @@ namespace music
                                currentPage == typeof(Pages.SearchAllResultsPage) ||
                                currentPage == typeof(Pages.SearchAllSongsPage) ||
                                currentPage == typeof(Pages.RecommendDailySongsPage) ||
-                               currentPage == typeof(Pages.RecommendRadarPage);
+                               currentPage == typeof(Pages.RecommendRadarPage) ||
+                               currentPage == typeof(Pages.ProfilePage);
 
                 if (showBack)
                 {
@@ -224,6 +225,7 @@ namespace music
             {
                 if (App.ApiService.IsLoggedIn)
                 {
+                    ContentFrame.Navigate(typeof(Pages.ProfilePage));
                     return;
                 }
 

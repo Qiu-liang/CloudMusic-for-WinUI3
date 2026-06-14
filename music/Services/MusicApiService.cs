@@ -474,6 +474,7 @@ namespace music.Services
                             Name = item.GetProperty("name").GetString() ?? string.Empty,
                             CoverImgUrl = item.GetProperty("coverImgUrl").GetString() ?? string.Empty,
                             TrackCount = item.GetProperty("trackCount").GetInt32(),
+                            PlayCount = item.TryGetProperty("playCount", out var pc) ? pc.GetInt64() : 0,
                             CreatorName = item.GetProperty("creator").GetProperty("nickname").GetString() ?? string.Empty,
                             CreatorId = item.GetProperty("creator").GetProperty("userId").GetInt64()
                         });
@@ -1470,6 +1471,68 @@ namespace music.Services
             }
         }
 
+        public async Task<List<FollowUser>> GetFollowsAsync(long uid, int limit = 30, int offset = 0)
+        {
+            try
+            {
+                var json = await GetAsync($"/user/follows?uid={uid}&limit={limit}&offset={offset}");
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                var users = new List<FollowUser>();
+                if (result.TryGetProperty("follow", out var items))
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        users.Add(new FollowUser
+                        {
+                            UserId = item.GetProperty("userId").GetInt64(),
+                            Nickname = item.GetProperty("nickname").GetString() ?? string.Empty,
+                            AvatarUrl = item.TryGetProperty("avatarUrl", out var av) ? av.GetString() ?? string.Empty : string.Empty,
+                            Signature = item.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty
+                        });
+                    }
+                }
+                return users;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetFollows Error: {ex.Message}");
+                return new List<FollowUser>();
+            }
+        }
+
+        public async Task<List<FollowUser>> GetFollowedsAsync(long uid, int limit = 30, int offset = 0)
+        {
+            try
+            {
+                var json = await GetAsync($"/user/followeds?uid={uid}&limit={limit}&offset={offset}");
+                System.Diagnostics.Debug.WriteLine($"[API] GetFolloweds Response: {json}");
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+
+                var users = new List<FollowUser>();
+                if (result.TryGetProperty("followeds", out var items))
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        users.Add(new FollowUser
+                        {
+                            UserId = item.GetProperty("userId").GetInt64(),
+                            Nickname = item.GetProperty("nickname").GetString() ?? string.Empty,
+                            AvatarUrl = item.TryGetProperty("avatarUrl", out var av) ? av.GetString() ?? string.Empty : string.Empty,
+                            Signature = item.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty
+                        });
+                    }
+                }
+                System.Diagnostics.Debug.WriteLine($"[API] GetFolloweds Parsed: {users.Count} users");
+                return users;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetFolloweds Error: {ex.Message}");
+                return new List<FollowUser>();
+            }
+        }
+
         public async Task<bool> CreatePlaylistAsync(string name)
         {
             try
@@ -1558,8 +1621,21 @@ namespace music.Services
         public string Name { get; set; } = string.Empty;
         public string CoverImgUrl { get; set; } = string.Empty;
         public int TrackCount { get; set; }
+        public long PlayCount { get; set; }
         public string CreatorName { get; set; } = string.Empty;
         public long CreatorId { get; set; }
+
+        public string PlayCountFormatted
+        {
+            get
+            {
+                if (PlayCount >= 100000000)
+                    return $"{PlayCount / 100000000.0:F1}亿";
+                if (PlayCount >= 10000)
+                    return $"{PlayCount / 10000.0:F1}万";
+                return PlayCount.ToString();
+            }
+        }
     }
 
     public class SearchSuggestion
@@ -1655,6 +1731,14 @@ namespace music.Services
         public int FollowCount { get; set; }
         public int FollowedCount { get; set; }
         public int EventCount { get; set; }
+    }
+
+    public class FollowUser
+    {
+        public long UserId { get; set; }
+        public string Nickname { get; set; } = string.Empty;
+        public string AvatarUrl { get; set; } = string.Empty;
+        public string Signature { get; set; } = string.Empty;
     }
 
     public class RecentSong
