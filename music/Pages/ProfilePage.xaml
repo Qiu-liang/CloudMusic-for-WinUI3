@@ -105,6 +105,7 @@
                         SelectionChanged="ProfileNavView_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="歌单" Tag="playlists" IsSelected="True"/>
+                <NavigationViewItem Content="最近" Tag="recent"/>
                 <NavigationViewItem Content="关注" Tag="follows"/>
                 <NavigationViewItem Content="粉丝" Tag="followeds"/>
             </NavigationView.MenuItems>

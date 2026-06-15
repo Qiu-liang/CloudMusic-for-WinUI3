@@ -5,49 +5,12 @@
     xmlns:local="using:music.Pages"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    NavigationCacheMode="Disabled">
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <Grid Margin="24,16,24,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                <FontIcon Glyph="&#xE81C;" FontSize="20" VerticalAlignment="Center" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                <TextBlock Text="最近播放"
-                           Style="{StaticResource SubtitleTextBlockStyle}"
-                           VerticalAlignment="Center"/>
-                <TextBlock x:Name="CountText"
-                           Text=""
-                           Style="{StaticResource BodyTextBlockStyle}"
-                           VerticalAlignment="Center"
-                           Margin="8,0,0,0"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-            </StackPanel>
-
-            <Button Grid.Column="1"
-                    x:Name="RefreshButton"
-                    Click="RefreshButton_Click"
-                    VerticalAlignment="Center"
-                    Padding="12,8"
-                    Background="Transparent"
-                    BorderThickness="0">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xE72C;" FontSize="16"/>
-                    <TextBlock Text="刷新" FontSize="14"/>
-                </StackPanel>
-            </Button>
-        </Grid>
-
         <!-- 加载中 -->
-        <Grid Grid.Row="1" x:Name="LoadingPanel">
+        <Grid x:Name="LoadingPanel">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                 <ProgressRing IsActive="True" Width="32" Height="32"/>
                 <TextBlock Text="加载中..."
@@ -58,7 +21,7 @@
         </Grid>
 
         <!-- 空状态 -->
-        <Grid Grid.Row="1" x:Name="EmptyState" Visibility="Collapsed">
+        <Grid x:Name="EmptyState" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
                 <FontIcon Glyph="&#xE81C;"
                           FontSize="48"
@@ -75,7 +38,7 @@
         </Grid>
 
         <!-- 错误状态 -->
-        <Grid Grid.Row="1" x:Name="ErrorPanel" Visibility="Collapsed">
+        <Grid x:Name="ErrorPanel" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                 <FontIcon Glyph="&#xE783;" FontSize="48"
                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -90,15 +53,15 @@
         </Grid>
 
         <!-- 歌曲列表 -->
-        <ListView Grid.Row="1"
-                  x:Name="SongsListView"
+        <ListView x:Name="SongsListView"
                   Visibility="Collapsed"
                   IsItemClickEnabled="True"
                   ItemClick="SongsListView_ItemClick"
                   SelectionMode="None"
+                  Margin="0,8,24,0"
                   Padding="0,0,0,8">
             <ListView.Header>
-                <Grid Height="36" Padding="24,0,40,0">
+                <Grid Height="36" Padding="0,0,40,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="40"/>
                         <ColumnDefinition Width="*"/>
@@ -122,7 +85,7 @@
             </ListView.Header>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:RecentSongItem">
-                    <Grid Height="56" Padding="24,0">
+                    <Grid Height="56" Padding="0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="40"/>
                             <ColumnDefinition Width="*"/>
@@ -188,6 +151,9 @@
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
+            <ListView.Footer>
+                <Grid Height="80"/>
+            </ListView.Footer>
         </ListView>
     </Grid>
 </Page>

@@ -44,11 +44,6 @@
                     <FontIcon Glyph="&#xE734;"/>
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Content="最近" Tag="recent">
-                <NavigationViewItem.Icon>
-                    <SymbolIcon Symbol="Clock"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
             <NavigationViewItem Content="已下载" Tag="downloaded">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Download"/>

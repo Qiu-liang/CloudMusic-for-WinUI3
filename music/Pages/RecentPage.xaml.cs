@@ -71,7 +71,6 @@ namespace music.Pages
                 });
             }
 
-            CountText.Text = $"共 {_songs.Count} 首";
             ShowContent();
         }
 
@@ -89,7 +88,6 @@ namespace music.Pages
             EmptyState.Visibility = Visibility.Visible;
             ErrorPanel.Visibility = Visibility.Collapsed;
             SongsListView.Visibility = Visibility.Collapsed;
-            CountText.Text = "";
         }
 
         private void ShowError(string message)

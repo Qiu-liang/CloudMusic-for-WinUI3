@@ -599,9 +599,6 @@ namespace music
                     case "liked":
                         ContentFrame.Navigate(typeof(Pages.LikedPage));
                         break;
-                    case "recent":
-                        ContentFrame.Navigate(typeof(Pages.RecentPage));
-                        break;
                     case "downloaded":
                         ContentFrame.Navigate(typeof(Pages.DownloadedPage));
                         break;

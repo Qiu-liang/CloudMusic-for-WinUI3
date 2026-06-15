@@ -86,6 +86,9 @@ namespace music.Pages
                     case "playlists":
                         ContentFrame.Navigate(typeof(ProfilePlaylistsPage));
                         break;
+                    case "recent":
+                        ContentFrame.Navigate(typeof(RecentPage));
+                        break;
                     case "follows":
                         ContentFrame.Navigate(typeof(ProfileFollowListPage), "follows");
                         break;
