@@ -52,6 +52,10 @@ namespace music.Pages
                 "jymaster" => 8,
                 _ => 0
             };
+
+            // 加载实验性功能设置
+            var fancyLyrics = settings.Values["FancyLyrics"] as bool? ?? false;
+            FancyLyricsComboBox.SelectedIndex = fancyLyrics ? 1 : 0;
         }
 
         private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -179,6 +183,12 @@ namespace music.Pages
             {
                 TestConnectionButton.IsEnabled = true;
             }
+        }
+        private void FancyLyricsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (FancyLyricsComboBox == null) return;
+            var settings = ApplicationData.Current.LocalSettings;
+            settings.Values["FancyLyrics"] = FancyLyricsComboBox.SelectedIndex == 1;
         }
     }
 }

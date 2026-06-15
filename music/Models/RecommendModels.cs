@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -61,5 +62,11 @@ namespace music.Models
     {
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+    }
+
+    public class LyricLine
+    {
+        public TimeSpan Time { get; set; }
+        public string Text { get; set; } = string.Empty;
     }
 }

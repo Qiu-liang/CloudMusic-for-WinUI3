@@ -250,10 +250,4 @@ namespace music.Pages
             if (Frame.CanGoBack) Frame.GoBack();
         }
     }
-
-    public class LyricLine
-    {
-        public TimeSpan Time { get; set; }
-        public string Text { get; set; } = string.Empty;
-    }
 }

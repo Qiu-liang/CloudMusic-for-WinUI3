@@ -157,6 +157,35 @@
                     </Border>
                 </StackPanel>
 
+                <!-- 实验性功能 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="实验性功能" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Padding="16,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="更绚丽的歌词" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="启用后歌词页面将显示更丰富的视觉效果" FontSize="12" 
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      x:Name="FancyLyricsComboBox"
+                                      SelectionChanged="FancyLyricsComboBox_SelectionChanged"
+                                      MinWidth="100"
+                                      VerticalAlignment="Center">
+                                <ComboBoxItem Content="关闭" Tag="off"/>
+                                <ComboBoxItem Content="开启" Tag="on"/>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
                 <!-- 关于 -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="关于" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>

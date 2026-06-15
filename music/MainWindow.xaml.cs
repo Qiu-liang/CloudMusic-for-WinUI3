@@ -191,6 +191,17 @@ namespace music
 
         private void AlbumCover_Tapped(object sender, TappedRoutedEventArgs e)
         {
+            var settings = ApplicationData.Current.LocalSettings;
+            var fancyLyrics = settings.Values["FancyLyrics"] as bool? ?? false;
+
+            if (fancyLyrics)
+            {
+                // 打开独立歌词窗口
+                var lyricsWindow = new LyricsWindow();
+                lyricsWindow.Activate();
+                return;
+            }
+
             // 如果当前在歌词页面，则关闭歌词页面
             if (ContentFrame.CurrentSourcePageType == typeof(Pages.LyricsPage))
             {
