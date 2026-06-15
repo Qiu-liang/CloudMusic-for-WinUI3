@@ -35,127 +35,21 @@
             </Button>
         </Grid>
 
-        <!-- 主内容区域 -->
-        <Grid Margin="40,68,40,80">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="35*"/>
-                <ColumnDefinition Width="65*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- 左侧：封面和控制 -->
-            <StackPanel Grid.Column="0"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Center"
-                        Spacing="20"
-                        MaxWidth="320">
-
-                <!-- 专辑封面 -->
-                <Border HorizontalAlignment="Center"
-                        CornerRadius="12"
-                        Width="260" Height="260"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <Image x:Name="AlbumImage" Stretch="UniformToFill"/>
-                </Border>
-
-                <!-- 歌曲信息 -->
-                <StackPanel Spacing="4" HorizontalAlignment="Center">
-                    <TextBlock x:Name="SongTitleText"
-                               Text=""
-                               FontSize="18"
-                               FontWeight="Bold"
-                               MaxLines="1"
-                               TextTrimming="CharacterEllipsis"
-                               HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="ArtistText"
-                               Text=""
-                               FontSize="13"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               MaxLines="1"
-                               TextTrimming="CharacterEllipsis"
-                               HorizontalAlignment="Center"/>
-                </StackPanel>
-
-                <!-- 进度条 -->
-                <StackPanel Spacing="4">
-                    <Slider x:Name="ProgressSlider"
-                            Minimum="0" Maximum="100"
-                            ValueChanged="ProgressSlider_ValueChanged"
-                            PointerEntered="ProgressSlider_PointerEntered"
-                            PointerExited="ProgressSlider_PointerExited"
-                            IsThumbToolTipEnabled="False"/>
-                    <Grid Margin="4,0">
-                        <TextBlock x:Name="CurrentTimeText"
-                                   Text="00:00"
-                                   FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Left"/>
-                        <TextBlock x:Name="TotalTimeText"
-                                   Text="00:00"
-                                   FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Right"/>
-                    </Grid>
-                </StackPanel>
-
-                <!-- 播放控制 -->
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Center"
-                            Spacing="16">
-                    <Button x:Name="ShuffleButton"
-                            Click="ShuffleButton_Click"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="8">
-                        <FontIcon Glyph="&#xE8B1;" FontSize="18"/>
-                    </Button>
-                    <Button x:Name="PrevButton"
-                            Click="PrevButton_Click"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="8">
-                        <FontIcon Glyph="&#xE892;" FontSize="20"/>
-                    </Button>
-                    <Button x:Name="PlayPauseButton"
-                            Click="PlayPauseButton_Click"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Width="44" Height="44"
-                            CornerRadius="22"
-                            Padding="0">
-                        <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontSize="20"/>
-                    </Button>
-                    <Button x:Name="NextButton"
-                            Click="NextButton_Click"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="8">
-                        <FontIcon Glyph="&#xE893;" FontSize="20"/>
-                    </Button>
-                    <Button x:Name="RepeatButton"
-                            Click="RepeatButton_Click"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="8">
-                        <FontIcon x:Name="RepeatIcon" Glyph="&#xE8EE;" FontSize="18"/>
-                    </Button>
-                </StackPanel>
+        <!-- 歌词区域 -->
+        <ScrollViewer x:Name="LyricsScroller"
+                      Margin="40,68,40,80"
+                      VerticalAlignment="Stretch"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="LyricsPanel"
+                        Spacing="28"
+                        Margin="0,120,0,120"
+                        HorizontalAlignment="Center">
+                <TextBlock Text="暂无歌词"
+                           FontSize="22"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"/>
             </StackPanel>
-
-            <!-- 右侧：歌词 -->
-            <Grid Grid.Column="1">
-                <ScrollViewer x:Name="LyricsScroller"
-                              VerticalAlignment="Stretch"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel x:Name="LyricsPanel"
-                                Spacing="28"
-                                Margin="24,120,24,120">
-                        <TextBlock Text="暂无歌词"
-                                   FontSize="18"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Left"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </Grid>
-        </Grid>
+        </ScrollViewer>
     </Grid>
 </Page>
