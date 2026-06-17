@@ -1,4 +1,5 @@
 .vs/
+.qoder/
 bin/
 obj/
 *.user
