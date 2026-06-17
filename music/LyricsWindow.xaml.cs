@@ -348,8 +348,8 @@ namespace music
                 return;
             }
 
-            // 当前行定位在窗口 35% 的高度处
-            float anchorY = _lyricsHeight * 0.35f;
+            // 当前行定位在窗口 22% 的高度处，与左侧专辑封面对齐
+            float anchorY = _lyricsHeight * 0.22f;
             float fadeZone = _lyricsHeight * 0.45f;
             float maxW = _lyricsWidth - LeftMargin - RightMargin;
 
@@ -465,7 +465,7 @@ namespace music
         private void UpdateScrollPosition()
         {
             if (_currentLyricIndex < 0 || _currentLyricIndex >= _lineOffsets.Count) return;
-            float anchorY = _lyricsHeight * 0.35f;
+            float anchorY = _lyricsHeight * 0.22f;
             float lineCenter = _lineOffsets[_currentLyricIndex] + _lineHeights[_currentLyricIndex] / 2f;
             _targetScrollOffset = lineCenter - anchorY;
 
@@ -485,7 +485,7 @@ namespace music
 
             var pos = e.GetCurrentPoint((UIElement)sender).Position;
             float tapY = (float)pos.Y;
-            float anchorY = _lyricsHeight * 0.35f;
+            float anchorY = _lyricsHeight * 0.22f;
 
             for (int i = 0; i < _lyrics.Count; i++)
             {
