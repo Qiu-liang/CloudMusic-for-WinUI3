@@ -18,4 +18,4 @@ music/*.user
 
 # Ignore generated XBF/XAML build outputs
 **/Pages/*.xbf
-/接口文档.txt
+/api文档.txt
