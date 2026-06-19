@@ -452,10 +452,14 @@ namespace music.Pages
             PersonalizedRightButton.Visibility = PersonalizedScroller.HorizontalOffset < PersonalizedScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // 以 handledEventsToo=true 注册：内层横向 ScrollViewer 会在其内部类处理器中
-        // 先“吞掉”垂直滚轮事件（即使它没有可垂直滚动的内容），导致普通 PointerWheelChanged
-        // 处理器收不到该事件。这里强制接收并把垂直滚动转发给外层页面滚动容器 ContentPanel，
-        // 从而让指针悬停在内容板块上时仍能正常纵向滚动整页。
+        // 累积的目标垂直偏移：连续滚动时以"上一次的目标位置"为基准继续累加，
+        // 而不是以动画进行中的当前位置为基准，从而获得接近原生的平滑/惯性手感。
+        private double _wheelTargetOffset = double.NaN;
+
+        // 内层横向 ScrollViewer 会在其内部类处理器中"吞掉"垂直滚轮事件且不会冒泡到父级
+        // （WinUI 已知行为），因此以 handledEventsToo=true 强制接收垂直滚轮并平滑转发给外层
+        // 页面滚动容器 ContentPanel。注意：内层保持垂直滚动为默认 Enabled，避免 Disabled 时
+        // WinUI 把普通垂直滚轮重定向为横向滚动而造成"竖向滚动同时横向滚动"。
         private void RegisterWheelForwarding()
         {
             var inners = new[]
@@ -468,6 +472,11 @@ namespace music.Pages
                 sv.AddHandler(UIElement.PointerWheelChangedEvent,
                     new Microsoft.UI.Xaml.Input.PointerEventHandler(InnerScroller_ForwardVerticalWheel), true);
             }
+            // 滚动动画结束后重置基准，下次从真实位置重新累加
+            ContentPanel.ViewChanged += (s, e) =>
+            {
+                if (!e.IsIntermediate) _wheelTargetOffset = double.NaN;
+            };
         }
 
         private void InnerScroller_ForwardVerticalWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -475,7 +484,28 @@ namespace music.Pages
             if (sender is not ScrollViewer inner) return;
             var props = e.GetCurrentPoint(inner).Properties;
             if (props.IsHorizontalMouseWheel) return; // 横向（Shift+滚轮）交给 HandleNestedWheel
-            ContentPanel.ChangeView(null, ContentPanel.VerticalOffset - props.MouseWheelDelta, null);
+
+            int delta = props.MouseWheelDelta;
+            double current = ContentPanel.VerticalOffset;
+
+            // 同方向连续滚动时以上一次目标为基准累加（平滑）；方向反转或尚无累加目标时，
+            // 回到当前真实位置作为基准，避免反复换向时朝旧目标"跳动"。
+            double baseOffset;
+            if (double.IsNaN(_wheelTargetOffset))
+            {
+                baseOffset = current;
+            }
+            else
+            {
+                bool goingDown = delta < 0;            // delta<0 表示向下滚动（偏移增大）
+                bool pendingDown = _wheelTargetOffset > current;
+                baseOffset = (goingDown == pendingDown) ? _wheelTargetOffset : current;
+            }
+
+            double target = baseOffset - delta;
+            target = System.Math.Max(0, System.Math.Min(ContentPanel.ScrollableHeight, target));
+            _wheelTargetOffset = target;
+            ContentPanel.ChangeView(null, target, null);
             e.Handled = true;
         }
 
