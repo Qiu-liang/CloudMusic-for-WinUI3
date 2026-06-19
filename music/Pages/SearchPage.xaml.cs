@@ -26,6 +26,7 @@ namespace music.Pages
         public SearchPage()
         {
             this.InitializeComponent();
+            RegisterWheelForwarding();
             this.ActualThemeChanged += SearchPage_ActualThemeChanged;
         }
 
@@ -425,19 +426,46 @@ namespace music.Pages
             ArtistsRightButton.Visibility = ArtistsScroller.HorizontalOffset < ArtistsScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        // 以 handledEventsToo=true 注册：内层横向 ScrollViewer 会在其内部类处理器中
+        // 先“吞掉”垂直滚轮事件（即使它没有可垂直滚动的内容），导致普通 PointerWheelChanged
+        // 处理器收不到该事件。这里强制接收并把垂直滚动转发给外层页面滚动容器 ResultsPanel，
+        // 从而让指针悬停在内容板块上时仍能正常纵向滚动整页。
+        private void RegisterWheelForwarding()
+        {
+            var inners = new[]
+            {
+                ArtistsScroller, SongsScroller, PlaylistsScroller, AlbumsScroller
+            };
+            foreach (var sv in inners)
+            {
+                sv.AddHandler(UIElement.PointerWheelChangedEvent,
+                    new PointerEventHandler(InnerScroller_ForwardVerticalWheel), true);
+            }
+        }
+
+        private void InnerScroller_ForwardVerticalWheel(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is not ScrollViewer inner) return;
+            var props = e.GetCurrentPoint(inner).Properties;
+            if (props.IsHorizontalMouseWheel) return; // 横向（Shift+滚轮）交给 HandleNestedWheel
+            ResultsPanel.ChangeView(null, ResultsPanel.VerticalOffset - props.MouseWheelDelta, null);
+            e.Handled = true;
+        }
+
+        // Shift + 滚轮：内层横向滚动（垂直滚动统一由 InnerScroller_ForwardVerticalWheel 处理）
+        private void HandleNestedWheel(ScrollViewer inner, ScrollViewer outer, PointerRoutedEventArgs e)
+        {
+            var props = e.GetCurrentPoint(inner).Properties;
+            if (props.IsHorizontalMouseWheel)
+            {
+                inner.ChangeView(inner.HorizontalOffset - props.MouseWheelDelta, null, null);
+                e.Handled = true;
+            }
+        }
+
         private void ArtistsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(ArtistsScroller, ResultsPanel, e);
         }
 
         // 相关单曲左右箭头
@@ -459,17 +487,7 @@ namespace music.Pages
 
         private void SongsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(SongsScroller, ResultsPanel, e);
         }
 
         // 相关歌单左右箭头
@@ -491,17 +509,7 @@ namespace music.Pages
 
         private void PlaylistsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(PlaylistsScroller, ResultsPanel, e);
         }
 
         // 相关专辑左右箭头
@@ -523,17 +531,7 @@ namespace music.Pages
 
         private void AlbumsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(AlbumsScroller, ResultsPanel, e);
         }
 
         private void ViewAllPlaylistsButton_Click(object sender, RoutedEventArgs e)

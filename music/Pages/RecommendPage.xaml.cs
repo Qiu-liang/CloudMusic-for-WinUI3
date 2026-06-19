@@ -59,6 +59,7 @@ namespace music.Pages
             PlaylistItems.ItemsSource = _playlists;
             PersonalizedItems.ItemsSource = _personalizedSongs;
             RadarItems.ItemsSource = _radarPlaylists;
+            RegisterWheelForwarding();
             this.ActualThemeChanged += RecommendPage_ActualThemeChanged;
             Loaded += RecommendPage_Loaded;
         }
@@ -451,37 +452,52 @@ namespace music.Pages
             PersonalizedRightButton.Visibility = PersonalizedScroller.HorizontalOffset < PersonalizedScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // 鼠标滚轮水平滚动支持（按住Shift键时水平滚动）
+        // 以 handledEventsToo=true 注册：内层横向 ScrollViewer 会在其内部类处理器中
+        // 先“吞掉”垂直滚轮事件（即使它没有可垂直滚动的内容），导致普通 PointerWheelChanged
+        // 处理器收不到该事件。这里强制接收并把垂直滚动转发给外层页面滚动容器 ContentPanel，
+        // 从而让指针悬停在内容板块上时仍能正常纵向滚动整页。
+        private void RegisterWheelForwarding()
+        {
+            var inners = new[]
+            {
+                PlaylistScroller, PersonalizedScroller, DailySongsScroller,
+                GuessScroller, IntelligenceScroller, RadarScroller
+            };
+            foreach (var sv in inners)
+            {
+                sv.AddHandler(UIElement.PointerWheelChangedEvent,
+                    new Microsoft.UI.Xaml.Input.PointerEventHandler(InnerScroller_ForwardVerticalWheel), true);
+            }
+        }
+
+        private void InnerScroller_ForwardVerticalWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (sender is not ScrollViewer inner) return;
+            var props = e.GetCurrentPoint(inner).Properties;
+            if (props.IsHorizontalMouseWheel) return; // 横向（Shift+滚轮）交给 HandleNestedWheel
+            ContentPanel.ChangeView(null, ContentPanel.VerticalOffset - props.MouseWheelDelta, null);
+            e.Handled = true;
+        }
+
+        // Shift + 滚轮：内层横向滚动（垂直滚动统一由 InnerScroller_ForwardVerticalWheel 处理）
+        private void HandleNestedWheel(ScrollViewer inner, ScrollViewer outer, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var props = e.GetCurrentPoint(inner).Properties;
+            if (props.IsHorizontalMouseWheel)
+            {
+                inner.ChangeView(inner.HorizontalOffset - props.MouseWheelDelta, null, null);
+                e.Handled = true;
+            }
+        }
+
         private void PlaylistScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                // 只有按住Shift键时才进行水平滚动
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-                // 否则让事件继续传递以支持垂直滚动
-            }
+            HandleNestedWheel(PlaylistScroller, ContentPanel, e);
         }
 
         private void PersonalizedScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(PersonalizedScroller, ContentPanel, e);
         }
 
         // 每日推荐歌曲卡片
@@ -637,17 +653,7 @@ namespace music.Pages
 
         private void DailySongsScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(DailySongsScroller, ContentPanel, e);
         }
 
         // 猜你喜欢的歌卡片
@@ -799,17 +805,7 @@ namespace music.Pages
 
         private void GuessScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(GuessScroller, ContentPanel, e);
         }
 
         // 你的红心歌曲和相似推荐左右箭头
@@ -831,17 +827,7 @@ namespace music.Pages
 
         private void IntelligenceScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(IntelligenceScroller, ContentPanel, e);
         }
 
         // 你的雷达歌单左右箭头
@@ -863,17 +849,7 @@ namespace music.Pages
 
         private void RadarScroller_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            var scroller = sender as ScrollViewer;
-            if (scroller != null)
-            {
-                var properties = e.GetCurrentPoint(scroller).Properties;
-                if (properties.IsHorizontalMouseWheel)
-                {
-                    var delta = properties.MouseWheelDelta;
-                    scroller.ChangeView(scroller.HorizontalOffset - delta, null, null);
-                    e.Handled = true;
-                }
-            }
+            HandleNestedWheel(RadarScroller, ContentPanel, e);
         }
 
         private void RadarItem_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
