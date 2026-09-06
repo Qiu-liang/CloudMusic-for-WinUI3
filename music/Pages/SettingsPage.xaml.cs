@@ -184,6 +184,16 @@ namespace music.Pages
                 TestConnectionButton.IsEnabled = true;
             }
         }
+        private void QualityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (QualityComboBox.SelectedItem is ComboBoxItem item && item.Tag is string quality)
+            {
+                // 播放时 GetSongUrlAsync 会读取该值并传给 /song/url/v1 的 level 参数
+                var settings = ApplicationData.Current.LocalSettings;
+                settings.Values["AudioQuality"] = quality;
+            }
+        }
+
         private void FancyLyricsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (FancyLyricsComboBox == null) return;

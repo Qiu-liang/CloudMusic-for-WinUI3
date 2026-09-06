@@ -139,10 +139,11 @@
                                 <TextBlock Text="选择播放时的音频质量" FontSize="12" 
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
-                            <ComboBox Grid.Column="1" 
+                            <ComboBox Grid.Column="1"
                                       x:Name="QualityComboBox"
                                       MinWidth="160"
-                                      VerticalAlignment="Center">
+                                      VerticalAlignment="Center"
+                                      SelectionChanged="QualityComboBox_SelectionChanged">
                                 <ComboBoxItem Content="标准" Tag="standard"/>
                                 <ComboBoxItem Content="较高" Tag="higher"/>
                                 <ComboBoxItem Content="极高" Tag="exhigh"/>

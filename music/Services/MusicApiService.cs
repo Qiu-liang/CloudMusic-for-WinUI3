@@ -94,6 +94,24 @@ namespace music.Services
             RebuildCookieString();
         }
 
+        // 合并 Cookie 字符串到会话罐（不清空罐，同名覆盖）：登录成功时用，
+        // 保留匿名设备票据（MUSIC_A_T 等），否则每次扫码都会被服务器视为新设备
+        private void MergeCookieString(string cookie)
+        {
+            if (string.IsNullOrEmpty(cookie)) return;
+
+            foreach (var pair in cookie.Split(';'))
+            {
+                var idx = pair.IndexOf('=');
+                if (idx <= 0) continue;
+                var name = pair[..idx].Trim();
+                var value = pair[(idx + 1)..].Trim();
+                if (name.Length > 0) _sessionCookies[name] = value;
+            }
+
+            RebuildCookieString();
+        }
+
         private void RebuildCookieString()
         {
             _cookie = string.Join("; ", _sessionCookies.Select(kvp => $"{kvp.Key}={kvp.Value}"));
@@ -130,7 +148,8 @@ namespace music.Services
 
         public async void SetLoginCookie(string cookie)
         {
-            LoadCookieString(cookie);
+            // 合并而非替换：保留匿名设备票据，避免每次扫码被服务器视为新设备
+            MergeCookieString(cookie);
             _isInitialized = true;
 
             var settings = ApplicationData.Current.LocalSettings;
@@ -226,8 +245,10 @@ namespace music.Services
             try
             {
                 // 仍需携带会话罐中的 Cookie：扫码登录链路（qr/key→create→check）
-                // 依赖匿名会话 Cookie 在服务器端关联二维码，缺了会永远等待
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                // 依赖匿名会话 Cookie 在服务器端关联二维码，缺了会永远等待。
+                // deviceId 与 GetAsync 保持一致，保证设备身份稳定
+                var separator = url.Contains("?") ? "&" : "?";
+                var request = new HttpRequestMessage(HttpMethod.Get, $"{url}{separator}deviceId={_deviceId}");
                 if (!string.IsNullOrEmpty(_cookie))
                 {
                     request.Headers.Add("Cookie", _cookie);
@@ -266,7 +287,8 @@ namespace music.Services
                 {
                     if (result.TryGetProperty("cookie", out var cookieElement))
                     {
-                        LoadCookieString(cookieElement.GetString() ?? string.Empty);
+                        // 合并而非替换，保留匿名设备票据
+                        MergeCookieString(cookieElement.GetString() ?? string.Empty);
                     }
 
                     var settings = ApplicationData.Current.LocalSettings;
@@ -303,7 +325,8 @@ namespace music.Services
                 {
                     if (result.TryGetProperty("cookie", out var cookieElement))
                     {
-                        LoadCookieString(cookieElement.GetString() ?? string.Empty);
+                        // 合并而非替换，保留匿名设备票据
+                        MergeCookieString(cookieElement.GetString() ?? string.Empty);
                     }
                     if (result.TryGetProperty("account", out var account) &&
                         account.TryGetProperty("id", out var id))
