@@ -68,5 +68,7 @@ namespace music.Models
     {
         public TimeSpan Time { get; set; }
         public string Text { get; set; } = string.Empty;
+        // 可选译文（来自 tlyric），按时间与原文行对齐
+        public string? Translation { get; set; }
     }
 }
