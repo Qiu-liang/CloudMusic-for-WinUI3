@@ -45,6 +45,13 @@ namespace music
             UpdateLoginStatus();
             LoadQualitySetting();
 
+            // 启动时若恢复了登录态，补齐用户信息、VIP 标识与歌单加载。
+            // 这些原本只在弹窗登录成功后触发，重启恢复的登录从不执行
+            if (App.ApiService.IsLoggedIn)
+            {
+                _ = LoadUserInfoAsync();
+            }
+
             // 初始化随机播放和循环播放按钮状态（默认关闭）
             ShuffleButton.Opacity = 0.5;
             RepeatIcon.Glyph = "\uE8EE";

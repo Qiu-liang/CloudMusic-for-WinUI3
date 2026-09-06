@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -14,6 +15,9 @@ namespace music.Services
     {
         private readonly HttpClient _httpClient;
         private readonly SemaphoreSlim _requestSemaphore = new SemaphoreSlim(1, 1);
+        // 会话 Cookie 罐（name → value）：UseCookies=false 时请求统一携带由它拼出的
+        // Cookie 头，Set-Cookie 响应也回灌到罐里，内容所见即所得、可持久化恢复
+        private readonly Dictionary<string, string> _sessionCookies = new Dictionary<string, string>();
         private string _baseUrl;
         private string _cookie = string.Empty;
         private long _userId = 0;
@@ -44,9 +48,17 @@ namespace music.Services
                 _isInitialized = true;
             }
             
-            _httpClient = new HttpClient();
+            // 关闭 HttpClient 自动 Cookie 管理：其内存容器会覆盖手动 Cookie 头且
+            // 随进程结束清空。改为完全手动管理——请求统一携带 _sessionCookies
+            // 拼出的 Cookie 头，Set-Cookie 响应回灌罐中，行为完全可预测
+            var handler = new SocketsHttpHandler { UseCookies = false };
+            _httpClient = new HttpClient(handler);
             _httpClient.BaseAddress = new Uri(_baseUrl);
             _httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+            // 从磁盘恢复的登录 Cookie 解析进罐，重启后登录态随请求发出
+            LoadCookieString(_cookie);
+            DebugLog($"ctor: cookieNames=[{string.Join(",", _sessionCookies.Keys)}] userId={_userId} baseUrl={_baseUrl}");
             
             // 设置固定的User-Agent
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
@@ -59,18 +71,70 @@ namespace music.Services
         {
             _baseUrl = url;
             _httpClient.BaseAddress = new Uri(url);
-            
+
             var settings = ApplicationData.Current.LocalSettings;
             settings.Values["ServerAddress"] = url;
         }
 
+        // 解析 "name=value; name2=value2" 形式的 Cookie 字符串到会话罐（整体替换）
+        private void LoadCookieString(string cookie)
+        {
+            _sessionCookies.Clear();
+            if (string.IsNullOrEmpty(cookie)) return;
+
+            foreach (var pair in cookie.Split(';'))
+            {
+                var idx = pair.IndexOf('=');
+                if (idx <= 0) continue;
+                var name = pair[..idx].Trim();
+                var value = pair[(idx + 1)..].Trim();
+                if (name.Length > 0) _sessionCookies[name] = value;
+            }
+
+            RebuildCookieString();
+        }
+
+        private void RebuildCookieString()
+        {
+            _cookie = string.Join("; ", _sessionCookies.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+        }
+
+        // 处理单个 Set-Cookie 响应头（取 name=value 部分；value 为空视为删除该 Cookie）
+        private void MergeSetCookie(string setCookieValue)
+        {
+            var firstSegment = setCookieValue.Split(';')[0];
+            var idx = firstSegment.IndexOf('=');
+            if (idx <= 0) return;
+
+            var name = firstSegment[..idx].Trim();
+            var value = firstSegment[(idx + 1)..].Trim();
+            if (name.Length == 0) return;
+
+            if (value.Length == 0) _sessionCookies.Remove(name);
+            else _sessionCookies[name] = value;
+
+            RebuildCookieString();
+        }
+
+        // 诊断日志：只记录 Cookie 名与结果，不记录值（避免泄露登录凭据）
+        private void DebugLog(string message)
+        {
+            try
+            {
+                var path = Path.Combine(ApplicationData.Current.LocalFolder.Path, "api_debug.log");
+                File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss.fff} {message}\r\n");
+                System.Diagnostics.Debug.WriteLine($"[API] {message}");
+            }
+            catch { /* 日志失败不影响主流程 */ }
+        }
+
         public async void SetLoginCookie(string cookie)
         {
-            _cookie = cookie;
+            LoadCookieString(cookie);
             _isInitialized = true;
 
             var settings = ApplicationData.Current.LocalSettings;
-            settings.Values["Cookie"] = cookie;
+            settings.Values["Cookie"] = _cookie;
 
             // 获取用户信息
             var userInfo = await GetUserInfoAsync();
@@ -135,13 +199,24 @@ namespace music.Services
                 {
                     var name = parts[0].Trim();
                     var value = string.Join("=", parts.Skip(1));
-                    
+
                     // 保存重要的cookie
                     if (name == "MUSIC_U" || name == "__csrf" || name.StartsWith("MUSIC_"))
                     {
                         settings.Values[$"Cookie_{name}"] = cookie.Split(';')[0].Trim();
+                        DebugLog($"Set-Cookie: {name} {(value.Length == 0 ? "(删除)" : "(更新)")}");
                     }
                 }
+
+                // 回灌到会话罐并重建 Cookie 头（匿名会话、csrf 轮换都需要延续）
+                MergeSetCookie(cookie);
+            }
+
+            // 会话罐变化后立即持久化：保证关窗时磁盘上的 Cookie 就是会话内
+            // 实际生效的那一份（登录 JSON 里可能缺少 Set-Cookie 补全的部分）
+            if (_isInitialized && !string.IsNullOrEmpty(_cookie))
+            {
+                settings.Values["Cookie"] = _cookie;
             }
         }
 
@@ -150,10 +225,23 @@ namespace music.Services
             await _requestSemaphore.WaitAsync();
             try
             {
-                System.Diagnostics.Debug.WriteLine($"[API] Request (no cookie): {_baseUrl}{url}");
-                var response = await _httpClient.GetAsync(url);
+                // 仍需携带会话罐中的 Cookie：扫码登录链路（qr/key→create→check）
+                // 依赖匿名会话 Cookie 在服务器端关联二维码，缺了会永远等待
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                if (!string.IsNullOrEmpty(_cookie))
+                {
+                    request.Headers.Add("Cookie", _cookie);
+                }
+
+                var response = await _httpClient.SendAsync(request);
                 var json = await response.Content.ReadAsStringAsync();
-                System.Diagnostics.Debug.WriteLine($"[API] Response: {json.Substring(0, Math.Min(200, json.Length))}...");
+
+                if (response.Headers.Contains("Set-Cookie"))
+                {
+                    UpdateCookiesFromResponse(response.Headers.GetValues("Set-Cookie"));
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[API] Response (no user cookie): {json.Substring(0, Math.Min(200, json.Length))}...");
                 return json;
             }
             catch (Exception ex)
@@ -178,7 +266,7 @@ namespace music.Services
                 {
                     if (result.TryGetProperty("cookie", out var cookieElement))
                     {
-                        _cookie = cookieElement.GetString() ?? string.Empty;
+                        LoadCookieString(cookieElement.GetString() ?? string.Empty);
                     }
 
                     var settings = ApplicationData.Current.LocalSettings;
@@ -215,7 +303,7 @@ namespace music.Services
                 {
                     if (result.TryGetProperty("cookie", out var cookieElement))
                     {
-                        _cookie = cookieElement.GetString() ?? string.Empty;
+                        LoadCookieString(cookieElement.GetString() ?? string.Empty);
                     }
                     if (result.TryGetProperty("account", out var account) &&
                         account.TryGetProperty("id", out var id))
@@ -256,6 +344,7 @@ namespace music.Services
                 {
                     var uid = idElement.GetInt64();
                     _userId = uid;
+                    DebugLog($"/user/account: 认证成功 uid={uid} cookieNames=[{string.Join(",", _sessionCookies.Keys)}]");
 
                     var detailJson = await GetAsync($"/user/detail?uid={uid}");
                     var detailResult = JsonSerializer.Deserialize<JsonElement>(detailJson);
@@ -279,11 +368,12 @@ namespace music.Services
                     }
                 }
 
+                DebugLog($"/user/account: 未认证（无 account.id）cookieNames=[{string.Join(",", _sessionCookies.Keys)}]");
                 return null;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetUserInfo Error: {ex.Message}");
+                DebugLog($"/user/account 异常: {ex.Message}");
                 return null;
             }
         }
@@ -346,9 +436,18 @@ namespace music.Services
                 _cookie = settings.Values["Cookie"].ToString() ?? string.Empty;
                 _userId = settings.Values.ContainsKey("UserId") ? (long)settings.Values["UserId"] : 0;
                 _isInitialized = true;
+                DebugLog($"InitializeAsync: 恢复登录 userId={_userId} cookieNames=[{string.Join(",", _sessionCookies.Keys)}]");
+
+                // 扫码登录时若 GetUserInfoAsync 恰好失败，UserId 会缺失，
+                // 导致重启后 IsLoggedIn（要求 UserId>0）恒为 false，这里回填
+                if (_userId == 0)
+                {
+                    await GetUserInfoAsync();
+                }
                 return;
             }
 
+            DebugLog("InitializeAsync: 无 Cookie，走匿名登录");
             await LoginAnonymouslyAsync();
         }
 
@@ -359,6 +458,7 @@ namespace music.Services
             settings.Values.Remove("UserId");
             settings.Values.Remove("IsVip");
             _cookie = string.Empty;
+            _sessionCookies.Clear();
             _userId = 0;
             _isInitialized = false;
         }
