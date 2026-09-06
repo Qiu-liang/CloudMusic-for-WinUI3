@@ -27,6 +27,10 @@ namespace music.Services
         public bool IsLoggedIn => !string.IsNullOrEmpty(_cookie) && _userId > 0;
         public long UserId => _userId;
 
+        // 最近一次 GetAsync 是否因网络等原因失败（用于区分"认证失败"与"服务器不可达"，
+        // 避免网络抖动时误清有效的本地登录态）
+        public bool LastRequestFailed { get; private set; }
+
         public MusicApiService()
         {
             var settings = ApplicationData.Current.LocalSettings;
@@ -185,19 +189,21 @@ namespace music.Services
                 
                 var response = await _httpClient.SendAsync(request);
                 var json = await response.Content.ReadAsStringAsync();
-                
+                LastRequestFailed = false;
+
                 // 检查响应中的set-cookie并更新
                 if (response.Headers.Contains("Set-Cookie"))
                 {
                     var setCookies = response.Headers.GetValues("Set-Cookie");
                     UpdateCookiesFromResponse(setCookies);
                 }
-                
+
                 System.Diagnostics.Debug.WriteLine($"[API] Response: {json.Substring(0, Math.Min(200, json.Length))}...");
                 return json;
             }
             catch (Exception ex)
             {
+                LastRequestFailed = true;
                 System.Diagnostics.Debug.WriteLine($"[API] Error: {ex.Message}");
                 return "{}";
             }

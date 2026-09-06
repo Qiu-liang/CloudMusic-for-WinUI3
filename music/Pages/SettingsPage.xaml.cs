@@ -194,6 +194,23 @@ namespace music.Pages
             }
         }
 
+        private void ClearLoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 走主窗口的统一退出入口：清除 Cookie/UserId、侧边栏恢复未登录、
+            // 清空歌单导航项；若正停留在失效的个人中心页会自动跳回首页
+            if (App.m_window is MainWindow mainWindow)
+            {
+                mainWindow.PerformLogout();
+            }
+            else
+            {
+                App.ApiService.ResetLogin();
+            }
+
+            ClearLoginStatusText.Text = "已清除本地登录状态";
+            ClearLoginStatusText.Visibility = Visibility.Visible;
+        }
+
         private void FancyLyricsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (FancyLyricsComboBox == null) return;

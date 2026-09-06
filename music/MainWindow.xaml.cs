@@ -45,11 +45,11 @@ namespace music
             UpdateLoginStatus();
             LoadQualitySetting();
 
-            // 启动时若恢复了登录态，补齐用户信息、VIP 标识与歌单加载。
+            // 启动时若恢复了登录态，先验证会话再补齐用户信息、VIP 标识与歌单加载。
             // 这些原本只在弹窗登录成功后触发，重启恢复的登录从不执行
             if (App.ApiService.IsLoggedIn)
             {
-                _ = LoadUserInfoAsync();
+                _ = ValidateAndRestoreLoginAsync();
             }
 
             // 初始化随机播放和循环播放按钮状态（默认关闭）
@@ -318,12 +318,54 @@ namespace music
             }
         }
 
+        // 启动时验证恢复的登录态：服务器可达但认证失败（Cookie 过期/是历史残留的
+        // 虚假状态）时清除并回到未登录，否则点击"登录"会被 IsLoggedIn 短路到
+        // 空白的个人中心，用户永远无法重新登录。网络失败时保守起见保留现状
+        private async System.Threading.Tasks.Task ValidateAndRestoreLoginAsync()
+        {
+            var userInfo = await App.ApiService.GetUserInfoAsync();
+
+            if (userInfo == null && !App.ApiService.LastRequestFailed)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    LoginStatusText.Text = "登录已过期";
+                    LoginSubText.Text = "点击登录";
+                });
+                App.ApiService.ResetLogin();
+                UpdateLoginStatus();
+
+                // 若用户停留在失效的个人中心页，带离并回到首页
+                if (ContentFrame.CurrentSourcePageType == typeof(Pages.ProfilePage))
+                {
+                    ContentFrame.Navigate(typeof(Pages.HomePage));
+                }
+                return;
+            }
+
+            if (userInfo != null)
+            {
+                await LoadUserInfoAsync();
+            }
+        }
+
         private void LogoutButton_Click(object sender, RoutedEventArgs e)
+        {
+            PerformLogout();
+        }
+
+        // 退出登录的统一入口：供侧边栏按钮与个人中心页内的"退出登录"按钮共用
+        public void PerformLogout()
         {
             App.ApiService.ResetLogin();
             UpdateLoginStatus();
 
-            // 清除歌单项
+            // 从个人中心退出时回到首页，避免停留在失效页面
+            if (ContentFrame.CurrentSourcePageType == typeof(Pages.ProfilePage))
+            {
+                ContentFrame.Navigate(typeof(Pages.HomePage));
+            }
+
             DispatcherQueue.TryEnqueue(() =>
             {
                 foreach (var item in _createdPlaylistItems)
@@ -337,6 +379,7 @@ namespace music
                 _createdPlaylistItems.Clear();
                 _collectedPlaylistItems.Clear();
                 CollectedPlaylistHeader.Visibility = Visibility.Collapsed;
+                CreatedPlaylistHeader.Visibility = Visibility.Collapsed;
             });
 
             RefreshCurrentPage();

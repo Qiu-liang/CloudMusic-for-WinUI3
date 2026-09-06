@@ -82,6 +82,14 @@
                            MaxLines="4"
                            TextTrimming="CharacterEllipsis"
                            Visibility="Collapsed"/>
+
+                <!-- 登录失效时的出口：在页面内直接退出并回到首页重新登录 -->
+                <Button x:Name="ForceLogoutButton"
+                        Click="ForceLogoutButton_Click"
+                        Content="退出登录"
+                        Visibility="Collapsed"
+                        HorizontalAlignment="Left"
+                        Margin="0,4,0,0"/>
             </StackPanel>
         </Grid>
 

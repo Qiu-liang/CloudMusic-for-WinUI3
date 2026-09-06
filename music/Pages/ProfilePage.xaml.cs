@@ -72,8 +72,26 @@ namespace music.Pages
                 System.Diagnostics.Debug.WriteLine($"[Profile] LoadError: {ex.Message}");
             }
 
+            // 拉取不到用户信息时给出提示并提供退出登录的出口，避免个人中心一片空白
+            if (string.IsNullOrEmpty(NicknameText.Text))
+            {
+                NicknameText.Text = "无法加载用户信息";
+                StatsText.Text = "登录可能已失效，可退出登录后重新扫码";
+                StatsText.Visibility = Visibility.Visible;
+                SignatureText.Visibility = Visibility.Collapsed;
+                ForceLogoutButton.Visibility = Visibility.Visible;
+            }
+
             UserInfoSection.Visibility = Visibility.Visible;
             LoadingPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void ForceLogoutButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (App.m_window is MainWindow mainWindow)
+            {
+                mainWindow.PerformLogout();
+            }
         }
 
         private void ProfileNavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

@@ -158,6 +158,38 @@
                     </Border>
                 </StackPanel>
 
+                <!-- 账户 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="账户" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Padding="16,12">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="清除本地登录状态" FontSize="14" FontWeight="SemiBold"/>
+                                    <TextBlock Text="登录异常时使用，将移除保存的 Cookie 与用户信息" FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        x:Name="ClearLoginButton"
+                                        Click="ClearLoginButton_Click"
+                                        Content="清除登录状态"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
+                            <TextBlock x:Name="ClearLoginStatusText"
+                                       FontSize="12"
+                                       Visibility="Collapsed"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
                 <!-- 实验性功能 -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="实验性功能" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
