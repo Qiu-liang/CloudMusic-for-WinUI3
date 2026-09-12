@@ -1,5 +1,7 @@
 # CloudMusic for WinUI 3
 
+**中文** | [English](README_EN.md)
+
 基于 WinUI 3 的网易云音乐第三方客户端，使用 [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 作为后端 API。
 
 > 本项目仅用于学习和研究目的，不得用于商业用途。音乐版权归网易云音乐所有。
@@ -102,7 +104,8 @@ dotnet run --project music/music.csproj -p:Platform=x64
 CloudMusic-for-WinUI3/
 ├── music.slnx                      # 解决方案文件
 ├── LICENSE                          # MIT 许可证
-├── README.md
+├── README.md                        # 中文说明
+├── README_EN.md                     # 英文说明
 │
 └── music/
     ├── App.xaml / .cs               # 应用程序入口
