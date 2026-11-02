@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
 using Windows.Media.Core;
 using Windows.Media.Playback;
+using Windows.Storage;
 using music.Models;
 
 namespace music.Services
@@ -14,12 +17,10 @@ namespace music.Services
     {
         private readonly MediaPlayer _mediaPlayer;
         private readonly DispatcherQueue _dispatcherQueue;
-        private List<Song> _playlist = new();
-        private int _currentIndex = -1;
-        private bool _isShuffleEnabled = false;
+        private readonly PlaybackQueue<Song> _queue = new();
         private RepeatMode _repeatMode = RepeatMode.None;
-        private readonly Random _random = new();
-        private bool _isPlaying = false;
+        private bool _isPlaying;
+        private CancellationTokenSource? _sourceRequestCancellation;
 
         public event EventHandler<bool>? PlaybackStateChanged;
         public event EventHandler<Song>? CurrentSongChanged;
@@ -29,7 +30,7 @@ namespace music.Services
 
         public bool IsPlaying => _isPlaying;
         public Song? CurrentSong { get; private set; }
-        public List<Song> GetPlaylist() => new List<Song>(_playlist);
+        public List<Song> GetPlaylist() => new List<Song>(_queue.Snapshot());
         public double Volume
         {
             get => _mediaPlayer?.Volume ?? 0.8;
@@ -49,92 +50,150 @@ namespace music.Services
 
         public void SetPlaylist(List<Song> songs, int startIndex = 0)
         {
-            _playlist = songs ?? new List<Song>();
-            _currentIndex = startIndex;
+            _queue.SetPlaylist(songs, startIndex);
         }
 
-        public async Task PlayAsync(Song song)
+        public Task PlayAsync(Song song)
         {
-            if (song == null) return;
+            if (song == null) return Task.CompletedTask;
+            return PlayCurrentAsync(_queue.SetSingle(song));
+        }
 
+        public Task PlayAsync(List<Song> songs, int index = 0)
+        {
+            if (songs == null || songs.Count == 0 || index < 0 || index >= songs.Count)
+                return Task.CompletedTask;
+            return PlayCurrentAsync(_queue.SetPlaylist(songs, index));
+        }
+
+        public Task PlayLocalAsync(string filePath, Song song)
+        {
+            if (song == null || string.IsNullOrWhiteSpace(filePath)) return Task.CompletedTask;
+            song.LocalFilePath = filePath;
+            return PlaySongSourceAsync(_queue.SetSingle(song));
+        }
+
+        public Task PlayLocalFilesAsync(IList<string> filePaths, IList<Song> songs, int index = 0)
+        {
+            if (filePaths == null || songs == null || filePaths.Count != songs.Count ||
+                songs.Count == 0 || index < 0 || index >= songs.Count)
+                return Task.CompletedTask;
+
+            var replacement = _queue.SetPlaylist(songs, index);
+            for (var i = 0; i < songs.Count; i++) songs[i].LocalFilePath = filePaths[i];
+            return PlaySongSourceAsync(replacement);
+        }
+
+        private Task PlayCurrentAsync(Song song) => PlaySongSourceAsync(song);
+
+        private async Task PlaySongSourceAsync(Song song)
+        {
+            if (!string.IsNullOrWhiteSpace(song.LocalFilePath))
+            {
+                await PlayLocalSourceAsync(song.LocalFilePath, song);
+                return;
+            }
+
+            var cancellation = BeginSourceRequest();
             try
             {
-                var url = await App.ApiService.GetSongUrlAsync(song.Id);
-                if (string.IsNullOrEmpty(url)) return;
-
-                _dispatcherQueue.TryEnqueue(() =>
-                {
-                    try
-                    {
-                        _mediaPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
-                        _mediaPlayer.Play();
-                        _isPlaying = true;
-                        CurrentSong = song;
-                        CurrentSongChanged?.Invoke(this, song);
-                        PlaybackStateChanged?.Invoke(this, true);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[Playback] Play error: {ex.Message}");
-                    }
-                });
+                var url = await App.ApiService.GetSongUrlAsync(song.Id, cancellation.Token);
+                if (string.IsNullOrEmpty(url) || cancellation.IsCancellationRequested) return;
+                _ = _dispatcherQueue.TryEnqueue(() => PlayOnlineSource(url, song, cancellation));
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Playback] Error: {ex.Message}");
             }
         }
 
-        public async Task PlayAsync(List<Song> songs, int index = 0)
+        private async Task PlayLocalSourceAsync(string filePath, Song song)
         {
-            if (songs == null || songs.Count == 0) return;
-            SetPlaylist(songs, index);
-            if (index >= 0 && index < songs.Count)
-                await PlayAsync(songs[index]);
+            var cancellation = BeginSourceRequest();
+            try
+            {
+                if (string.IsNullOrWhiteSpace(filePath)) return;
+                var file = await StorageFile.GetFileFromPathAsync(filePath).AsTask(cancellation.Token);
+                _ = _dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (cancellation.IsCancellationRequested) return;
+                    _mediaPlayer.Source = MediaSource.CreateFromStorageFile(file);
+                    StartPlayback(song);
+                });
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Playback] Local file API error: {ex.Message}");
+                _ = _dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (cancellation.IsCancellationRequested || !File.Exists(filePath)) return;
+                    _mediaPlayer.Source = MediaSource.CreateFromUri(new Uri(Path.GetFullPath(filePath)));
+                    StartPlayback(song);
+                });
+            }
+        }
+
+        private CancellationTokenSource BeginSourceRequest()
+        {
+            _sourceRequestCancellation?.Cancel();
+            _sourceRequestCancellation?.Dispose();
+            _sourceRequestCancellation = new CancellationTokenSource();
+            return _sourceRequestCancellation;
+        }
+
+        private void PlayOnlineSource(string url, Song song, CancellationTokenSource cancellation)
+        {
+            if (cancellation.IsCancellationRequested) return;
+            try
+            {
+                _mediaPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
+                StartPlayback(song);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Playback] Play error: {ex.Message}");
+            }
+        }
+
+        private void StartPlayback(Song song)
+        {
+            _mediaPlayer.Play();
+            CurrentSong = song;
+            CurrentSongChanged?.Invoke(this, song);
         }
 
         public void Play()
         {
-            if (_mediaPlayer?.Source != null)
-            {
-                _mediaPlayer.Play();
-                _isPlaying = true;
-                PlaybackStateChanged?.Invoke(this, true);
-            }
+            if (_mediaPlayer?.Source != null) _mediaPlayer.Play();
         }
 
-        public void Pause()
-        {
-            _mediaPlayer?.Pause();
-            _isPlaying = false;
-            PlaybackStateChanged?.Invoke(this, false);
-        }
+        public void Pause() => _mediaPlayer?.Pause();
 
         public void TogglePlayPause()
         {
-            if (_mediaPlayer?.Source == null && _playlist.Count > 0)
+            if (_mediaPlayer?.Source == null && _queue.Current != null)
             {
-                _ = PlayAsync(_playlist[Math.Max(0, _currentIndex)]);
+                _ = PlaySongSourceAsync(_queue.Current);
                 return;
             }
             if (_isPlaying) Pause(); else Play();
         }
 
-        public async Task NextAsync()
+        public Task NextAsync()
         {
-            if (_playlist.Count == 0) return;
-            _currentIndex = _isShuffleEnabled ? _random.Next(_playlist.Count) : (_currentIndex + 1) % _playlist.Count;
-            await PlayAsync(_playlist[_currentIndex]);
+            var song = _queue.MoveNext();
+            return song == null ? Task.CompletedTask : PlayCurrentAsync(song);
         }
 
-        public async Task PreviousAsync()
+        public Task PreviousAsync()
         {
-            if (_playlist.Count == 0) return;
-            _currentIndex = _isShuffleEnabled ? _random.Next(_playlist.Count) : (_currentIndex - 1 + _playlist.Count) % _playlist.Count;
-            await PlayAsync(_playlist[_currentIndex]);
+            var song = _queue.MovePrevious();
+            return song == null ? Task.CompletedTask : PlayCurrentAsync(song);
         }
 
-        public void ToggleShuffle() => _isShuffleEnabled = !_isShuffleEnabled;
+        public void ToggleShuffle() => _queue.IsShuffleEnabled = !_queue.IsShuffleEnabled;
 
         public void ToggleRepeat() => _repeatMode = _repeatMode switch
         {
@@ -145,7 +204,7 @@ namespace music.Services
         };
 
         public RepeatMode GetRepeatMode() => _repeatMode;
-        public bool IsShuffleEnabled => _isShuffleEnabled;
+        public bool IsShuffleEnabled => _queue.IsShuffleEnabled;
 
         public void Seek(TimeSpan position)
         {
@@ -158,17 +217,16 @@ namespace music.Services
 
         private void OnPlaybackStateChanged(MediaPlaybackSession sender, object args)
         {
-            _dispatcherQueue.TryEnqueue(() =>
+            _ = _dispatcherQueue.TryEnqueue(() =>
             {
-                var playing = sender.PlaybackState == MediaPlaybackState.Playing;
-                _isPlaying = playing;
-                PlaybackStateChanged?.Invoke(this, playing);
+                _isPlaying = sender.PlaybackState == MediaPlaybackState.Playing;
+                PlaybackStateChanged?.Invoke(this, _isPlaying);
             });
         }
 
         private void OnPositionChanged(MediaPlaybackSession sender, object args)
         {
-            _dispatcherQueue.TryEnqueue(() =>
+            _ = _dispatcherQueue.TryEnqueue(() =>
             {
                 PositionChanged?.Invoke(this, sender.Position);
                 DurationChanged?.Invoke(this, sender.NaturalDuration);
@@ -180,24 +238,31 @@ namespace music.Services
             switch (_repeatMode)
             {
                 case RepeatMode.One:
-                    if (CurrentSong != null) await PlayAsync(CurrentSong);
+                    if (CurrentSong != null) await PlayCurrentAsync(CurrentSong);
                     break;
                 case RepeatMode.All:
                     await NextAsync();
                     break;
                 case RepeatMode.None:
-                    if (_currentIndex < _playlist.Count - 1) await NextAsync();
-                    else { _isPlaying = false; _dispatcherQueue.TryEnqueue(() => PlaybackStateChanged?.Invoke(this, false)); }
+                    if (_queue.HasNext) await NextAsync();
                     break;
             }
         }
 
         private void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
         {
-            _isPlaying = false;
-            _dispatcherQueue.TryEnqueue(() => PlaybackStateChanged?.Invoke(this, false));
+            _ = _dispatcherQueue.TryEnqueue(() =>
+            {
+                _isPlaying = false;
+                PlaybackStateChanged?.Invoke(this, false);
+            });
         }
 
-        public void Dispose() => _mediaPlayer?.Dispose();
+        public void Dispose()
+        {
+            _sourceRequestCancellation?.Cancel();
+            _sourceRequestCancellation?.Dispose();
+            _mediaPlayer?.Dispose();
+        }
     }
 }

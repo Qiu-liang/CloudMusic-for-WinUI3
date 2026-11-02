@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
@@ -51,7 +52,7 @@ namespace music.Pages
             try
             {
                 var songs = await App.ApiService.GetDailyRecommendSongsAsync(100);
-                LoadSongs(songs);
+                LoadSongs(songs, "每日推荐为空");
             }
             catch (System.Exception ex)
             {
@@ -65,8 +66,8 @@ namespace music.Pages
             ShowLoading();
             try
             {
-                var songs = await App.ApiService.GetLikedSongsListAsync();
-                LoadSongs(songs);
+                var songs = await App.ApiService.GetIntelligenceSongsAsync();
+                LoadSongs(songs, "暂无智能推荐");
             }
             catch (System.Exception ex)
             {
@@ -81,7 +82,7 @@ namespace music.Pages
             try
             {
                 var songs = await App.ApiService.GetPersonalizedSongsAsync(100);
-                LoadSongs(songs);
+                LoadSongs(songs, "暂无推荐歌曲");
             }
             catch (System.Exception ex)
             {
@@ -90,11 +91,14 @@ namespace music.Pages
             }
         }
 
-        private void LoadSongs(List<Song> songs)
+        private void LoadSongs(List<Song> songs, string emptyMessage)
         {
             if (songs == null || songs.Count == 0)
             {
-                ShowError("暂无数据");
+                var message = App.ApiService.LastError != Services.ApiErrorKind.None
+                    ? App.ApiService.LastErrorMessage
+                    : emptyMessage;
+                ShowError(message);
                 return;
             }
 
@@ -147,7 +151,19 @@ namespace music.Pages
             SongsListView.Visibility = Visibility.Visible;
         }
 
+        private async void LoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Dialogs.LoginDialog { XamlRoot = XamlRoot };
+            await dialog.ShowAsync();
+            if (App.ApiService.IsLoggedIn) await RetryCurrentPageAsync();
+        }
+
         private async void RetryButton_Click(object sender, RoutedEventArgs e)
+        {
+            await RetryCurrentPageAsync();
+        }
+
+        private async System.Threading.Tasks.Task RetryCurrentPageAsync()
         {
             switch (_pageType)
             {

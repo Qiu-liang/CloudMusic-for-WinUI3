@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
@@ -37,7 +38,10 @@ namespace music.Pages
 
             if (songs == null || songs.Count == 0)
             {
-                ShowEmptyState();
+                if (App.ApiService.LastError != Services.ApiErrorKind.None)
+                    ShowError(App.ApiService.LastErrorMessage);
+                else
+                    ShowEmptyState();
                 return;
             }
 
@@ -102,6 +106,13 @@ namespace music.Pages
         private async void RetryButton_Click(object sender, RoutedEventArgs e)
         {
             await LoadLikedSongsAsync();
+        }
+
+        private async void LoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Dialogs.LoginDialog { XamlRoot = XamlRoot };
+            await dialog.ShowAsync();
+            if (App.ApiService.IsLoggedIn) await LoadLikedSongsAsync();
         }
 
         private async void SongsListView_ItemClick(object sender, ItemClickEventArgs e)

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Brushes;
@@ -33,6 +34,8 @@ namespace music
         private List<LyricLine> _lyrics = new();
         private int _currentLyricIndex = -1;
         private bool _isProgressDragging;
+        private CancellationTokenSource? _lyricsCancellation;
+        private readonly LatestLyricRequest _latestLyrics = new();
 
         private float _scrollOffset;
         private float _targetScrollOffset;
@@ -154,6 +157,10 @@ namespace music
         private void OnWindowClosed(object sender, WindowEventArgs args)
         {
             _isClosed = true;
+            DetachPlaybackEvents();
+            _lyricsCancellation?.Cancel();
+            _lyricsCancellation?.Dispose();
+            _lyricsCancellation = null;
             _scrollTimer?.Stop();
             _scrollTimer = null;
             _userScrollIdleTimer?.Stop();
@@ -962,22 +969,44 @@ namespace music
 
         private async Task LoadLyricsAsync()
         {
-            if (_currentSong == null) return;
-            var lyricInfo = await App.ApiService.GetLyricsAsync(_currentSong.Id);
-            if (lyricInfo == null || string.IsNullOrEmpty(lyricInfo.LrcLyric)) return;
-
-            // 在后台线程解析，UI 线程仅做赋值和刷新
-            var parsed = ParseLyrics(lyricInfo.LrcLyric, lyricInfo.TranslatedLyric);
-
-            DispatcherQueue.TryEnqueue(() =>
+            if (_currentSong == null || _isClosed) return;
+            if (!string.IsNullOrEmpty(_currentSong.LocalFilePath))
             {
-                _lyrics = parsed;
-                _currentLyricIndex = -1;
-                _scrollOffset = 0;
-                _targetScrollOffset = 0;
+                _lyrics = new List<LyricLine>();
                 RecalculateLayout();
                 LyricsCanvas?.Invalidate();
-            });
+                return;
+            }
+
+            _lyricsCancellation?.Cancel();
+            _lyricsCancellation?.Dispose();
+            _lyricsCancellation = new CancellationTokenSource();
+            var cancellation = _lyricsCancellation;
+            var songId = _currentSong.Id;
+            var request = _latestLyrics.Next(songId);
+
+            try
+            {
+                var lyricInfo = await App.ApiService.GetLyricsAsync(songId, cancellation.Token);
+                if (_isClosed || cancellation.IsCancellationRequested ||
+                    !_latestLyrics.IsCurrent(request, songId, _currentSong?.Id ?? string.Empty)) return;
+
+                var parsed = lyricInfo == null || string.IsNullOrEmpty(lyricInfo.LrcLyric)
+                    ? new List<LyricLine>()
+                    : ParseLyrics(lyricInfo.LrcLyric, lyricInfo.TranslatedLyric);
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (_isClosed || !_latestLyrics.IsCurrent(request, songId, _currentSong?.Id ?? string.Empty)) return;
+                    _lyrics = parsed;
+                    _currentLyricIndex = -1;
+                    _scrollOffset = 0;
+                    _targetScrollOffset = 0;
+                    RecalculateLayout();
+                    LyricsCanvas?.Invalidate();
+                });
+            }
+            catch (OperationCanceledException) { }
         }
 
         private static List<LyricLine> ParseLyrics(string lrcContent, string? tlyricContent = null)
@@ -1109,51 +1138,65 @@ namespace music
         {
             var ps = MainWindow.PlaybackService;
             if (ps == null) return;
+            ps.CurrentSongChanged += PlaybackService_CurrentSongChanged;
+            ps.PositionChanged += PlaybackService_PositionChanged;
+            ps.DurationChanged += PlaybackService_DurationChanged;
+            ps.PlaybackStateChanged += PlaybackService_StateChanged;
+        }
 
-            ps.CurrentSongChanged += (_, song) =>
+        private void DetachPlaybackEvents()
+        {
+            var ps = MainWindow.PlaybackService;
+            if (ps == null) return;
+            ps.CurrentSongChanged -= PlaybackService_CurrentSongChanged;
+            ps.PositionChanged -= PlaybackService_PositionChanged;
+            ps.DurationChanged -= PlaybackService_DurationChanged;
+            ps.PlaybackStateChanged -= PlaybackService_StateChanged;
+        }
+
+        private void PlaybackService_CurrentSongChanged(object? sender, Song song)
+        {
+            if (_isClosed) return;
+            _currentSong = song;
+            _lyrics.Clear();
+            _currentLyricIndex = -1;
+            _lastRawMs = -1;
+            _scrollOffset = 0;
+            _targetScrollOffset = 0;
+            DispatcherQueue.TryEnqueue(() =>
             {
                 if (_isClosed) return;
-                _currentSong = song;
-                _lyrics.Clear();
-                _currentLyricIndex = -1;
-                _lastRawMs = -1;
-                _scrollOffset = 0;
-                _targetScrollOffset = 0;
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (_isClosed) return;
-                    SongTitleText.Text = "";
-                    ArtistText.Text = "";
-                    AlbumText.Text = "";
-                    _lineHeights.Clear();
-                    _lineOffsets.Clear();
-                    LoadCurrentSong();
-                    _ = LoadLyricsAsync();
-                });
-            };
+                SongTitleText.Text = "";
+                ArtistText.Text = "";
+                AlbumText.Text = "";
+                _lineHeights.Clear();
+                _lineOffsets.Clear();
+                LoadCurrentSong();
+                _ = LoadLyricsAsync();
+            });
+        }
 
-            ps.PositionChanged += (_, position) =>
+        private void PlaybackService_PositionChanged(object? sender, TimeSpan position)
+        {
+            if (_isClosed) return;
+            DispatcherQueue.TryEnqueue(() =>
             {
                 if (_isClosed) return;
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (_isClosed) return;
-                    UpdateProgress(position);
-                    UpdateLyricsHighlight(position);
-                });
-            };
+                UpdateProgress(position);
+                UpdateLyricsHighlight(position);
+            });
+        }
 
-            ps.DurationChanged += (_, duration) =>
-            {
-                if (_isClosed) return;
-                DispatcherQueue.TryEnqueue(() => { if (!_isClosed) TotalTimeText.Text = FormatTime(duration); });
-            };
+        private void PlaybackService_DurationChanged(object? sender, TimeSpan duration)
+        {
+            if (_isClosed) return;
+            DispatcherQueue.TryEnqueue(() => { if (!_isClosed) TotalTimeText.Text = FormatTime(duration); });
+        }
 
-            ps.PlaybackStateChanged += (_, isPlaying) =>
-            {
-                if (_isClosed) return;
-                DispatcherQueue.TryEnqueue(() => { if (!_isClosed) PlayPauseIcon.Glyph = isPlaying ? "\uE769" : "\uE768"; });
-            };
+        private void PlaybackService_StateChanged(object? sender, bool isPlaying)
+        {
+            if (_isClosed) return;
+            DispatcherQueue.TryEnqueue(() => { if (!_isClosed) PlayPauseIcon.Glyph = isPlaying ? "\uE769" : "\uE768"; });
         }
 
         private void UpdateProgress(TimeSpan position)

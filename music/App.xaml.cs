@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Data;
@@ -51,6 +51,8 @@ namespace music
         {
             _window = new MainWindow();
             m_window = _window;
+            if (_window is MainWindow mainWindow)
+                mainWindow.ApplySavedTheme();
             _window.Activate();
 
             _ = InitializeApiAsync();

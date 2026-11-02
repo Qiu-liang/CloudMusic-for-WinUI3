@@ -34,8 +34,9 @@ namespace music.Pages
             };
 
             // 加载服务器地址
-            var serverAddress = settings.Values["ServerAddress"]?.ToString() ?? "http://192.168.31.205:3000";
+            var serverAddress = settings.Values["ServerAddress"]?.ToString() ?? Services.MusicApiService.DefaultServerAddress;
             ServerAddressBox.Text = serverAddress;
+            AllowInsecureLoginCheckBox.IsChecked = settings.Values["AllowInsecureLogin"] as bool? ?? false;
 
             // 加载音质设置
             var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
@@ -71,59 +72,8 @@ namespace music.Pages
             };
             settings.Values["Theme"] = theme;
 
-            // 应用主题到主窗口内容
-            var root = App.m_window?.Content as FrameworkElement;
-            if (root != null)
-            {
-                root.RequestedTheme = theme switch
-                {
-                    "Light" => ElementTheme.Light,
-                    "Dark" => ElementTheme.Dark,
-                    _ => ElementTheme.Default
-                };
-            }
-
-            // 更新标题栏颜色
-            UpdateTitleBarColor(theme);
-
-            // 刷新播放控件背景
             if (App.m_window is MainWindow mainWindow)
-            {
-                mainWindow.RefreshPlayerBarBackground();
-            }
-        }
-
-        private void UpdateTitleBarColor(string theme)
-        {
-            try
-            {
-                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(App.m_window);
-                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
-                var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-                
-                if (appWindow?.TitleBar != null)
-                {
-                    var isDark = theme == "Dark" || 
-                                 (theme == "System" && IsSystemDarkMode());
-                    
-                    var backgroundColor = isDark 
-                        ? Windows.UI.Color.FromArgb(255, 32, 32, 32)  // 深色背景
-                        : Windows.UI.Color.FromArgb(255, 243, 243, 243); // 浅色背景
-                    
-                    appWindow.TitleBar.BackgroundColor = backgroundColor;
-                    appWindow.TitleBar.ButtonBackgroundColor = backgroundColor;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"UpdateTitleBarColor error: {ex.Message}");
-            }
-        }
-
-        private bool IsSystemDarkMode()
-        {
-            // 默认返回浅色模式
-            return false;
+                mainWindow.ApplyTheme(theme);
         }
 
         private void SaveServerButton_Click(object sender, RoutedEventArgs e)
@@ -137,17 +87,33 @@ namespace music.Pages
                 return;
             }
 
-            if (!address.StartsWith("http://") && !address.StartsWith("https://"))
+            if (!Uri.TryCreate(address.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? address : "http://" + address, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                address = "http://" + address;
-                ServerAddressBox.Text = address;
+                ServerStatusText.Text = "请输入有效的 HTTP 或 HTTPS 地址";
+                return;
             }
 
-            var settings = ApplicationData.Current.LocalSettings;
-            settings.Values["ServerAddress"] = address;
+            address = uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
+            ServerAddressBox.Text = address;
 
-            ServerStatusText.Text = "已保存，重启应用后生效";
-            ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+            try
+            {
+                App.ApiService.UpdateBaseUrl(address);
+            }
+            catch (Exception ex)
+            {
+                // 保存失败只提示，不让异常冒到 UI 线程把进程带走
+                ServerStatusText.Text = $"保存失败：{ex.Message}";
+                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                return;
+            }
+
+            ServerStatusText.Text = uri.Scheme == Uri.UriSchemeHttps
+                ? "已保存并立即生效，登录凭据将通过 HTTPS 传输。"
+                : "已保存并立即生效。警告：HTTP 为明文传输，请勿用于不可信网络；手机号密码登录仅允许本机 HTTP。";
+            ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[
+                uri.Scheme == Uri.UriSchemeHttps ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush"];
         }
 
         private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
@@ -209,6 +175,12 @@ namespace music.Pages
 
             ClearLoginStatusText.Text = "已清除本地登录状态";
             ClearLoginStatusText.Visibility = Visibility.Visible;
+        }
+
+        private void AllowInsecureLoginCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            ApplicationData.Current.LocalSettings.Values["AllowInsecureLogin"] =
+                AllowInsecureLoginCheckBox.IsChecked == true;
         }
 
         private void FancyLyricsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

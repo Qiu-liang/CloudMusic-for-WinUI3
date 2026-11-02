@@ -180,6 +180,9 @@ namespace music.Pages
             }
         }
 
+        private static Models.Song CreateSongModel(LocalSongItem song) =>
+            Models.LocalSongFactory.Create(song.Name, song.Artist, song.FilePath);
+
         private async void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
         {
             if (e.ClickedItem is LocalSongItem song)
@@ -187,13 +190,9 @@ namespace music.Pages
                 try
                 {
                     var mediaPlayer = MainWindow.PlaybackService;
-                    var songModel = new Models.Song
-                    {
-                        Id = song.Id,
-                        Name = song.Name,
-                        Artists = new List<Models.Artist> { new Models.Artist { Name = song.Artist } }
-                    };
-                    await mediaPlayer.PlayAsync(songModel);
+                    var songModels = _songs.Select(CreateSongModel).ToList();
+                    var filePaths = _songs.Select(item => item.FilePath).ToList();
+                    await mediaPlayer.PlayLocalFilesAsync(filePaths, songModels, _songs.IndexOf(song));
                 }
                 catch (Exception ex)
                 {

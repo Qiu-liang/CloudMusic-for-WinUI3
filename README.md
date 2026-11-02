@@ -96,13 +96,14 @@ dotnet run --project music/music.csproj -p:Platform=x64
 
 ### 3. 配置 API 地址
 
-首次运行时，进入 **设置** 页面，将 API 服务器地址修改为你的 NeteaseCloudMusicApi 地址（如 `http://localhost:3000`），然后点击 **测试连接** 验证。
+应用默认使用 `http://localhost:3000`。进入 **设置** 页面可修改 API 地址并点击 **测试连接**。本机 HTTP 可直接使用；远程部署建议配置 HTTPS，客户端不会通过远程明文 HTTP 发送手机号密码。
 
 ## 项目结构
 
 ```
 CloudMusic-for-WinUI3/
 ├── music.slnx                      # 解决方案文件
+├── tests/music.Tests.csproj        # 最小回归测试工程
 ├── LICENSE                          # MIT 许可证
 ├── README.md                        # 中文说明
 ├── README_EN.md                     # 英文说明
@@ -186,7 +187,6 @@ CloudMusic-for-WinUI3/
 | 键 | 说明 |
 |---|---|
 | `ServerAddress` | API 服务器地址 |
-| `Cookie` | 登录凭证 |
 | `UserId` / `Nickname` / `AvatarUrl` | 用户信息 |
 | `IsVip` | VIP 状态 |
 | `Theme` | 主题模式 (System/Light/Dark) |
@@ -195,7 +195,19 @@ CloudMusic-for-WinUI3/
 | `LocalMusicFolders` | 本地音乐文件夹列表 |
 | `DeviceId` | 设备标识 |
 
-下载的音频文件保存在 `LocalFolder/Downloads/` 目录。
+登录 Cookie 保存在 Windows 凭据保管库（不可用时回退到当前用户 DPAPI 加密），不会以明文写入 `LocalSettings`。下载的音频文件保存在 `LocalFolder/Downloads/` 目录。
+
+## 测试
+
+```bash
+# 使用 xUnit 进程内运行器（无需测试宿主）
+dotnet run --project tests/music.Tests.csproj
+
+# 支持 Microsoft.Testing.Platform 的宿主也可使用
+dotnet test tests/music.Tests.csproj
+```
+
+回归测试覆盖播放队列切换、本地文件路径保持、歌词乱序、喜欢列表分批、上传业务状态解析、主题恢复和进度条拖动状态。
 
 ## 开发指南
 

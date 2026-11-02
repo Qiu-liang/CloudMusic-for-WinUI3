@@ -22,7 +22,8 @@ namespace music.Models
         public bool CanPlay { get; set; } = true;
         public bool IsVip { get; set; } = false;
         public bool IsPaid { get; set; } = false;
-        
+        public string? LocalFilePath { get; set; }
+
         public string ArtistNames => string.Join(" / ", Artists.ConvertAll(a => a.Name));
         
         // VIP状态描述

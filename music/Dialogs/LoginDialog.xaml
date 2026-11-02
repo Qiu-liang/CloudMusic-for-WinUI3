@@ -56,6 +56,10 @@
             <PasswordBox x:Name="PasswordBox" 
                          PlaceholderText="密码"
                          MaxLength="50"/>
+            <TextBlock Text="登录凭据仅经 HTTPS 或本机 HTTP 发送；HTTP 为明文传输，本机回环地址除外。"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             <Border x:Name="PhoneErrorBorder"
                     Visibility="Collapsed"
                     Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}"

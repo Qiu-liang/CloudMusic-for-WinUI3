@@ -116,12 +116,13 @@ namespace music.Pages
 
             try
             {
+                var isLoggedIn = App.ApiService.IsLoggedIn;
                 var playlists = await App.ApiService.GetRecommendedPlaylistsAsync(20);
                 var personalized = await App.ApiService.GetPersonalizedSongsAsync(20);
                 var daily = await App.ApiService.GetDailyRecommendSongsAsync(38);
-                var radar = await App.ApiService.GetRecommendResourceAsync();
+                var radar = isLoggedIn ? await App.ApiService.GetRecommendResourceAsync() : new List<RecommendedPlaylist>();
                 var guess = await App.ApiService.GetPersonalizedSongsAsync(38);
-                var liked = await App.ApiService.GetLikedSongsListAsync();
+                var liked = isLoggedIn ? await App.ApiService.GetIntelligenceSongsAsync() : new List<Song>();
 
                 _playlists.Clear();
                 foreach (var playlist in playlists)
@@ -205,7 +206,6 @@ namespace music.Pages
                 }
 
                 // 根据登录状态显示/隐藏需要登录的模块
-                var isLoggedIn = App.ApiService.IsLoggedIn;
                 IntelligenceSection.Visibility = isLoggedIn ? Visibility.Visible : Visibility.Collapsed;
                 RadarSection.Visibility = isLoggedIn ? Visibility.Visible : Visibility.Collapsed;
 

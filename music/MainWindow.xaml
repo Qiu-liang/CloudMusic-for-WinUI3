@@ -26,6 +26,7 @@
             <AutoSuggestBox x:Name="SearchBox"
                             PlaceholderText="搜索音乐"
                             QueryIcon="Find"
+                            TextMemberPath="Name"
                             TextChanged="SearchBox_TextChanged"
                             QuerySubmitted="SearchBox_QuerySubmitted"/>
         </NavigationView.AutoSuggestBox>
@@ -304,6 +305,26 @@
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    MaxWidth="160"
                                    TextTrimming="CharacterEllipsis"/>
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <Button x:Name="LikeButton"
+                                    Click="LikeButton_Click"
+                                    IsEnabled="False"
+                                    Padding="4,2"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    ToolTipService.ToolTip="喜欢/取消喜欢">
+                                <FontIcon x:Name="LikeIcon" Glyph="&#xE734;" FontSize="13"/>
+                            </Button>
+                            <Button x:Name="DownloadButton"
+                                    Click="DownloadButton_Click"
+                                    IsEnabled="False"
+                                    Padding="4,2"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    ToolTipService.ToolTip="下载当前歌曲">
+                                <FontIcon Glyph="&#xE896;" FontSize="13"/>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
 
@@ -378,8 +399,6 @@
                                 Height="27"
                                 Minimum="0" Maximum="100" 
                                 ValueChanged="ProgressSlider_ValueChanged"
-                                PointerEntered="ProgressSlider_PointerEntered"
-                                PointerExited="ProgressSlider_PointerExited"
                                 IsThumbToolTipEnabled="False"
                                 VerticalAlignment="Center"
                                 Margin="0,-2,0,0"/>

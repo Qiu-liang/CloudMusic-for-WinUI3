@@ -93,6 +93,13 @@
                                        Text=""
                                        FontSize="12"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <CheckBox x:Name="AllowInsecureLoginCheckBox"
+                                      Click="AllowInsecureLoginCheckBox_Click"
+                                      Content="允许通过远程 HTTP 发送手机号密码（不安全）"/>
+                            <TextBlock Text="仅在信任的局域网中临时启用。二维码登录不受此开关限制，但 HTTP 下的会话 Cookie 同样应视为明文传输。"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
 

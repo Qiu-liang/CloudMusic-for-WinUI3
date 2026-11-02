@@ -91,7 +91,10 @@
                            Style="{StaticResource BodyTextBlockStyle}"
                            HorizontalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                <Button Content="重试" Click="RefreshButton_Click"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="重试" Click="RefreshButton_Click"/>
+                    <Button Content="重新登录" Click="LoginButton_Click"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
 

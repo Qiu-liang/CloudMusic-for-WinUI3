@@ -96,13 +96,14 @@ Alternatively, open `music.slnx` in Visual Studio, select the x64 platform, and 
 
 ### 3. Configure the API Address
 
-On first launch, go to the **Settings** page, change the API server address to your NeteaseCloudMusicApi address (e.g. `http://localhost:3000`), then click **Test Connection** to verify.
+The app defaults to `http://localhost:3000`. Use the **Settings** page to change the API address and click **Test Connection**. Local HTTP works out of the box; use HTTPS for remote deployments. The client will not send phone credentials over remote plain HTTP.
 
 ## Project Structure
 
 ```
 CloudMusic-for-WinUI3/
 ├── music.slnx                      # Solution file
+├── tests/music.Tests.csproj        # Minimal regression test project
 ├── LICENSE                          # MIT License
 ├── README.md                        # Chinese documentation
 ├── README_EN.md                     # English documentation
@@ -186,7 +187,6 @@ All user configuration is stored in `ApplicationData.Current.LocalSettings`:
 | Key | Description |
 |---|---|
 | `ServerAddress` | API server address |
-| `Cookie` | Login credentials |
 | `UserId` / `Nickname` / `AvatarUrl` | User information |
 | `IsVip` | VIP status |
 | `Theme` | Theme mode (System/Light/Dark) |
@@ -195,7 +195,19 @@ All user configuration is stored in `ApplicationData.Current.LocalSettings`:
 | `LocalMusicFolders` | List of local music folders |
 | `DeviceId` | Device identifier |
 
-Downloaded audio files are saved to the `LocalFolder/Downloads/` directory.
+The login cookie is stored in Windows Credential Locker (falling back to current-user DPAPI encryption) and never as plaintext in `LocalSettings`. Downloaded audio files are saved to `LocalFolder/Downloads/`.
+
+## Tests
+
+```bash
+# xUnit in-process runner (no external test host)
+dotnet run --project tests/music.Tests.csproj
+
+# Hosts that support Microsoft.Testing.Platform can also use
+dotnet test tests/music.Tests.csproj
+```
+
+Regression tests cover queue replacement/navigation, local file paths, out-of-order lyrics, liked-list batching, upload business status parsing, theme restoration, and progress-drag state.
 
 ## Development Guide
 

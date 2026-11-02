@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -16,7 +17,9 @@ namespace music.Pages
         private Song? _currentSong;
         private List<LyricLine> _lyrics = new();
         private int _currentLyricIndex = -1;
-        private bool _isInitialized = false;
+        private bool _isActive;
+        private CancellationTokenSource? _lyricsCancellation;
+        private readonly LatestLyricRequest _latestLyrics = new();
 
         public LyricsPage()
         {
@@ -26,18 +29,14 @@ namespace music.Pages
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            _isActive = true;
+            SetupPlaybackEvents();
 
             if (e.Parameter is Song song)
             {
                 _currentSong = song;
                 LoadSongInfo();
                 _ = LoadLyricsAsync();
-            }
-
-            if (!_isInitialized)
-            {
-                SetupPlaybackEvents();
-                _isInitialized = true;
             }
         }
 
@@ -50,15 +49,32 @@ namespace music.Pages
         private async System.Threading.Tasks.Task LoadLyricsAsync()
         {
             if (_currentSong == null) return;
-
-            var lyricInfo = await App.ApiService.GetLyricsAsync(_currentSong.Id);
-            if (lyricInfo == null || string.IsNullOrEmpty(lyricInfo.LrcLyric))
+            if (!string.IsNullOrEmpty(_currentSong.LocalFilePath))
             {
+                _lyrics.Clear();
+                DisplayLyrics();
                 return;
             }
 
-            _lyrics = ParseLyrics(lyricInfo.LrcLyric);
-            DispatcherQueue.TryEnqueue(() => DisplayLyrics());
+            _lyricsCancellation?.Cancel();
+            _lyricsCancellation?.Dispose();
+            _lyricsCancellation = new CancellationTokenSource();
+            var cancellation = _lyricsCancellation;
+            var songId = _currentSong.Id;
+            var request = _latestLyrics.Next(songId);
+
+            try
+            {
+                var lyricInfo = await App.ApiService.GetLyricsAsync(songId, cancellation.Token);
+                if (!_isActive || cancellation.IsCancellationRequested) return;
+                if (!_latestLyrics.IsCurrent(request, songId, _currentSong?.Id ?? string.Empty)) return;
+
+                _lyrics = lyricInfo == null || string.IsNullOrEmpty(lyricInfo.LrcLyric)
+                    ? new List<LyricLine>()
+                    : ParseLyrics(lyricInfo.LrcLyric);
+                DispatcherQueue.TryEnqueue(() => DisplayLyrics());
+            }
+            catch (OperationCanceledException) { }
         }
 
         private List<LyricLine> ParseLyrics(string lrcContent)
@@ -170,20 +186,39 @@ namespace music.Pages
         {
             var playbackService = MainWindow.PlaybackService;
             if (playbackService == null) return;
+            playbackService.CurrentSongChanged -= PlaybackService_CurrentSongChanged;
+            playbackService.PositionChanged -= PlaybackService_PositionChanged;
+            playbackService.CurrentSongChanged += PlaybackService_CurrentSongChanged;
+            playbackService.PositionChanged += PlaybackService_PositionChanged;
+        }
 
-            playbackService.CurrentSongChanged += (s, song) =>
-            {
-                _currentSong = song;
-                _lyrics.Clear();
-                _currentLyricIndex = -1;
-                DispatcherQueue.TryEnqueue(() => LoadSongInfo());
-                _ = LoadLyricsAsync();
-            };
+        private void PlaybackService_CurrentSongChanged(object? sender, Song song)
+        {
+            if (!_isActive) return;
+            _currentSong = song;
+            _lyrics.Clear();
+            _currentLyricIndex = -1;
+            DispatcherQueue.TryEnqueue(() => LoadSongInfo());
+            _ = LoadLyricsAsync();
+        }
 
-            playbackService.PositionChanged += (s, position) =>
+        private void PlaybackService_PositionChanged(object? sender, TimeSpan position)
+        {
+            if (!_isActive) return;
+            DispatcherQueue.TryEnqueue(() => UpdateLyricsHighlight(position));
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            _isActive = false;
+            _lyricsCancellation?.Cancel();
+            var playbackService = MainWindow.PlaybackService;
+            if (playbackService != null)
             {
-                DispatcherQueue.TryEnqueue(() => UpdateLyricsHighlight(position));
-            };
+                playbackService.CurrentSongChanged -= PlaybackService_CurrentSongChanged;
+                playbackService.PositionChanged -= PlaybackService_PositionChanged;
+            }
         }
 
         private void UpdateLyricsHighlight(TimeSpan position)

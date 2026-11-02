@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -42,7 +43,10 @@ namespace music.Pages
 
             if (songs == null || songs.Count == 0)
             {
-                ShowEmptyState();
+                if (App.ApiService.LastError != ApiErrorKind.None)
+                    ShowError(App.ApiService.LastErrorMessage);
+                else
+                    ShowEmptyState();
                 return;
             }
 
@@ -106,6 +110,13 @@ namespace music.Pages
             await LoadCloudSongsAsync();
         }
 
+        private async void LoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Dialogs.LoginDialog { XamlRoot = XamlRoot };
+            await dialog.ShowAsync();
+            if (App.ApiService.IsLoggedIn) await LoadCloudSongsAsync();
+        }
+
         private async void UploadButton_Click(object sender, RoutedEventArgs e)
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
@@ -131,28 +142,9 @@ namespace music.Pages
             try
             {
                 ShowLoading();
-
-                var stream = await file.OpenStreamForReadAsync();
-                var content = new System.Net.Http.StreamContent(stream);
-                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-
-                var formData = new System.Net.Http.MultipartFormDataContent();
-                formData.Add(content, "songFile", file.Name);
-
-                var settings = Windows.Storage.ApplicationData.Current.LocalSettings;
-                var serverUrl = settings.Values["ServerAddress"]?.ToString() ?? "http://192.168.31.205:3000";
-                
-                using var httpClient = new System.Net.Http.HttpClient();
-                var response = await httpClient.PostAsync($"{serverUrl}/cloud", formData);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    await LoadCloudSongsAsync();
-                }
-                else
-                {
-                    ShowError("上传失败");
-                }
+                var result = await App.ApiService.UploadCloudSongAsync(file);
+                if (result.Success) await LoadCloudSongsAsync();
+                else ShowError($"上传失败：{result.DisplayMessage}");
             }
             catch (System.Exception ex)
             {
@@ -165,19 +157,16 @@ namespace music.Pages
         {
             if (e.ClickedItem is CloudSongItem songItem)
             {
-                var url = await App.ApiService.GetCloudSongUrlAsync(songItem.SongId);
-                if (!string.IsNullOrEmpty(url))
+                var songs = _songModels.Select(item => new Models.Song
                 {
-                    var song = new Models.Song
-                    {
-                        Id = songItem.SongId,
-                        Name = songItem.SongName,
-                        Artists = new List<Models.Artist> { new Models.Artist { Name = songItem.Artist } },
-                        Album = new Models.Album { Name = songItem.Album },
-                        CoverImgUrl = songItem.CoverUrl
-                    };
-                    await MainWindow.PlaybackService.PlayAsync(song);
-                }
+                    Id = item.SongId,
+                    Name = item.SongName,
+                    Artists = new List<Models.Artist> { new Models.Artist { Name = item.Artist } },
+                    Album = new Models.Album { Name = item.Album },
+                    CoverImgUrl = item.CoverUrl
+                }).ToList();
+                var index = _songModels.FindIndex(item => item.SongId == songItem.SongId);
+                if (index >= 0) await MainWindow.PlaybackService.PlayAsync(songs, index);
             }
         }
 

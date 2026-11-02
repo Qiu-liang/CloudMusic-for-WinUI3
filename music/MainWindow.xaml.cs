@@ -10,6 +10,7 @@ using music.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Windows.Storage;
 
 namespace music
@@ -18,8 +19,10 @@ namespace music
     {
         public static PlaybackService PlaybackService { get; private set; } = null!;
         public Frame MainContentFrame => ContentFrame;
-        private bool _isProgressDragging = false;
+        private readonly ProgressDragState _progressDrag = new();
         private bool _isPlaylistPanelOpen = false;
+        private bool _currentSongLiked;
+        private CancellationTokenSource? _searchSuggestionCancellation;
 
         public MainWindow()
         {
@@ -38,6 +41,10 @@ namespace music
 
             // 设置窗口图标
             SetWindowIcon();
+
+            ProgressSlider.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(ProgressSlider_PointerPressed), true);
+            ProgressSlider.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(ProgressSlider_PointerReleased), true);
+            ProgressSlider.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(ProgressSlider_PointerCaptureLost), true);
 
             PlaybackService = new PlaybackService();
             SetupPlaybackEvents();
@@ -388,6 +395,8 @@ namespace music
         private List<NavigationViewItem> _createdPlaylistItems = new();
         private List<NavigationViewItem> _collectedPlaylistItems = new();
 
+        public System.Threading.Tasks.Task RefreshPlaylistsAsync() => LoadPlaylistsAsync(bypassCache: true);
+
         private async System.Threading.Tasks.Task LoadPlaylistsAsync(bool bypassCache = false)
         {
             if (!App.ApiService.IsLoggedIn) return;
@@ -490,7 +499,7 @@ namespace music
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    if (!_isProgressDragging)
+                    if (!_progressDrag.IsDragging)
                     {
                         CurrentTime.Text = FormatTime(position);
                         var duration = PlaybackService.GetDuration();
@@ -517,6 +526,10 @@ namespace music
 
             SongTitle.Text = song.Name;
             ArtistName.Text = song.ArtistNames;
+            _currentSongLiked = song.Liked;
+            LikeIcon.Glyph = _currentSongLiked ? "\uE735" : "\uE734";
+            LikeButton.IsEnabled = App.ApiService.IsLoggedIn && string.IsNullOrEmpty(song.LocalFilePath);
+            DownloadButton.IsEnabled = string.IsNullOrEmpty(song.LocalFilePath);
 
             if (!string.IsNullOrEmpty(song.CoverImgUrl))
             {
@@ -534,6 +547,49 @@ namespace music
         private string FormatTime(TimeSpan time)
         {
             return $"{(int)time.TotalMinutes:D2}:{time.Seconds:D2}";
+        }
+
+        private async void LikeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var song = PlaybackService.CurrentSong;
+            if (song == null || !App.ApiService.IsLoggedIn) return;
+            LikeButton.IsEnabled = false;
+            var target = !_currentSongLiked;
+            var success = await App.ApiService.LikeSongAsync(song.Id, target);
+            if (success)
+            {
+                _currentSongLiked = target;
+                song.Liked = target;
+                LikeIcon.Glyph = target ? "\uE735" : "\uE734";
+            }
+            else
+            {
+                await ShowMessageAsync("操作失败", App.ApiService.LastErrorMessage);
+            }
+            LikeButton.IsEnabled = true;
+        }
+
+        private async void DownloadButton_Click(object sender, RoutedEventArgs e)
+        {
+            var song = PlaybackService.CurrentSong;
+            if (song == null || !string.IsNullOrEmpty(song.LocalFilePath)) return;
+            DownloadButton.IsEnabled = false;
+            var result = await App.ApiService.DownloadSongAsync(song);
+            DownloadButton.IsEnabled = true;
+            await ShowMessageAsync(result.Success ? "下载完成" : "下载失败",
+                result.Success ? $"已保存到：{result.Message}" : result.DisplayMessage);
+        }
+
+        private async System.Threading.Tasks.Task ShowMessageAsync(string title, string message)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = string.IsNullOrWhiteSpace(message) ? "请稍后重试。" : message,
+                CloseButtonText = "确定",
+                XamlRoot = ContentFrame.XamlRoot
+            };
+            await dialog.ShowAsync();
         }
 
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
@@ -580,25 +636,28 @@ namespace music
 
         private void ProgressSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
-            if (_isProgressDragging && PlaybackService != null)
-            {
-                var duration = PlaybackService.GetDuration();
-                if (duration.TotalSeconds > 0)
-                {
-                    var position = TimeSpan.FromSeconds((e.NewValue / 100) * duration.TotalSeconds);
-                    PlaybackService.Seek(position);
-                }
-            }
+            if (PlaybackService == null) return;
+            var duration = PlaybackService.GetDuration();
+            if (duration > TimeSpan.Zero) _progressDrag.ValueChanged(e.NewValue, duration);
         }
 
-        private void ProgressSlider_PointerEntered(object sender, PointerRoutedEventArgs e)
+        private void ProgressSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            _isProgressDragging = true;
+            _progressDrag.PointerPressed();
+            ProgressSlider.CapturePointer(e.Pointer);
         }
 
-        private void ProgressSlider_PointerExited(object sender, PointerRoutedEventArgs e)
+        private void ProgressSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
-            _isProgressDragging = false;
+            var position = _progressDrag.PointerReleased();
+            if (position.HasValue) PlaybackService.Seek(position.Value);
+            ProgressSlider.ReleasePointerCapture(e.Pointer);
+        }
+
+        private void ProgressSlider_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+        {
+            var position = _progressDrag.PointerCaptureLost();
+            if (position.HasValue) PlaybackService.Seek(position.Value);
         }
 
         private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -735,18 +794,88 @@ namespace music
             }
         }
 
-        private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+        private async void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
         {
-            // TODO: 实时搜索建议
+            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+            _searchSuggestionCancellation?.Cancel();
+            _searchSuggestionCancellation?.Dispose();
+            _searchSuggestionCancellation = new CancellationTokenSource();
+            var cancellation = _searchSuggestionCancellation;
+            var query = sender.Text.Trim();
+            if (query.Length == 0)
+            {
+                sender.ItemsSource = null;
+                return;
+            }
+
+            try
+            {
+                await System.Threading.Tasks.Task.Delay(300, cancellation.Token);
+                var suggestions = await App.ApiService.GetSearchSuggestionsAsync(query, cancellation.Token);
+                if (cancellation.IsCancellationRequested || sender.Text.Trim() != query) return;
+                sender.ItemsSource = suggestions;
+            }
+            catch (OperationCanceledException) { }
         }
 
         private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
         {
-            var queryText = args.QueryText;
+            var queryText = args.ChosenSuggestion is SearchSuggestion suggestion
+                ? suggestion.Name
+                : args.QueryText;
             if (!string.IsNullOrWhiteSpace(queryText))
             {
                 ContentFrame.Navigate(typeof(Pages.SearchPage), queryText);
             }
+        }
+
+        public void ApplySavedTheme()
+        {
+            var saved = ApplicationData.Current.LocalSettings.Values["Theme"]?.ToString() ?? "System";
+            ApplyTheme(saved);
+            if (Content is FrameworkElement root)
+                root.ActualThemeChanged += (_, _) => UpdateWindowChrome();
+        }
+
+        public void ApplyTheme(string theme)
+        {
+            if (Content is FrameworkElement root)
+                root.RequestedTheme = ThemeSettings.Parse(theme) switch
+                {
+                    ThemeMode.Light => ElementTheme.Light,
+                    ThemeMode.Dark => ElementTheme.Dark,
+                    _ => ElementTheme.Default
+                };
+            DispatcherQueue.TryEnqueue(UpdateWindowChrome);
+        }
+
+        private void UpdateWindowChrome()
+        {
+            try
+            {
+                var isDark = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Dark;
+                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd));
+                if (appWindow.TitleBar != null)
+                {
+                    var background = isDark
+                        ? Windows.UI.Color.FromArgb(255, 32, 32, 32)
+                        : Windows.UI.Color.FromArgb(255, 243, 243, 243);
+                    var foreground = isDark ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
+                    appWindow.TitleBar.BackgroundColor = background;
+                    appWindow.TitleBar.ButtonBackgroundColor = background;
+                    appWindow.TitleBar.ForegroundColor = foreground;
+                    appWindow.TitleBar.ButtonForegroundColor = foreground;
+                    appWindow.TitleBar.ButtonHoverBackgroundColor = isDark
+                        ? Windows.UI.Color.FromArgb(255, 55, 55, 55)
+                        : Windows.UI.Color.FromArgb(255, 225, 225, 225);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Theme] Window chrome update failed: {ex.Message}");
+            }
+            RefreshPlayerBarBackground();
         }
 
         public void RefreshPlayerBarBackground()

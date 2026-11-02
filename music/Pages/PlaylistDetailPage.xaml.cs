@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
@@ -15,6 +16,8 @@ namespace music.Pages
         private readonly ObservableCollection<SongItem> _songs = new();
         private List<Song> _songModels = new();
         private string _playlistId = string.Empty;
+        private bool _isSubscribed;
+        private bool _canSubscribe;
 
         public PlaylistDetailPage()
         {
@@ -74,7 +77,9 @@ namespace music.Pages
 
             if (songs == null || songs.Count == 0)
             {
-                ShowError("歌单为空或加载失败");
+                ShowError(App.ApiService.LastError != ApiErrorKind.None
+                    ? App.ApiService.LastErrorMessage
+                    : "歌单为空或加载失败");
                 return;
             }
 
@@ -126,6 +131,10 @@ namespace music.Pages
 
             // 标题
             InfoTitle.Text = info.Name;
+            _canSubscribe = info.CreatorId > 0 && info.CreatorId != App.ApiService.UserId;
+            _isSubscribed = info.Subscribed;
+            SubscribeButton.Visibility = _canSubscribe ? Visibility.Visible : Visibility.Collapsed;
+            SubscribeButton.Content = _isSubscribed ? "取消收藏" : "收藏歌单";
 
             // 创建者
             if (!string.IsNullOrEmpty(info.CreatorName))
@@ -256,6 +265,39 @@ namespace music.Pages
             if (_songModels.Count > 0)
             {
                 await MainWindow.PlaybackService.PlayAsync(_songModels, 0);
+            }
+        }
+
+        private async void SubscribeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_canSubscribe) return;
+            if (!App.ApiService.IsLoggedIn)
+            {
+                var login = new Dialogs.LoginDialog { XamlRoot = XamlRoot };
+                await login.ShowAsync();
+                if (!App.ApiService.IsLoggedIn) return;
+            }
+
+            SubscribeButton.IsEnabled = false;
+            var subscribe = !_isSubscribed;
+            var success = await App.ApiService.SetPlaylistSubscriptionAsync(_playlistId, subscribe);
+            SubscribeButton.IsEnabled = true;
+            if (success)
+            {
+                _isSubscribed = subscribe;
+                SubscribeButton.Content = subscribe ? "取消收藏" : "收藏歌单";
+                if (App.m_window is MainWindow window) await window.RefreshPlaylistsAsync();
+            }
+            else
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "操作失败",
+                    Content = App.ApiService.LastErrorMessage,
+                    CloseButtonText = "确定",
+                    XamlRoot = XamlRoot
+                };
+                await dialog.ShowAsync();
             }
         }
     }
