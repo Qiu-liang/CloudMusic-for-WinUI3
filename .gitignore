@@ -21,3 +21,6 @@ music/*.user
 # Ignore generated XBF/XAML build outputs
 **/Pages/*.xbf
 /api文档.txt
+
+# 参考资料（界面截图等素材）
+/参考资料/
