@@ -196,8 +196,10 @@ namespace music.Services
             catch { /* 日志失败不影响主流程 */ }
         }
 
-        public async void SetLoginCookie(string cookie)
+        public async Task<bool> SetLoginCookieAsync(string cookie)
         {
+            if (string.IsNullOrWhiteSpace(cookie)) return false;
+
             // 合并而非替换：保留匿名设备票据，避免每次扫码被服务器视为新设备
             MergeCookieString(cookie);
             _isInitialized = true;
@@ -205,15 +207,27 @@ namespace music.Services
             var settings = ApplicationData.Current.LocalSettings;
             CredentialStorage.Save(_cookie);
 
-            // 获取用户信息
-            var userInfo = await GetUserInfoAsync();
-            if (userInfo != null)
+            // 获取用户信息：拿到 MUSIC_U 只是第一步，必须等用户信息写入本地后再返回，
+            // 否则对话框关闭时 MainWindow 检查 IsLoggedIn 仍为 false，界面不会有任何反馈
+            for (var attempt = 0; attempt < 3; attempt++)
             {
-                _userId = userInfo.UserId;
-                settings.Values["UserId"] = _userId;
-                settings.Values["Nickname"] = userInfo.Nickname;
-                settings.Values["AvatarUrl"] = userInfo.AvatarUrl;
+                var userInfo = await GetUserInfoAsync();
+                if (userInfo != null)
+                {
+                    _userId = userInfo.UserId;
+                    settings.Values["UserId"] = _userId;
+                    settings.Values["Nickname"] = userInfo.Nickname;
+                    settings.Values["AvatarUrl"] = userInfo.AvatarUrl;
+                    return true;
+                }
+
+                // account.id 已确认、仅用户详情暂时拉取失败时，登录态依然成立
+                if (IsLoggedIn) return true;
+
+                if (attempt < 2) await Task.Delay(500);
             }
+
+            return IsLoggedIn;
         }
 
         public async Task<string> GetAsync(string url, CancellationToken cancellationToken = default)
@@ -311,7 +325,9 @@ namespace music.Services
         public async Task<string> GetWithoutCookieAsync(string url, CancellationToken cancellationToken = default)
         {
             var result = await SendWithResultAsync(HttpMethod.Get, url, null, cancellationToken);
-            return result.Success ? result.Body : "{}";
+            // 业务状态码不是 200 也是有效响应（如二维码轮询的 801/802/803、登录失败的 501），
+            // 必须把响应体交给调用方解析；只有网络错误导致空响应时才回退到 {}
+            return string.IsNullOrEmpty(result.Body) ? "{}" : result.Body;
         }
 
         public async Task<bool> LoginAnonymouslyAsync()
