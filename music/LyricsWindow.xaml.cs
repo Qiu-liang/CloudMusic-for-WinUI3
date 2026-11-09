@@ -80,15 +80,15 @@ namespace music
         private const string FallbackFont = "Microsoft YaHei UI";
         private string _activeFont = PrimaryFont;
 
-        // 字号与间距 —— 对齐 Apple Music：大字号 ExtraBold 排版，非当前行同样醒目
-        private const float FontSize = 28f;            // 非当前行
-        private const float FontSizeCurrent = 40f;     // 当前行
+        // 字号与间距 —— 当前行以亮度强调，后续行保持大字号并逐渐失焦
+        private const float FontSize = 32f;            // 非当前行
+        private const float FontSizeCurrent = 42f;     // 当前行
         private const float FontSizeTranslation = 20f; // 当前行译文
-        private const float LineGap = 42f;             // 行间空白（px）
+        private const float LineGap = 46f;             // 行间空白（px）
         private const float TranslationGap = 12f;      // 原文与译文间距
-        private const float LeftMargin = 56f;
+        private const float LeftMargin = 0f;
         private const float RightMargin = 64f;
-        private const float AnchorRatio = 0.32f;       // 当前行锚定在画布 32% 高度处
+        private const float AnchorRatio = 0.43f;       // 当前行锚定在画布 43% 高度处
 
         private float _dpiScale = 1f;
 
@@ -543,7 +543,7 @@ namespace music
             // 当前行锚定位置
             float anchorY = _lyricsHeight * AnchorRatio;
             float fadeZone = _lyricsHeight * 0.5f;
-            float maxW = _lyricsWidth - LeftMargin - RightMargin;
+            float maxW = Math.Max(1, _lyricsWidth - LeftMargin - RightMargin);
             float edgeFade = _lyricsHeight * 0.16f;   // 上下边缘渐隐区高度
 
             for (int i = 0; i < _lyrics.Count; i++)
@@ -634,10 +634,29 @@ namespace music
                 }
                 else
                 {
-                    // 非当前行：白色 ~55%，按焦点距离与边缘叠加淡出
-                    byte alpha = (byte)Math.Clamp(fade * edge * 150f, 10f, 150f);
+                    byte alpha = (byte)Math.Clamp(fade * edge * 150f, 0f, 150f);
+                    float blurAmount = Math.Clamp((dist / fadeZone - 0.03f) * 7f, 0f, 4f) * _dpiScale;
                     using var tb = new CanvasSolidColorBrush(ds, Color.FromArgb(alpha, 255, 255, 255));
-                    ds.DrawTextLayout(layout, LeftMargin, textY, tb);
+
+                    if (blurAmount > 0.2f)
+                    {
+                        using var commands = new CanvasCommandList(sender);
+                        using (var lineDs = commands.CreateDrawingSession())
+                        {
+                            lineDs.DrawTextLayout(layout, LeftMargin, textY, tb);
+                        }
+                        using var blur = new GaussianBlurEffect
+                        {
+                            Source = commands,
+                            BlurAmount = blurAmount,
+                            BorderMode = EffectBorderMode.Hard
+                        };
+                        ds.DrawImage(blur);
+                    }
+                    else
+                    {
+                        ds.DrawTextLayout(layout, LeftMargin, textY, tb);
+                    }
                 }
             }
 
@@ -678,7 +697,7 @@ namespace music
             _lineMainHeights.Clear();
 
             using var ds = _measureTarget.CreateDrawingSession();
-            float maxW = _lyricsWidth - LeftMargin - RightMargin;
+            float maxW = Math.Max(1, _lyricsWidth - LeftMargin - RightMargin);
             float total = 0;
 
             foreach (var lyric in _lyrics)
@@ -941,8 +960,9 @@ namespace music
             if (_currentSong == null) return;
 
             SongTitleText.Text = _currentSong.Name;
-            ArtistText.Text = _currentSong.ArtistNames;
-            AlbumText.Text = _currentSong.Album.Name;
+            ArtistAlbumText.Text = string.IsNullOrEmpty(_currentSong.Album.Name)
+                ? _currentSong.ArtistNames
+                : $"{_currentSong.ArtistNames} — {_currentSong.Album.Name}";
 
             if (!string.IsNullOrEmpty(_currentSong.CoverImgUrl))
             {
@@ -960,9 +980,7 @@ namespace music
             VolumeSlider.Value = ps.Volume * 100;
             VolumeSlider.ValueChanged += VolumeSlider_ValueChanged;
 
-            var duration = ps.GetDuration();
-            if (duration.TotalSeconds > 0)
-                TotalTimeText.Text = FormatTime(duration);
+            UpdateProgress(ps.GetCurrentPosition());
         }
 
 
@@ -1167,11 +1185,12 @@ namespace music
             {
                 if (_isClosed) return;
                 SongTitleText.Text = "";
-                ArtistText.Text = "";
-                AlbumText.Text = "";
+                ArtistAlbumText.Text = "";
                 _lineHeights.Clear();
                 _lineOffsets.Clear();
+                _lineMainHeights.Clear();
                 LoadCurrentSong();
+                LyricsCanvas?.Invalidate();
                 _ = LoadLyricsAsync();
             });
         }
@@ -1190,7 +1209,10 @@ namespace music
         private void PlaybackService_DurationChanged(object? sender, TimeSpan duration)
         {
             if (_isClosed) return;
-            DispatcherQueue.TryEnqueue(() => { if (!_isClosed) TotalTimeText.Text = FormatTime(duration); });
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_isClosed) UpdateProgress(MainWindow.PlaybackService?.GetCurrentPosition() ?? TimeSpan.Zero);
+            });
         }
 
         private void PlaybackService_StateChanged(object? sender, bool isPlaying)
@@ -1205,11 +1227,21 @@ namespace music
             if (_isProgressDragging) return;
             var duration = MainWindow.PlaybackService?.GetDuration() ?? TimeSpan.Zero;
             if (duration.TotalSeconds > 0)
-                ProgressSlider.Value = (position.TotalSeconds / duration.TotalSeconds) * 100;
+            {
+                ProgressSlider.Value = Math.Clamp(position.TotalSeconds / duration.TotalSeconds * 100, 0, 100);
+                var remaining = duration > position ? duration - position : TimeSpan.Zero;
+                TotalTimeText.Text = FormatRemainingTime(remaining);
+            }
+            else
+            {
+                TotalTimeText.Text = "-0:00";
+            }
             CurrentTimeText.Text = FormatTime(position);
         }
 
-        private static string FormatTime(TimeSpan time) => $"{(int)time.TotalMinutes:D2}:{time.Seconds:D2}";
+        private static string FormatTime(TimeSpan time) => $"{(int)time.TotalMinutes}:{time.Seconds:D2}";
+
+        private static string FormatRemainingTime(TimeSpan time) => $"-{FormatTime(time)}";
 
         #endregion
 
@@ -1284,6 +1316,27 @@ namespace music
 
         private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
+        private void LyricsButton_Click(object sender, RoutedEventArgs e) => Close();
+
+        private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateResponsiveLayout(e.NewSize);
+
+        private void UpdateResponsiveLayout() => UpdateResponsiveLayout(
+            new Windows.Foundation.Size(RootGrid.ActualWidth, RootGrid.ActualHeight));
+
+        private void UpdateResponsiveLayout(Windows.Foundation.Size size)
+        {
+            if (size.Width <= 0 || size.Height <= 0) return;
+
+            double coverSize = Math.Max(120, Math.Min(size.Width * 0.3125, size.Height * 0.56));
+            LeftContentPanel.Width = coverSize;
+            CoverBorder.Width = coverSize;
+            CoverBorder.Height = coverSize;
+            ControlsPanel.Width = Math.Max(250, coverSize * 0.76);
+
+            LeftPanel.Margin = new Thickness(0, size.Height * 0.035, size.Width * 0.02, size.Height * 0.02);
+            LyricsPanel.Margin = new Thickness(size.Width * 0.06, 0, size.Width * 0.025, 0);
+        }
+
         // 空白背景处按下左键即拖动窗口（窗口隐藏了标题栏，需要手动提供拖动能力）
         private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
@@ -1304,36 +1357,14 @@ namespace music
             if (_appWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen)
             {
                 _appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
-                FullscreenIcon.Glyph = "\uE740";   // 进入全屏
-                ApplyFullScreenLayout(false);
+                FullscreenIcon.Glyph = "\uE740";
             }
             else
             {
                 _appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
-                FullscreenIcon.Glyph = "\uE73F";   // 退出全屏
-                ApplyFullScreenLayout(true);
+                FullscreenIcon.Glyph = "\uE73F";
             }
-        }
-
-        // 全屏时放大封面与播放控件，窗口化时恢复
-        private void ApplyFullScreenLayout(bool fullScreen)
-        {
-            if (fullScreen)
-            {
-                LeftPanel.Margin = new Thickness(80, 88, 48, 72);
-                CoverBorder.MaxWidth = 520;
-                CoverBorder.MaxHeight = 520;
-                ControlsPanel.Width = 460;
-                SongTitleText.FontSize = 24;
-            }
-            else
-            {
-                LeftPanel.Margin = new Thickness(48, 56, 24, 40);
-                CoverBorder.MaxWidth = 380;
-                CoverBorder.MaxHeight = 380;
-                ControlsPanel.Width = 380;
-                SongTitleText.FontSize = 20;
-            }
+            UpdateResponsiveLayout();
         }
 
         #endregion

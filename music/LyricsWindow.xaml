@@ -5,131 +5,255 @@
     xmlns:win2d="using:Microsoft.Graphics.Canvas.UI.Xaml"
     Title="歌词">
 
-    <Grid x:Name="RootGrid" Background="#0C0C0E"
-          PointerPressed="RootGrid_PointerPressed">
-
-        <!-- 模糊专辑封面背景 -->
+    <Grid x:Name="RootGrid"
+          Background="#0C0C0E"
+          PointerPressed="RootGrid_PointerPressed"
+          SizeChanged="RootGrid_SizeChanged">
         <win2d:CanvasControl x:Name="BackgroundCanvas"
                               Draw="BackgroundCanvas_Draw"
                               IsHitTestVisible="False"
-                              Opacity="0.85"/>
+                              Opacity="0.9"/>
 
-        <!-- 轻量暗色渐变叠加：顶部几乎透明、底部加深，保留背景的鲜艳色彩 -->
         <Grid IsHitTestVisible="False">
             <Grid.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                     <GradientStop Color="#08000000" Offset="0"/>
-                    <GradientStop Color="#1A000000" Offset="0.55"/>
-                    <GradientStop Color="#47000000" Offset="1"/>
+                    <GradientStop Color="#14000000" Offset="0.55"/>
+                    <GradientStop Color="#38000000" Offset="1"/>
                 </LinearGradientBrush>
             </Grid.Background>
         </Grid>
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="LeftColumn" Width="40*"/>
-                <ColumnDefinition x:Name="RightColumn" Width="60*"/>
+                <ColumnDefinition x:Name="LeftColumn" Width="45*"/>
+                <ColumnDefinition x:Name="RightColumn" Width="55*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 左侧：封面 + 歌曲信息 + 播放控制（整体垂直居中，控件紧贴封面） -->
-            <Grid Grid.Column="0" x:Name="LeftPanel" Margin="48,56,24,40">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
-
-                    <!-- 专辑封面 -->
+            <Grid Grid.Column="0" x:Name="LeftPanel">
+                <StackPanel x:Name="LeftContentPanel"
+                            Width="440"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Spacing="26">
                     <Border x:Name="CoverBorder"
-                            CornerRadius="12"
-                            HorizontalAlignment="Center"
-                            MaxWidth="380" MaxHeight="380"
+                            Width="440"
+                            Height="440"
+                            CornerRadius="6"
+                            HorizontalAlignment="Stretch"
                             Background="#10FFFFFF">
                         <Image x:Name="AlbumCoverImage" Stretch="UniformToFill"/>
                     </Border>
 
-                    <!-- 歌曲信息 -->
-                    <StackPanel HorizontalAlignment="Center" Spacing="6" MaxWidth="380">
-                        <TextBlock x:Name="SongTitleText" Text=""
-                                   FontSize="20" FontWeight="SemiBold"
-                                   Foreground="White" HorizontalAlignment="Center"
-                                   MaxLines="1" TextTrimming="CharacterEllipsis"
-                                   CharacterSpacing="10"/>
-                        <TextBlock x:Name="ArtistText" Text=""
-                                   FontSize="13" Foreground="#88FFFFFF"
-                                   HorizontalAlignment="Center" FontWeight="Normal"
-                                   MaxLines="1" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:Name="AlbumText" Text=""
-                                   FontSize="12" Foreground="#44FFFFFF"
-                                   HorizontalAlignment="Center" FontWeight="Light"
-                                   MaxLines="1" TextTrimming="CharacterEllipsis"/>
+                    <StackPanel x:Name="SongInfoPanel"
+                                HorizontalAlignment="Stretch"
+                                Spacing="8">
+                        <TextBlock x:Name="SongTitleText"
+                                   FontSize="16"
+                                   FontWeight="Normal"
+                                   Foreground="#F2FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   MaxLines="1"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="ArtistAlbumText"
+                                   FontSize="13"
+                                   Foreground="#99FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   MaxLines="1"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
 
-                    <!-- 播放控制 -->
-                    <StackPanel x:Name="ControlsPanel" HorizontalAlignment="Center"
-                                Spacing="14" Width="380" Margin="0,8,0,0">
-
-                        <!-- 进度条 -->
+                    <StackPanel x:Name="ControlsPanel"
+                                Width="336"
+                                HorizontalAlignment="Center"
+                                Spacing="10"
+                                Margin="0,2,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="CurrentTimeText" Grid.Column="0"
-                                       Text="00:00" FontSize="10" Foreground="#55FFFFFF"
+                            <TextBlock x:Name="CurrentTimeText"
+                                       Grid.Column="0"
+                                       Text="0:00"
+                                       FontSize="11"
+                                       Foreground="#99FFFFFF"
                                        FontFamily="Consolas"
-                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <Slider x:Name="ProgressSlider" Grid.Column="1"
-                                    Minimum="0" Maximum="100"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <Slider x:Name="ProgressSlider"
+                                    Grid.Column="1"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    Height="20"
+                                    MinHeight="20"
+                                    Padding="0"
+                                    BorderThickness="0"
+                                    Foreground="#F2FFFFFF"
+                                    Background="#40FFFFFF"
                                     VerticalAlignment="Center"
                                     ValueChanged="ProgressSlider_ValueChanged"
                                     IsThumbToolTipEnabled="False"/>
-                            <TextBlock x:Name="TotalTimeText" Grid.Column="2"
-                                       Text="00:00" FontSize="10" Foreground="#55FFFFFF"
+                            <TextBlock x:Name="TotalTimeText"
+                                       Grid.Column="2"
+                                       Text="-0:00"
+                                       FontSize="11"
+                                       Foreground="#99FFFFFF"
                                        FontFamily="Consolas"
-                                       VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                       VerticalAlignment="Center"
+                                       Margin="12,0,0,0"/>
                         </Grid>
 
-                        <!-- 播放按钮组 -->
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16">
-                            <Button x:Name="ShuffleButton" Click="ShuffleButton_Click"
-                                    Background="Transparent" BorderThickness="0"
-                                    Padding="8" Width="36" Height="36">
-                                <FontIcon x:Name="ShuffleIcon" Glyph="&#xE8B1;" FontSize="14" Foreground="#88FFFFFF"/>
-                            </Button>
-                            <Button x:Name="PrevButton" Click="PrevButton_Click"
-                                    Background="Transparent" BorderThickness="0"
-                                    Padding="6" Width="40" Height="40">
-                                <FontIcon Glyph="&#xE892;" FontSize="20" Foreground="#CCFFFFFF"/>
-                            </Button>
-                            <Button x:Name="PlayPauseButton" Click="PlayPauseButton_Click"
-                                    Background="#22FFFFFF" BorderThickness="0"
-                                    Padding="0" Width="52" Height="52" CornerRadius="26">
-                                <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontSize="22" Foreground="White"/>
-                            </Button>
-                            <Button x:Name="NextButton" Click="NextButton_Click"
-                                    Background="Transparent" BorderThickness="0"
-                                    Padding="6" Width="40" Height="40">
-                                <FontIcon Glyph="&#xE893;" FontSize="20" Foreground="#CCFFFFFF"/>
-                            </Button>
-                            <Button x:Name="RepeatButton" Click="RepeatButton_Click"
-                                    Background="Transparent" BorderThickness="0"
-                                    Padding="8" Width="36" Height="36">
-                                <FontIcon x:Name="RepeatIcon" Glyph="&#xE8EE;" FontSize="14" Foreground="#88FFFFFF"/>
-                            </Button>
-                        </StackPanel>
+                        <Grid Height="42">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                        <!-- 音量 -->
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                            <FontIcon x:Name="VolumeIcon" Glyph="&#xE767;" FontSize="12" Foreground="#55FFFFFF"/>
-                            <Slider x:Name="VolumeSlider"
-                                    Width="100" Minimum="0" Maximum="100" Value="100"
-                                    ValueChanged="VolumeSlider_ValueChanged"
-                                    IsThumbToolTipEnabled="False"/>
-                        </StackPanel>
+                            <StackPanel Grid.Column="0"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Spacing="4">
+                                <Button x:Name="VolumeButton"
+                                        Width="30"
+                                        Height="30"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="4"
+                                        ToolTipService.ToolTip="音量">
+                                    <FontIcon x:Name="VolumeIcon"
+                                              Glyph="&#xE767;"
+                                              FontSize="14"
+                                              Foreground="#CCFFFFFF"/>
+                                    <Button.Flyout>
+                                        <Flyout>
+                                            <StackPanel Orientation="Horizontal"
+                                                        Spacing="12"
+                                                        MinWidth="210">
+                                                <FontIcon Glyph="&#xE767;"
+                                                          FontSize="14"
+                                                          VerticalAlignment="Center"/>
+                                                <Slider x:Name="VolumeSlider"
+                                                        Width="170"
+                                                        Minimum="0"
+                                                        Maximum="100"
+                                                        Value="80"
+                                                        VerticalAlignment="Center"
+                                                        ValueChanged="VolumeSlider_ValueChanged"
+                                                        IsThumbToolTipEnabled="False"/>
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <Button x:Name="MoreButton"
+                                        Width="30"
+                                        Height="30"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="4"
+                                        ToolTipService.ToolTip="更多播放选项">
+                                    <FontIcon Glyph="&#xE712;"
+                                              FontSize="14"
+                                              Foreground="#CCFFFFFF"/>
+                                    <Button.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="随机播放"
+                                                            Click="ShuffleButton_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon x:Name="ShuffleIcon"
+                                                              Glyph="&#xE8B1;"
+                                                              FontSize="14"/>
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="循环播放"
+                                                            Click="RepeatButton_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon x:Name="RepeatIcon"
+                                                              Glyph="&#xE8EE;"
+                                                              FontSize="14"/>
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Spacing="8">
+                                <Button x:Name="PrevButton"
+                                        Click="PrevButton_Click"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        Width="34"
+                                        Height="36"
+                                        CornerRadius="4"
+                                        ToolTipService.ToolTip="上一首">
+                                    <FontIcon Glyph="&#xE892;"
+                                              FontSize="19"
+                                              Foreground="#F2FFFFFF"/>
+                                </Button>
+                                <Button x:Name="PlayPauseButton"
+                                        Click="PlayPauseButton_Click"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        Width="36"
+                                        Height="36"
+                                        CornerRadius="4"
+                                        ToolTipService.ToolTip="播放 / 暂停">
+                                    <FontIcon x:Name="PlayPauseIcon"
+                                              Glyph="&#xE768;"
+                                              FontSize="22"
+                                              Foreground="White"/>
+                                </Button>
+                                <Button x:Name="NextButton"
+                                        Click="NextButton_Click"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        Width="34"
+                                        Height="36"
+                                        CornerRadius="4"
+                                        ToolTipService.ToolTip="下一首">
+                                    <FontIcon Glyph="&#xE893;"
+                                              FontSize="19"
+                                              Foreground="#F2FFFFFF"/>
+                                </Button>
+                            </StackPanel>
+
+                            <Button x:Name="LyricsButton"
+                                    Grid.Column="2"
+                                    Click="LyricsButton_Click"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Background="#14FFFFFF"
+                                    BorderThickness="0"
+                                    Padding="0"
+                                    Width="32"
+                                    Height="32"
+                                    CornerRadius="4"
+                                    ToolTipService.ToolTip="返回播放界面">
+                                <FontIcon Glyph="&#xE8A7;"
+                                          FontSize="15"
+                                          Foreground="#F2FFFFFF"/>
+                            </Button>
+                        </Grid>
                     </StackPanel>
                 </StackPanel>
             </Grid>
 
-            <!-- 右侧：歌词滚动区域 -->
-            <Grid Grid.Column="1" Margin="8,0,56,0">
+            <Grid Grid.Column="1" x:Name="LyricsPanel">
                 <win2d:CanvasControl x:Name="LyricsCanvas"
                                       CreateResources="LyricsCanvas_CreateResources"
                                       Draw="LyricsCanvas_Draw"
@@ -139,11 +263,11 @@
                                       PointerWheelChanged="LyricsCanvas_PointerWheelChanged"
                                       ContextRequested="LyricsCanvas_ContextRequested"/>
 
-                <!-- 手动滚动时显示：回到当前播放位置 -->
                 <Button x:Name="BackToCurrentButton"
                         Click="BackToCurrentButton_Click"
-                        HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                        Margin="0,0,0,28"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,0,36"
                         Padding="16,9"
                         CornerRadius="20"
                         Background="#26FFFFFF"
@@ -159,24 +283,40 @@
             </Grid>
         </Grid>
 
-        <!-- 全屏 / 关闭按钮 -->
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top"
-                    Margin="12,8,0,0" Spacing="4">
+        <StackPanel x:Name="WindowActionsPanel"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,6,12,0"
+                    Spacing="2">
             <Button x:Name="FullscreenButton"
                     Click="FullscreenButton_Click"
-                    Padding="8"
-                    Background="Transparent" BorderThickness="0"
-                    CornerRadius="18" Width="36" Height="36"
-                    Opacity="0.35">
-                <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="13" Foreground="#BBFFFFFF"/>
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    CornerRadius="4"
+                    Width="30"
+                    Height="30"
+                    Opacity="0.55"
+                    ToolTipService.ToolTip="全屏 / 还原">
+                <FontIcon x:Name="FullscreenIcon"
+                          Glyph="&#xE740;"
+                          FontSize="12"
+                          Foreground="#E6FFFFFF"/>
             </Button>
             <Button x:Name="CloseButton"
                     Click="CloseButton_Click"
-                    Padding="8"
-                    Background="Transparent" BorderThickness="0"
-                    CornerRadius="18" Width="36" Height="36"
-                    Opacity="0.35">
-                <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="#BBFFFFFF"/>
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    CornerRadius="4"
+                    Width="30"
+                    Height="30"
+                    Opacity="0.55"
+                    ToolTipService.ToolTip="关闭">
+                <FontIcon Glyph="&#xE711;"
+                          FontSize="12"
+                          Foreground="#E6FFFFFF"/>
             </Button>
         </StackPanel>
     </Grid>
