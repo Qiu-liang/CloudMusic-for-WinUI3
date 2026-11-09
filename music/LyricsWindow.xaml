@@ -9,6 +9,148 @@
           Background="#0C0C0E"
           PointerPressed="RootGrid_PointerPressed"
           SizeChanged="RootGrid_SizeChanged">
+        <Grid.Resources>
+        <Style x:Key="LyricsProgressSliderStyle"
+               TargetType="Slider"
+               BasedOn="{StaticResource DefaultSliderStyle}">
+            <Setter Property="Background" Value="#38FFFFFF"/>
+            <Setter Property="Foreground" Value="#F2FFFFFF"/>
+            <Setter Property="CornerRadius" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Margin="{TemplateBinding Padding}">
+                            <Grid.Resources>
+                                <Style x:Key="LyricsThumbStyle" TargetType="Thumb">
+                                    <Setter Property="Background" Value="White"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Fill="{TemplateBinding Background}"/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Grid.Resources>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HorizontalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.1"/>
+                                            <DoubleAnimation Storyboard.TargetName="VerticalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.1"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="PointerOver">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HorizontalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1"
+                                                             Duration="0:0:0.1"/>
+                                            <DoubleAnimation Storyboard.TargetName="VerticalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1"
+                                                             Duration="0:0:0.1"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HorizontalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1"
+                                                             Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="VerticalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1"
+                                                             Duration="0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="HorizontalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="VerticalThumb"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <Grid x:Name="SliderContainer" Background="Transparent">
+                                <Grid x:Name="HorizontalTemplate" MinHeight="18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Rectangle x:Name="HorizontalTrackRect"
+                                               Grid.ColumnSpan="3"
+                                               Height="2"
+                                               RadiusX="1"
+                                               RadiusY="1"
+                                               VerticalAlignment="Center"
+                                               Fill="{TemplateBinding Background}"/>
+                                    <Rectangle x:Name="HorizontalDecreaseRect"
+                                               Height="2"
+                                               RadiusX="1"
+                                               RadiusY="1"
+                                               VerticalAlignment="Center"
+                                               Fill="{TemplateBinding Foreground}"/>
+                                    <Thumb x:Name="HorizontalThumb"
+                                           Grid.Column="1"
+                                           Width="12"
+                                           Height="12"
+                                           Opacity="0"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource LyricsThumbStyle}"
+                                           DataContext="{TemplateBinding Value}"
+                                           AutomationProperties.AccessibilityView="Raw"/>
+                                </Grid>
+                                <Grid x:Name="VerticalTemplate" Visibility="Collapsed">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Rectangle x:Name="VerticalTrackRect"
+                                               Grid.RowSpan="3"
+                                               Width="2"
+                                               RadiusX="1"
+                                               RadiusY="1"
+                                               HorizontalAlignment="Center"
+                                               Fill="{TemplateBinding Background}"/>
+                                    <Rectangle x:Name="VerticalDecreaseRect"
+                                               Grid.Row="2"
+                                               Width="2"
+                                               RadiusX="1"
+                                               RadiusY="1"
+                                               HorizontalAlignment="Center"
+                                               Fill="{TemplateBinding Foreground}"/>
+                                    <Thumb x:Name="VerticalThumb"
+                                           Grid.Row="1"
+                                           Width="12"
+                                           Height="12"
+                                           Opacity="0"
+                                           Style="{StaticResource LyricsThumbStyle}"
+                                           DataContext="{TemplateBinding Value}"
+                                           AutomationProperties.AccessibilityView="Raw"/>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        </Grid.Resources>
+
         <win2d:CanvasControl x:Name="BackgroundCanvas"
                               Draw="BackgroundCanvas_Draw"
                               IsHitTestVisible="False"
@@ -17,9 +159,19 @@
         <Grid IsHitTestVisible="False">
             <Grid.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#08000000" Offset="0"/>
-                    <GradientStop Color="#14000000" Offset="0.55"/>
-                    <GradientStop Color="#38000000" Offset="1"/>
+                    <GradientStop Color="#14000000" Offset="0"/>
+                    <GradientStop Color="#1C000000" Offset="0.55"/>
+                    <GradientStop Color="#47000000" Offset="1"/>
+                </LinearGradientBrush>
+            </Grid.Background>
+        </Grid>
+        <Grid IsHitTestVisible="False">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#38000000" Offset="0"/>
+                    <GradientStop Color="#10000000" Offset="0.45"/>
+                    <GradientStop Color="#00000000" Offset="0.75"/>
+                    <GradientStop Color="#08000000" Offset="1"/>
                 </LinearGradientBrush>
             </Grid.Background>
         </Grid>
@@ -86,14 +238,13 @@
                                        Margin="0,0,12,0"/>
                             <Slider x:Name="ProgressSlider"
                                     Grid.Column="1"
+                                    Style="{StaticResource LyricsProgressSliderStyle}"
                                     Minimum="0"
                                     Maximum="100"
-                                    Height="20"
-                                    MinHeight="20"
+                                    Height="18"
+                                    MinHeight="18"
                                     Padding="0"
                                     BorderThickness="0"
-                                    Foreground="#F2FFFFFF"
-                                    Background="#40FFFFFF"
                                     VerticalAlignment="Center"
                                     ValueChanged="ProgressSlider_ValueChanged"
                                     IsThumbToolTipEnabled="False"/>
@@ -200,7 +351,8 @@
                                         CornerRadius="4"
                                         ToolTipService.ToolTip="上一首">
                                     <FontIcon Glyph="&#xE892;"
-                                              FontSize="19"
+                                              FontFamily="Segoe MDL2 Assets"
+                                              FontSize="18"
                                               Foreground="#F2FFFFFF"/>
                                 </Button>
                                 <Button x:Name="PlayPauseButton"
@@ -214,7 +366,8 @@
                                         ToolTipService.ToolTip="播放 / 暂停">
                                     <FontIcon x:Name="PlayPauseIcon"
                                               Glyph="&#xE768;"
-                                              FontSize="22"
+                                              FontFamily="Segoe MDL2 Assets"
+                                              FontSize="20"
                                               Foreground="White"/>
                                 </Button>
                                 <Button x:Name="NextButton"
@@ -227,7 +380,8 @@
                                         CornerRadius="4"
                                         ToolTipService.ToolTip="下一首">
                                     <FontIcon Glyph="&#xE893;"
-                                              FontSize="19"
+                                              FontFamily="Segoe MDL2 Assets"
+                                              FontSize="18"
                                               Foreground="#F2FFFFFF"/>
                                 </Button>
                             </StackPanel>
@@ -244,9 +398,12 @@
                                     Height="32"
                                     CornerRadius="4"
                                     ToolTipService.ToolTip="返回播放界面">
-                                <FontIcon Glyph="&#xE8A7;"
-                                          FontSize="15"
-                                          Foreground="#F2FFFFFF"/>
+                                <Path Width="18"
+                                      Height="18"
+                                      Stretch="Uniform"
+                                      Stroke="#F2FFFFFF"
+                                      StrokeThickness="1.2"
+                                      Data="M1.5,1.5 H16.5 V12.5 H9 L5,16.5 V12.5 H1.5 Z M5,5 H13 M5,8 H11"/>
                             </Button>
                         </Grid>
                     </StackPanel>

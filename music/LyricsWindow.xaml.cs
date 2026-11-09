@@ -81,7 +81,7 @@ namespace music
         private string _activeFont = PrimaryFont;
 
         // 字号与间距 —— 当前行以亮度强调，后续行保持大字号并逐渐失焦
-        private const float FontSize = 32f;            // 非当前行
+        private const float FontSize = 36f;            // 非当前行
         private const float FontSizeCurrent = 42f;     // 当前行
         private const float FontSizeTranslation = 20f; // 当前行译文
         private const float LineGap = 46f;             // 行间空白（px）
@@ -101,7 +101,7 @@ namespace music
 
         private AppWindow? _appWindow;                 // 窗口 presenter，用于全屏切换
 
-        // 从专辑封面提取的主色，用于背景染色与当前行辉光
+        // 从专辑封面提取的主色，用于背景染色
         private Color _dominantColor = Color.FromArgb(255, 96, 96, 118);
 
         // LRC 解析正则：支持 [mm:ss.xx] / [mm:ss.xxx] / 多时间戳
@@ -195,12 +195,12 @@ namespace music
             _fmtTranslation?.Dispose();
             _fmtNoLyrics?.Dispose();
 
-            // 当前行：放大、ExtraBold 字重（Apple Music 的厚重排版）
+            // 当前行：放大、Bold 字重，避免字形边缘过厚
             _fmtCurrent = new CanvasTextFormat
             {
                 FontFamily = _activeFont,
                 FontSize = FontSizeCurrent * _dpiScale,
-                FontWeight = FontWeights.ExtraBold,
+                FontWeight = FontWeights.Bold,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 WordWrapping = CanvasWordWrapping.Wrap
             };
@@ -220,7 +220,7 @@ namespace music
             {
                 FontFamily = _activeFont,
                 FontSize = FontSizeCurrent * _dpiScale,
-                FontWeight = FontWeights.ExtraBold,
+                FontWeight = FontWeights.Bold,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 WordWrapping = CanvasWordWrapping.Wrap
             };
@@ -374,7 +374,7 @@ namespace music
                             using var blurEffect = new GaussianBlurEffect
                             {
                                 Source = tempTarget,
-                                BlurAmount = 80f,
+                                BlurAmount = 48f,
                                 BorderMode = EffectBorderMode.Soft
                             };
 
@@ -382,7 +382,7 @@ namespace music
                             using var saturateEffect = new SaturationEffect
                             {
                                 Source = blurEffect,
-                                Saturation = 1.45f
+                                Saturation = 1.65f
                             };
 
                             using (var ds = _blurredBg.CreateDrawingSession())
@@ -393,7 +393,7 @@ namespace music
                             }
                         }
 
-                        // 提取封面主色：缩小到 4x4 求平均，用于背景染色与辉光
+                        // 提取封面主色：缩小到 4x4 求平均，用于背景染色
                         ExtractDominantColor(bitmap);
 
                         bitmap.Dispose();
@@ -495,11 +495,11 @@ namespace music
             }
             catch (ObjectDisposedException) { /* 资源已释放，跳过绘制 */ }
 
-            // 主色调轻叠加，保留鲜艳氛围同时保证歌词可读性
-            using (var overlay = new CanvasSolidColorBrush(ds, Color.FromArgb(55,
-                (byte)(_dominantColor.R * 0.35f),
-                (byte)(_dominantColor.G * 0.35f),
-                (byte)(_dominantColor.B * 0.45f))))
+            // 冷色主调叠加，避免浅色封面让整页泛白
+            using (var overlay = new CanvasSolidColorBrush(ds, Color.FromArgb(75,
+                (byte)(_dominantColor.R * 0.20f),
+                (byte)(_dominantColor.G * 0.24f),
+                (byte)(_dominantColor.B * 0.34f))))
             {
                 ds.FillRectangle(0, 0, w, h, overlay);
             }
@@ -590,34 +590,17 @@ namespace music
                     ds.Transform = System.Numerics.Matrix3x2.CreateScale(
                         _currentLineScale, new System.Numerics.Vector2(LeftMargin, textY + mainH * 0.5f));
 
-                    // 辉光：取封面主色的提亮色，多圈扩散，随浮现进度渐入
-                    byte r = (byte)Math.Min(255, _dominantColor.R + 100);
-                    byte g = (byte)Math.Min(255, _dominantColor.G + 100);
-                    byte b = (byte)Math.Min(255, _dominantColor.B + 100);
-                    byte glowA = (byte)Math.Clamp(26f * appear * edge, 0f, 255f);
-                    if (glowA > 0)
+                    byte shadowA = (byte)Math.Clamp(72f * appear * edge, 0f, 255f);
+                    using (var shadow = new CanvasSolidColorBrush(ds, Color.FromArgb(shadowA, 0, 0, 0)))
                     {
-                        for (int gl = 4; gl >= 1; gl--)
-                        {
-                            using var gb = new CanvasSolidColorBrush(ds, Color.FromArgb(glowA, r, g, b));
-                            ds.DrawTextLayout(layout, LeftMargin - gl, textY, gb);
-                            ds.DrawTextLayout(layout, LeftMargin + gl, textY, gb);
-                            ds.DrawTextLayout(layout, LeftMargin, textY - gl, gb);
-                            ds.DrawTextLayout(layout, LeftMargin, textY + gl, gb);
-                        }
+                        ds.DrawTextLayout(layout, LeftMargin, textY + 2, shadow);
                     }
 
-                    // 当前行主体：白色渐变填充，自上而下微微渐隐；alpha 随浮现进度从 150 升到 255
                     float mainA = Math.Clamp((150f + 105f * appear) * edge, 0f, 255f);
-                    var grad = new CanvasLinearGradientBrush(ds, new[]
+                    using (var mainBrush = new CanvasSolidColorBrush(ds, Color.FromArgb((byte)mainA, 255, 255, 255)))
                     {
-                        new CanvasGradientStop { Position = 0f, Color = Color.FromArgb((byte)mainA, 255, 255, 255) },
-                        new CanvasGradientStop { Position = 1f, Color = Color.FromArgb((byte)(mainA * 0.82f), 235, 238, 255) }
-                    });
-                    grad.StartPoint = new System.Numerics.Vector2(LeftMargin, textY);
-                    grad.EndPoint = new System.Numerics.Vector2(LeftMargin, textY + mainH);
-                    ds.DrawTextLayout(layout, LeftMargin, textY, grad);
-                    grad.Dispose();
+                        ds.DrawTextLayout(layout, LeftMargin, textY, mainBrush);
+                    }
 
                     // 译文：当前行下方，半透明白，随浮现进度渐入
                     var tr = _lyrics[i].Translation;
@@ -634,8 +617,8 @@ namespace music
                 }
                 else
                 {
-                    byte alpha = (byte)Math.Clamp(fade * edge * 150f, 0f, 150f);
-                    float blurAmount = Math.Clamp((dist / fadeZone - 0.03f) * 7f, 0f, 4f) * _dpiScale;
+                    byte alpha = (byte)Math.Clamp(fade * edge * 165f, 0f, 165f);
+                    float blurAmount = Math.Clamp((dist / fadeZone - 0.04f) * 3.2f, 0f, 2.2f) * _dpiScale;
                     using var tb = new CanvasSolidColorBrush(ds, Color.FromArgb(alpha, 255, 255, 255));
 
                     if (blurAmount > 0.2f)
