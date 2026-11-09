@@ -8,7 +8,8 @@
 
 ## 截图
 
-<img width="1798" height="1183" alt="57339c9393ba52db6a446c2d03d413af" src="https://github.com/user-attachments/assets/4d5a8426-36a7-41b5-8146-2d4e824365af" />
+<img width="1446" height="1057" alt="QQ20261109-175745" src="https://github.com/user-attachments/assets/6ac891b3-f5d4-451a-b231-2082eb89cc24" />
+
 
 ## 功能特性
 
