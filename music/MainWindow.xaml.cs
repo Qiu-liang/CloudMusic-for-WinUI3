@@ -301,6 +301,10 @@ namespace music
                     VipBadge.Visibility = Visibility.Collapsed;
                 }
             });
+
+            // 登录态变化后同步播放栏红心按钮的可用状态
+            var currentSong = PlaybackService.CurrentSong;
+            if (currentSong != null) UpdateSongInfo(currentSong);
         }
 
         private async System.Threading.Tasks.Task LoadUserInfoAsync()
@@ -753,6 +757,10 @@ namespace music
             if (ContentFrame.CurrentSourcePageType == typeof(Pages.RecommendPage))
             {
                 ContentFrame.Navigate(typeof(Pages.RecommendPage));
+            }
+            else if (ContentFrame.CurrentSourcePageType == typeof(Pages.LikedPage))
+            {
+                ContentFrame.Navigate(typeof(Pages.LikedPage));
             }
         }
 

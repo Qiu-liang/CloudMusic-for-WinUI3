@@ -27,6 +27,7 @@ namespace music.Services
         private long _userId = 0;
         private bool _isInitialized = false;
         private string _deviceId = string.Empty;
+        private string _favoritePlaylistId = string.Empty;
 
         public bool IsLoggedIn => !string.IsNullOrEmpty(_cookie) && _userId > 0;
         public long UserId => _userId;
@@ -126,38 +127,19 @@ namespace music.Services
             return new Uri(baseUri, url);
         }
 
-        // 解析 "name=value; name2=value2" 形式的 Cookie 字符串到会话罐（整体替换）
+        // 解析 Cookie 字符串到会话罐（整体替换）；Set-Cookie 属性由解析器丢弃
         private void LoadCookieString(string cookie)
         {
             _sessionCookies.Clear();
-            if (string.IsNullOrEmpty(cookie)) return;
-
-            foreach (var pair in cookie.Split(';'))
-            {
-                var idx = pair.IndexOf('=');
-                if (idx <= 0) continue;
-                var name = pair[..idx].Trim();
-                var value = pair[(idx + 1)..].Trim();
-                if (name.Length > 0) _sessionCookies[name] = value;
-            }
-
-            RebuildCookieString();
+            MergeCookieString(cookie);
         }
 
         // 合并 Cookie 字符串到会话罐（不清空罐，同名覆盖）：登录成功时用，
         // 保留匿名设备票据（MUSIC_A_T 等），否则每次扫码都会被服务器视为新设备
         private void MergeCookieString(string cookie)
         {
-            if (string.IsNullOrEmpty(cookie)) return;
-
-            foreach (var pair in cookie.Split(';'))
-            {
-                var idx = pair.IndexOf('=');
-                if (idx <= 0) continue;
-                var name = pair[..idx].Trim();
-                var value = pair[(idx + 1)..].Trim();
-                if (name.Length > 0) _sessionCookies[name] = value;
-            }
+            foreach (var pair in CookieStringParser.Parse(cookie))
+                _sessionCookies[pair.Key] = pair.Value;
 
             RebuildCookieString();
         }
@@ -199,6 +181,8 @@ namespace music.Services
         public async Task<bool> SetLoginCookieAsync(string cookie)
         {
             if (string.IsNullOrWhiteSpace(cookie)) return false;
+
+            _favoritePlaylistId = string.Empty;
 
             // 合并而非替换：保留匿名设备票据，避免每次扫码被服务器视为新设备
             MergeCookieString(cookie);
@@ -534,6 +518,7 @@ namespace music.Services
             _cookie = string.Empty;
             _sessionCookies.Clear();
             _userId = 0;
+            _favoritePlaylistId = string.Empty;
             _isInitialized = false;
         }
 
@@ -1121,12 +1106,13 @@ namespace music.Services
             }
         }
 
-        public async Task<List<Song>> GetLikedSongsAsync()
+        public async Task<List<Song>> GetLikedSongsAsync(int limit = 0)
         {
             try
             {
                 var ids = await GetLikedSongIdsAsync();
                 if (ids.Count == 0) return new List<Song>();
+                if (limit > 0) ids = ids.Take(limit).ToList();
 
                 var songsById = new Dictionary<string, Song>();
                 foreach (var batch in ApiBatching.Chunk(ids, 200))
@@ -1167,26 +1153,78 @@ namespace music.Services
             {
                 var likedIds = await GetLikedSongIdsAsync();
                 if (likedIds.Count == 0) return new List<Song>();
+
                 var seed = likedIds[0];
-                var json = await GetAsync($"/playmode/intelligence/list?id={seed}&sid={seed}");
+                // pid 是该接口的必选参数（我喜欢的音乐歌单 id）；只传 id/sid 时后端会返回 500
+                var pid = await GetFavoritePlaylistIdAsync();
+                if (string.IsNullOrEmpty(pid))
+                {
+                    DebugLog("/playmode/intelligence/list: 未找到我喜欢的音乐歌单，回退红心歌曲");
+                    return await GetLikedSongsAsync(18);
+                }
+
+                var stamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var json = await GetAsync($"/playmode/intelligence/list?id={seed}&pid={pid}&sid={seed}&timestamp={stamp}");
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
                 var songs = new List<Song>();
                 if (result.TryGetProperty("data", out var items) && items.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var item in items.EnumerateArray())
                     {
-                        var songElement = item.TryGetProperty("songInfo", out var songInfo) ? songInfo : item;
-                        if (songElement.TryGetProperty("id", out _) && songElement.TryGetProperty("name", out _))
-                            songs.Add(ParseSongFromJson(songElement));
+                        try
+                        {
+                            var songElement = item.TryGetProperty("songInfo", out var songInfo) ? songInfo : item;
+                            if (songElement.TryGetProperty("id", out _) && songElement.TryGetProperty("name", out _))
+                                songs.Add(ParseSongFromJson(songElement));
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugLog($"GetIntelligenceSongs: 跳过无法解析的条目 {ex.GetType().Name}");
+                        }
                     }
                 }
-                return songs;
+
+                if (songs.Count > 0) return songs;
+
+                DebugLog("/playmode/intelligence/list: 无数据，回退红心歌曲");
+                return await GetLikedSongsAsync(18);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetIntelligenceSongs Error: {ex.Message}");
-                return new List<Song>();
+                return await GetLikedSongsAsync(18);
             }
+        }
+
+        // 我喜欢的音乐歌单 id（specialType == 5），作为智能推荐接口的必选参数 pid
+        private async Task<string> GetFavoritePlaylistIdAsync()
+        {
+            if (!string.IsNullOrEmpty(_favoritePlaylistId)) return _favoritePlaylistId;
+
+            try
+            {
+                var json = await GetAsync($"/user/playlist?uid={_userId}");
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+                if (result.TryGetProperty("playlist", out var items) && items.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        if (item.TryGetProperty("specialType", out var specialType) &&
+                            specialType.TryGetInt32(out var type) && type == 5 &&
+                            item.TryGetProperty("id", out var id))
+                        {
+                            _favoritePlaylistId = id.GetInt64().ToString();
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog($"/user/playlist 获取喜欢歌单失败: {ex.Message}");
+            }
+
+            return _favoritePlaylistId;
         }
 
         public async Task<bool> LikeSongAsync(string songId, bool like = true)
