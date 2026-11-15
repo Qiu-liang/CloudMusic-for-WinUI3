@@ -137,15 +137,16 @@ namespace music
         private const string FallbackFont = "Microsoft YaHei UI";
         private string _activeFont = PrimaryFont;
 
-        // 字号与间距 —— 当前行以亮度强调，后续行保持大字号并逐渐失焦
-        private const float FontSize = 36f;            // 非当前行
-        private const float FontSizeCurrent = 42f;     // 当前行
-        private const float FontSizeTranslation = 20f; // 当前行译文
-        private const float LineGap = 46f;             // 行间空白（px）
-        private const float TranslationGap = 12f;      // 原文与译文间距
+        // 字号与间距 —— 随画布高度等比缩放，对齐参考图（同屏约 13~14 行、当前行略加粗/微大）
+        private float _lyricFontSize = 41f;            // 非当前行
+        private float _lyricFontSizeCurrent = 44f;     // 当前行
+        private float _lyricFontSizeTranslation = 21f; // 当前行译文
+        private float _lyricLineGap = 13f;             // 行间额外空白（px）
+        private float _lyricTranslationGap = 10f;      // 原文与译文间距
+        private float _cachedFormatFontSize = -1f;
         private const float LeftMargin = 0f;
-        private const float RightMargin = 64f;
-        private const float AnchorRatio = 0.43f;       // 当前行锚定在画布 43% 高度处
+        private const float RightMargin = 0f;          // 右侧留白由 LyricsPanel.Margin.Right 响应式控制
+        private const float AnchorRatio = 0.45f;       // 当前行锚定在画布 45% 高度处
 
         private float _dpiScale = 1f;
 
@@ -252,6 +253,26 @@ namespace music
             _cachedLayoutWidth = -1f;
         }
 
+        private bool UpdateLyricTypographyMetrics()
+        {
+            float h = Math.Max(300f, _lyricsHeight);
+            float newFontSize = Math.Clamp(h * 0.046f, 22f, 64f);
+            float newCurrent = Math.Clamp(h * 0.049f, 24f, 68f);
+            float newTranslation = Math.Clamp(h * 0.023f, 13f, 32f);
+            float newLineGap = Math.Clamp(h * 0.014f, 10f, 26f);
+            float newTrGap = Math.Clamp(h * 0.011f, 8f, 18f);
+
+            bool changed = Math.Abs(newFontSize - _cachedFormatFontSize) > 0.5f
+                || Math.Abs(newLineGap - _lyricLineGap) > 0.5f;
+
+            _lyricFontSize = newFontSize;
+            _lyricFontSizeCurrent = newCurrent;
+            _lyricFontSizeTranslation = newTranslation;
+            _lyricLineGap = newLineGap;
+            _lyricTranslationGap = newTrGap;
+            return changed;
+        }
+
         private void EnsureTextFormats(CanvasDevice device)
         {
             if (_fmtCurrent != null && _fmtNear != null && _fmtMeasure != null
@@ -264,7 +285,7 @@ namespace music
             _fmtCurrent = new CanvasTextFormat
             {
                 FontFamily = _activeFont,
-                FontSize = FontSizeCurrent * _dpiScale,
+                FontSize = _lyricFontSizeCurrent * _dpiScale,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 WordWrapping = CanvasWordWrapping.Wrap
@@ -274,7 +295,7 @@ namespace music
             _fmtNear = new CanvasTextFormat
             {
                 FontFamily = _activeFont,
-                FontSize = FontSize * _dpiScale,
+                FontSize = _lyricFontSize * _dpiScale,
                 FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 WordWrapping = CanvasWordWrapping.Wrap
@@ -284,7 +305,7 @@ namespace music
             _fmtMeasure = new CanvasTextFormat
             {
                 FontFamily = _activeFont,
-                FontSize = FontSizeCurrent * _dpiScale,
+                FontSize = _lyricFontSizeCurrent * _dpiScale,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 WordWrapping = CanvasWordWrapping.Wrap
@@ -294,7 +315,7 @@ namespace music
             _fmtTranslation = new CanvasTextFormat
             {
                 FontFamily = _activeFont,
-                FontSize = FontSizeTranslation * _dpiScale,
+                FontSize = _lyricFontSizeTranslation * _dpiScale,
                 FontWeight = FontWeights.Normal,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 WordWrapping = CanvasWordWrapping.Wrap
@@ -308,6 +329,7 @@ namespace music
             };
 
             _reusableBrush = new CanvasSolidColorBrush(device, Colors.White);
+            _cachedFormatFontSize = _lyricFontSize;
         }
 
         #endregion
@@ -599,7 +621,8 @@ namespace music
             _lyricsHeight = (float)sender.Size.Height;
             _canvasReady = true;
 
-            if (args.Reason != CanvasCreateResourcesReason.FirstTime)
+            bool metricsChanged = UpdateLyricTypographyMetrics();
+            if (args.Reason != CanvasCreateResourcesReason.FirstTime || metricsChanged)
             {
                 DisposeTextFormatsAndBrush();
                 ClearLineCache();
@@ -828,7 +851,7 @@ namespace music
                     {
                         var trLayout = cacheEntry.TranslationLayout ??=
                             new CanvasTextLayout(device, tr, _fmtTranslation, maxW, float.MaxValue);
-                        float trY = textY + mainH + TranslationGap;
+                        float trY = textY + mainH + _lyricTranslationGap;
                         byte trA = (byte)Math.Clamp((140f + 55f * appear) * edge, 0f, 255f);
                         if (trA > 0)
                         {
@@ -909,17 +932,21 @@ namespace music
 
             if (_canvasReady && LyricsCanvas != null)
             {
+                bool typographyChanged = UpdateLyricTypographyMetrics();
+                if (typographyChanged)
+                    DisposeTextFormatsAndBrush();
+
                 EnsureTextFormats(LyricsCanvas.Device);
                 float maxW = Math.Max(1, _lyricsWidth - LeftMargin - RightMargin);
-                if (Math.Abs(maxW - _cachedLayoutWidth) > 0.5f || _lineCache.Count != _lyrics.Count)
+                if (typographyChanged || Math.Abs(maxW - _cachedLayoutWidth) > 0.5f || _lineCache.Count != _lyrics.Count)
                 {
                     RecalculateLayout();
                 }
                 else
                 {
                     UpdateScrollPosition();
-                    LyricsCanvas.Invalidate();
                 }
+                LyricsCanvas.Invalidate();
             }
         }
 
@@ -950,12 +977,12 @@ namespace music
                 if (!string.IsNullOrEmpty(lyric.Translation) && _fmtTranslation != null)
                 {
                     var trLayout = new CanvasTextLayout(device, lyric.Translation, _fmtTranslation, maxW, float.MaxValue);
-                    extra = TranslationGap + (float)trLayout.LayoutBounds.Height;
+                    extra = _lyricTranslationGap + (float)trLayout.LayoutBounds.Height;
                     entry.TranslationLayout = trLayout;
                 }
 
-                // 行高 = 原文高度 + 译文预留 + 固定间距，保证不会重叠
-                float lineH = mainH + extra + LineGap;
+                // 行高 = 原文高度 + 译文预留 + 动态行距，保证不会重叠
+                float lineH = mainH + extra + _lyricLineGap;
                 _lineMainHeights.Add(mainH);
                 _lineHeights.Add(lineH);
                 _lineOffsets.Add(total);
@@ -1592,14 +1619,59 @@ namespace music
         {
             if (size.Width <= 0 || size.Height <= 0) return;
 
-            double coverSize = Math.Max(120, Math.Min(size.Width * 0.3125, size.Height * 0.56));
+            double coverSize = Math.Max(140, Math.Min(size.Width * 0.3125, size.Height * 0.556));
+            double uiScale = Math.Clamp(coverSize / 400.0, 0.72, 1.60);
+
             LeftContentPanel.Width = coverSize;
+            LeftContentPanel.Spacing = Math.Round(22 * uiScale);
             CoverBorder.Width = coverSize;
             CoverBorder.Height = coverSize;
-            ControlsPanel.Width = Math.Max(250, coverSize * 0.76);
+            CoverBorder.CornerRadius = new CornerRadius(Math.Round(6 * uiScale));
 
-            LeftPanel.Margin = new Thickness(0, size.Height * 0.035, size.Width * 0.02, size.Height * 0.02);
-            LyricsPanel.Margin = new Thickness(size.Width * 0.06, 0, size.Width * 0.025, 0);
+            SongInfoPanel.Spacing = Math.Round(6 * uiScale);
+            SongTitleText.FontSize = Math.Round(16 * uiScale);
+            ArtistAlbumText.FontSize = Math.Round(13 * uiScale);
+
+            ControlsPanel.Width = Math.Max(190, coverSize * 0.765);
+            ControlsPanel.Spacing = Math.Round(8 * uiScale);
+            CurrentTimeText.FontSize = Math.Round(11 * uiScale);
+            TotalTimeText.FontSize = Math.Round(11 * uiScale);
+            ControlsRowGrid.Height = Math.Round(40 * uiScale);
+
+            double smallBtnSize = Math.Round(30 * uiScale);
+            double smallIconSize = Math.Round(14 * uiScale);
+            VolumeButton.Width = smallBtnSize;
+            VolumeButton.Height = smallBtnSize;
+            VolumeIcon.FontSize = smallIconSize;
+            MoreButton.Width = smallBtnSize;
+            MoreButton.Height = smallBtnSize;
+            MoreIcon.FontSize = smallIconSize;
+
+            CenterButtonsPanel.Spacing = Math.Round(8 * uiScale);
+            double skipBtnW = Math.Round(34 * uiScale);
+            double skipBtnH = Math.Round(36 * uiScale);
+            double skipIconSize = Math.Round(18 * uiScale);
+            PrevButton.Width = skipBtnW;
+            PrevButton.Height = skipBtnH;
+            PrevIcon.FontSize = skipIconSize;
+            NextButton.Width = skipBtnW;
+            NextButton.Height = skipBtnH;
+            NextIcon.FontSize = skipIconSize;
+
+            double playBtnSize = Math.Round(36 * uiScale);
+            PlayPauseButton.Width = playBtnSize;
+            PlayPauseButton.Height = playBtnSize;
+            PlayPauseIcon.FontSize = Math.Round(20 * uiScale);
+
+            double lyricsBtnSize = Math.Round(32 * uiScale);
+            double lyricsIconSize = Math.Round(18 * uiScale);
+            LyricsButton.Width = lyricsBtnSize;
+            LyricsButton.Height = lyricsBtnSize;
+            LyricsButtonIcon.Width = lyricsIconSize;
+            LyricsButtonIcon.Height = lyricsIconSize;
+
+            LeftPanel.Margin = new Thickness(0, size.Height * 0.035, size.Width * 0.0125, size.Height * 0.02);
+            LyricsPanel.Margin = new Thickness(size.Width * 0.068, 0, size.Width * 0.055, 0);
         }
 
         // 空白背景处按下左键即拖动窗口（窗口隐藏了标题栏，需要手动提供拖动能力）

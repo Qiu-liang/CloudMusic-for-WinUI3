@@ -238,7 +238,7 @@
                                        Margin="12,0,0,0"/>
                         </Grid>
 
-                        <Grid Height="42">
+                        <Grid x:Name="ControlsRowGrid" Height="42">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -290,7 +290,8 @@
                                         BorderThickness="0"
                                         CornerRadius="4"
                                         ToolTipService.ToolTip="更多播放选项">
-                                    <FontIcon Glyph="&#xE712;"
+                                    <FontIcon x:Name="MoreIcon"
+                                              Glyph="&#xE712;"
                                               FontSize="14"
                                               Foreground="#CCFFFFFF"/>
                                     <Button.Flyout>
@@ -316,7 +317,8 @@
                                 </Button>
                             </StackPanel>
 
-                            <StackPanel Grid.Column="1"
+                            <StackPanel x:Name="CenterButtonsPanel"
+                                        Grid.Column="1"
                                         Orientation="Horizontal"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
@@ -330,7 +332,8 @@
                                         Height="36"
                                         CornerRadius="4"
                                         ToolTipService.ToolTip="上一首">
-                                    <FontIcon Glyph="&#xE892;"
+                                    <FontIcon x:Name="PrevIcon"
+                                              Glyph="&#xE892;"
                                               FontFamily="Segoe MDL2 Assets"
                                               FontSize="18"
                                               Foreground="#F2FFFFFF"/>
@@ -359,7 +362,8 @@
                                         Height="36"
                                         CornerRadius="4"
                                         ToolTipService.ToolTip="下一首">
-                                    <FontIcon Glyph="&#xE893;"
+                                    <FontIcon x:Name="NextIcon"
+                                              Glyph="&#xE893;"
                                               FontFamily="Segoe MDL2 Assets"
                                               FontSize="18"
                                               Foreground="#F2FFFFFF"/>
@@ -378,7 +382,8 @@
                                     Height="32"
                                     CornerRadius="4"
                                     ToolTipService.ToolTip="返回播放界面">
-                                <Path Width="18"
+                                <Path x:Name="LyricsButtonIcon"
+                                      Width="18"
                                       Height="18"
                                       Stretch="Uniform"
                                       Stroke="#F2FFFFFF"
