@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace music.Services
 {
@@ -30,6 +31,43 @@ namespace music.Services
 
                 yield return new KeyValuePair<string, string>(name, value);
             }
+        }
+
+        /// <summary>
+        /// Builds the outbound Cookie HTTP header from session cookies, ensuring os=pc is present
+        /// as required by /song/url/v1 unless the session already specifies an os value.
+        /// </summary>
+        public static string BuildRequestHeader(IReadOnlyDictionary<string, string> sessionCookies)
+        {
+            var pairs = new List<string>(sessionCookies.Count + 1);
+            var hasOs = false;
+
+            foreach (var kvp in sessionCookies)
+            {
+                var name = SanitizeHeaderToken(kvp.Key);
+                var value = SanitizeHeaderToken(kvp.Value);
+                if (name.Length == 0 || value.Length == 0) continue;
+
+                if (string.Equals(name, "os", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasOs = true;
+                }
+
+                pairs.Add($"{name}={value}");
+            }
+
+            if (!hasOs)
+            {
+                pairs.Add("os=pc");
+            }
+
+            return string.Join("; ", pairs);
+        }
+
+        private static string SanitizeHeaderToken(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return string.Empty;
+            return value.Replace("\r", string.Empty).Replace("\n", string.Empty).Trim();
         }
     }
 }

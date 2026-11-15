@@ -14,7 +14,8 @@ namespace music.Services
     public class MusicApiService
     {
         private readonly HttpClient _httpClient;
-        private readonly SemaphoreSlim _requestSemaphore = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _requestSemaphore = new SemaphoreSlim(4, 4);
+        private readonly object _cookieLock = new object();
         // 会话 Cookie 罐（name → value）：UseCookies=false 时请求统一携带由它拼出的
         // Cookie 头，Set-Cookie 响应也回灌到罐里，内容所见即所得、可持久化恢复
         private readonly Dictionary<string, string> _sessionCookies = new Dictionary<string, string>();
@@ -130,27 +131,38 @@ namespace music.Services
         // 解析 Cookie 字符串到会话罐（整体替换）；Set-Cookie 属性由解析器丢弃
         private void LoadCookieString(string cookie)
         {
-            _sessionCookies.Clear();
-            MergeCookieString(cookie);
+            lock (_cookieLock)
+            {
+                _sessionCookies.Clear();
+                MergeCookieStringCore(cookie);
+            }
         }
 
         // 合并 Cookie 字符串到会话罐（不清空罐，同名覆盖）：登录成功时用，
         // 保留匿名设备票据（MUSIC_A_T 等），否则每次扫码都会被服务器视为新设备
         private void MergeCookieString(string cookie)
         {
+            lock (_cookieLock)
+            {
+                MergeCookieStringCore(cookie);
+            }
+        }
+
+        private void MergeCookieStringCore(string cookie)
+        {
             foreach (var pair in CookieStringParser.Parse(cookie))
                 _sessionCookies[pair.Key] = pair.Value;
 
-            RebuildCookieString();
+            RebuildCookieStringCore();
         }
 
-        private void RebuildCookieString()
+        private void RebuildCookieStringCore()
         {
             _cookie = string.Join("; ", _sessionCookies.Select(kvp => $"{kvp.Key}={kvp.Value}"));
         }
 
         // 处理单个 Set-Cookie 响应头（取 name=value 部分；value 为空视为删除该 Cookie）
-        private void MergeSetCookie(string setCookieValue)
+        private void MergeSetCookieCore(string setCookieValue)
         {
             var firstSegment = setCookieValue.Split(';')[0];
             var idx = firstSegment.IndexOf('=');
@@ -163,7 +175,15 @@ namespace music.Services
             if (value.Length == 0) _sessionCookies.Remove(name);
             else _sessionCookies[name] = value;
 
-            RebuildCookieString();
+            RebuildCookieStringCore();
+        }
+
+        private string BuildRequestCookieHeader()
+        {
+            lock (_cookieLock)
+            {
+                return CookieStringParser.BuildRequestHeader(_sessionCookies);
+            }
         }
 
         // 诊断日志：只记录 Cookie 名与结果，不记录值（避免泄露登录凭据）
@@ -220,8 +240,8 @@ namespace music.Services
             return result.Success ? result.Body : "{}";
         }
 
-        internal async Task<(bool Success, string Body)> SendWithResultAsync(
-            HttpMethod method, string url, HttpContent? content, CancellationToken cancellationToken = default)
+        internal async Task<(bool Success, string Body, ApiResult Result)> SendWithResultAsync(
+            HttpMethod method, string url, HttpContent? content, CancellationToken cancellationToken = default, bool includeCookies = true)
         {
             await _requestSemaphore.WaitAsync(cancellationToken);
             try
@@ -230,14 +250,19 @@ namespace music.Services
                 var separator = url.Contains("?") ? "&" : "?";
                 var fullUrl = $"{url}{separator}deviceId={Uri.EscapeDataString(_deviceId)}";
                 using var request = new HttpRequestMessage(method, CreateRequestUri(baseUri, fullUrl)) { Content = content };
-                if (!string.IsNullOrEmpty(_cookie)) request.Headers.Add("Cookie", _cookie);
+                if (includeCookies)
+                {
+                    var cookieHeader = BuildRequestCookieHeader();
+                    if (!string.IsNullOrEmpty(cookieHeader))
+                        request.Headers.TryAddWithoutValidation("Cookie", cookieHeader);
+                }
 
                 using var response = await _httpClient.SendAsync(request, cancellationToken);
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
                 LastRequestFailed = false;
                 LastError = ApiErrorKind.None;
                 LastErrorMessage = string.Empty;
-                if (response.Headers.TryGetValues("Set-Cookie", out var cookies))
+                if (includeCookies && response.Headers.TryGetValues("Set-Cookie", out var cookies))
                     UpdateCookiesFromResponse(cookies);
 
                 var result = ApiResult.FromHttpResponse((int)response.StatusCode, body);
@@ -245,9 +270,9 @@ namespace music.Services
                 {
                     LastError = result.Error;
                     LastErrorMessage = result.DisplayMessage;
-                    DebugLog($"{method} {request.RequestUri?.AbsolutePath}: {result.Error} code={result.Code}");
+                    DebugLog($"{method} {request.RequestUri?.AbsolutePath}: {result.Error} code={result.Code} {result.DisplayMessage}");
                 }
-                return (result.Success, body);
+                return (result.Success, body, result);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -255,11 +280,12 @@ namespace music.Services
             }
             catch (Exception ex)
             {
+                var networkResult = ApiResult.NetworkError();
                 LastRequestFailed = true;
-                LastError = ApiErrorKind.Network;
-                LastErrorMessage = "无法连接服务器，请检查 API 地址和网络。";
+                LastError = networkResult.Error;
+                LastErrorMessage = networkResult.Message;
                 System.Diagnostics.Debug.WriteLine($"[API] Error: {ex.Message}");
-                return (false, string.Empty);
+                return (false, string.Empty, networkResult);
             }
             finally
             {
@@ -271,8 +297,7 @@ namespace music.Services
             HttpMethod method, string url, HttpContent content, CancellationToken cancellationToken = default)
         {
             var result = await SendWithResultAsync(method, url, content, cancellationToken);
-            if (result.Success) return new ApiResult(true, ApiErrorKind.None, string.Empty, 200);
-            return LastRequestFailed ? ApiResult.NetworkError() : new ApiResult(false, LastError, LastErrorMessage);
+            return result.Success ? new ApiResult(true, ApiErrorKind.None, string.Empty, 200) : result.Result;
         }
 
         public async Task<ApiResult> UploadCloudSongAsync(StorageFile file, CancellationToken cancellationToken = default)
@@ -286,29 +311,35 @@ namespace music.Services
                 using var formData = new MultipartFormDataContent();
                 formData.Add(content, "songFile", file.Name);
                 var sent = await SendWithResultAsync(HttpMethod.Post, "/cloud", formData, cancellationToken);
-                if (!sent.Success)
-                    return LastRequestFailed ? ApiResult.NetworkError() : new ApiResult(false, LastError, LastErrorMessage);
+                if (!sent.Success) return sent.Result;
                 return ApiResult.FromHttpResponse(200, sent.Body, requireBusinessCode: true);
             }
         }
 
         private void UpdateCookiesFromResponse(IEnumerable<string> setCookies)
         {
-            foreach (var cookie in setCookies)
+            string? cookieToSave = null;
+            lock (_cookieLock)
             {
-                var firstSegment = cookie.Split(';')[0];
-                var name = firstSegment.Split('=')[0].Trim();
-                if (name == "MUSIC_U" || name == "__csrf" || name.StartsWith("MUSIC_"))
-                    DebugLog($"Set-Cookie: {name} 已更新");
-                MergeSetCookie(cookie);
+                foreach (var cookie in setCookies)
+                {
+                    var firstSegment = cookie.Split(';')[0];
+                    var name = firstSegment.Split('=')[0].Trim();
+                    if (name == "MUSIC_U" || name == "__csrf" || name.StartsWith("MUSIC_"))
+                        DebugLog($"Set-Cookie: {name} 已更新");
+                    MergeSetCookieCore(cookie);
+                }
+
+                if (_isInitialized && !string.IsNullOrEmpty(_cookie))
+                    cookieToSave = _cookie;
             }
 
-            if (_isInitialized && !string.IsNullOrEmpty(_cookie)) CredentialStorage.Save(_cookie);
+            if (cookieToSave != null) CredentialStorage.Save(cookieToSave);
         }
 
         public async Task<string> GetWithoutCookieAsync(string url, CancellationToken cancellationToken = default)
         {
-            var result = await SendWithResultAsync(HttpMethod.Get, url, null, cancellationToken);
+            var result = await SendWithResultAsync(HttpMethod.Get, url, null, cancellationToken, includeCookies: false);
             // 业务状态码不是 200 也是有效响应（如二维码轮询的 801/802/803、登录失败的 501），
             // 必须把响应体交给调用方解析；只有网络错误导致空响应时才回退到 {}
             return string.IsNullOrEmpty(result.Body) ? "{}" : result.Body;
@@ -515,8 +546,11 @@ namespace music.Services
             CredentialStorage.Clear();
             settings.Values.Remove("UserId");
             settings.Values.Remove("IsVip");
-            _cookie = string.Empty;
-            _sessionCookies.Clear();
+            lock (_cookieLock)
+            {
+                _cookie = string.Empty;
+                _sessionCookies.Clear();
+            }
             _userId = 0;
             _favoritePlaylistId = string.Empty;
             _isInitialized = false;
@@ -775,42 +809,94 @@ namespace music.Services
 
         public async Task<string> GetSongUrlAsync(string songId, CancellationToken cancellationToken = default)
         {
-            try
-            {
-                var settings = ApplicationData.Current.LocalSettings;
-                var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-                
-                // 使用新版API获取歌曲URL
-                var json = await GetAsync($"/song/url/v1?id={songId}&level={quality}", cancellationToken);
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
+            var (url, _) = await GetSongUrlWithResultAsync(songId, cancellationToken);
+            return url;
+        }
 
-                if (result.TryGetProperty("data", out var data) &&
-                    data.ValueKind == JsonValueKind.Array)
+        internal async Task<(string Url, ApiResult Result)> GetSongUrlWithResultAsync(
+            string songId, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(songId))
+            {
+                var invalidId = new ApiResult(false, ApiErrorKind.Business, "无效的歌曲 ID，无法播放。");
+                LastError = invalidId.Error;
+                LastErrorMessage = invalidId.Message;
+                return (string.Empty, invalidId);
+            }
+
+            var settings = ApplicationData.Current.LocalSettings;
+            var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
+            var levels = SongUrlPolicy.BuildQualityFallbackLevels(quality);
+            var encodedId = Uri.EscapeDataString(songId);
+            ApiResult? lastFailure = null;
+
+            foreach (var level in levels)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var response = await SendWithResultAsync(
+                    HttpMethod.Get,
+                    $"/song/url/v1?id={encodedId}&level={Uri.EscapeDataString(level)}",
+                    null,
+                    cancellationToken);
+
+                if (response.Success)
                 {
-                    var first = data[0];
-                    if (first.TryGetProperty("url", out var url) && url.ValueKind != JsonValueKind.Null)
+                    var url = SongUrlPolicy.ExtractSongUrl(response.Body);
+                    if (!string.IsNullOrEmpty(url))
                     {
-                        return url.GetString() ?? string.Empty;
+                        return (url, new ApiResult(true, ApiErrorKind.None, string.Empty, 200));
+                    }
+
+                    lastFailure = new ApiResult(false, ApiErrorKind.Business, "当前音质没有可用的音频地址，可能受版权或 VIP 权限限制。");
+                }
+                else
+                {
+                    lastFailure = response.Result;
+                    if (response.Result.Error == ApiErrorKind.Network)
+                    {
+                        return (string.Empty, response.Result);
                     }
                 }
+            }
 
-                return string.Empty;
-            }
-            catch (Exception ex)
+            // /song/url/v1 各降级音质均失败或无 URL 时，回退旧版 /song/url 接口
+            cancellationToken.ThrowIfCancellationRequested();
+            var legacyResponse = await SendWithResultAsync(
+                HttpMethod.Get,
+                $"/song/url?id={encodedId}&br=320000",
+                null,
+                cancellationToken);
+
+            if (legacyResponse.Success)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetSongUrl Error: {ex.Message}");
-                return string.Empty;
+                var legacyUrl = SongUrlPolicy.ExtractSongUrl(legacyResponse.Body);
+                if (!string.IsNullOrEmpty(legacyUrl))
+                {
+                    return (legacyUrl, new ApiResult(true, ApiErrorKind.None, string.Empty, 200));
+                }
+
+                lastFailure ??= new ApiResult(false, ApiErrorKind.Business, "当前歌曲暂无可用音源，可能受版权或 VIP 权限限制。");
             }
+            else
+            {
+                lastFailure ??= legacyResponse.Result;
+            }
+
+            var finalFailure = lastFailure ?? new ApiResult(false, ApiErrorKind.Business, "获取歌曲播放地址失败，请稍后重试。");
+            LastError = finalFailure.Error;
+            LastErrorMessage = finalFailure.DisplayMessage;
+            return (string.Empty, finalFailure);
         }
 
         public async Task<ApiResult> DownloadSongAsync(Song song, CancellationToken cancellationToken = default)
         {
-            var url = await GetSongUrlAsync(song.Id, cancellationToken);
+            var (url, urlResult) = await GetSongUrlWithResultAsync(song.Id, cancellationToken);
             if (string.IsNullOrEmpty(url))
             {
-                LastError = ApiErrorKind.Business;
-                LastErrorMessage = "当前音质没有可用的音频地址，请尝试切换音质或确认账号权限。";
-                return new ApiResult(false, LastError, LastErrorMessage);
+                LastError = urlResult.Error;
+                LastErrorMessage = urlResult.DisplayMessage;
+                return urlResult;
             }
 
             try

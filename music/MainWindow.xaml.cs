@@ -23,6 +23,7 @@ namespace music
         private bool _isPlaylistPanelOpen = false;
         private bool _currentSongLiked;
         private CancellationTokenSource? _searchSuggestionCancellation;
+        private long _playbackErrorVersion;
 
         public MainWindow()
         {
@@ -495,7 +496,24 @@ namespace music
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
+                    _playbackErrorVersion++;
+                    PlaybackErrorInfoBar.IsOpen = false;
                     UpdateSongInfo(song);
+                });
+            };
+
+            PlaybackService.PlaybackFailed += (s, message) =>
+            {
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    var version = ++_playbackErrorVersion;
+                    PlaybackErrorInfoBar.Message = message;
+                    PlaybackErrorInfoBar.IsOpen = true;
+                    await System.Threading.Tasks.Task.Delay(5000);
+                    if (_playbackErrorVersion == version)
+                    {
+                        PlaybackErrorInfoBar.IsOpen = false;
+                    }
                 });
             };
 

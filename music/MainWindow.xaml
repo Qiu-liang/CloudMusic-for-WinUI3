@@ -254,6 +254,19 @@
                 </Button>
             </Grid>
 
+            <!-- 非阻塞播放失败提示条 (悬浮在播放栏上方) -->
+            <InfoBar x:Name="PlaybackErrorInfoBar"
+                     Grid.Row="1"
+                     VerticalAlignment="Bottom"
+                     HorizontalAlignment="Center"
+                     Margin="16,0,16,12"
+                     MaxWidth="640"
+                     Severity="Error"
+                     Title="播放失败"
+                     IsOpen="False"
+                     IsClosable="True"
+                     Canvas.ZIndex="20"/>
+
             <!-- 底部播放控件 (悬浮在内容之上) -->
             <Grid Grid.Row="2" 
                   x:Name="PlayerBar"

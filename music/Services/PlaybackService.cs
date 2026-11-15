@@ -21,12 +21,14 @@ namespace music.Services
         private RepeatMode _repeatMode = RepeatMode.None;
         private bool _isPlaying;
         private CancellationTokenSource? _sourceRequestCancellation;
+        private readonly object _sourceRequestLock = new();
 
         public event EventHandler<bool>? PlaybackStateChanged;
         public event EventHandler<Song>? CurrentSongChanged;
         public event EventHandler<TimeSpan>? PositionChanged;
         public event EventHandler<TimeSpan>? DurationChanged;
         public event EventHandler<double>? VolumeChanged;
+        public event EventHandler<string>? PlaybackFailed;
 
         public bool IsPlaying => _isPlaying;
         public Song? CurrentSong { get; private set; }
@@ -95,57 +97,100 @@ namespace music.Services
             }
 
             var cancellation = BeginSourceRequest();
+            var token = cancellation.Token;
             try
             {
-                var url = await App.ApiService.GetSongUrlAsync(song.Id, cancellation.Token);
-                if (string.IsNullOrEmpty(url) || cancellation.IsCancellationRequested) return;
-                _ = _dispatcherQueue.TryEnqueue(() => PlayOnlineSource(url, song, cancellation));
+                var (url, result) = await App.ApiService.GetSongUrlWithResultAsync(song.Id, token);
+                if (token.IsCancellationRequested) return;
+                if (string.IsNullOrEmpty(url))
+                {
+                    var reason = string.IsNullOrWhiteSpace(result.DisplayMessage)
+                        ? "无法获取播放地址，请稍后重试。"
+                        : result.DisplayMessage;
+                    NotifyPlaybackFailed($"无法播放《{song.Name}》：{reason}");
+                    return;
+                }
+
+                _ = _dispatcherQueue.TryEnqueue(() => PlayOnlineSource(url, song, token));
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Playback] Error: {ex.Message}");
+                if (!token.IsCancellationRequested)
+                {
+                    NotifyPlaybackFailed($"播放《{song.Name}》失败：{ex.Message}");
+                }
+            }
+            finally
+            {
+                ReleaseSourceRequest(cancellation);
             }
         }
 
         private async Task PlayLocalSourceAsync(string filePath, Song song)
         {
             var cancellation = BeginSourceRequest();
+            var token = cancellation.Token;
             try
             {
                 if (string.IsNullOrWhiteSpace(filePath)) return;
-                var file = await StorageFile.GetFileFromPathAsync(filePath).AsTask(cancellation.Token);
+                var file = await StorageFile.GetFileFromPathAsync(filePath).AsTask(token);
                 _ = _dispatcherQueue.TryEnqueue(() =>
                 {
-                    if (cancellation.IsCancellationRequested) return;
+                    if (token.IsCancellationRequested) return;
                     _mediaPlayer.Source = MediaSource.CreateFromStorageFile(file);
                     StartPlayback(song);
                 });
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Playback] Local file API error: {ex.Message}");
                 _ = _dispatcherQueue.TryEnqueue(() =>
                 {
-                    if (cancellation.IsCancellationRequested || !File.Exists(filePath)) return;
+                    if (token.IsCancellationRequested || !File.Exists(filePath)) return;
                     _mediaPlayer.Source = MediaSource.CreateFromUri(new Uri(Path.GetFullPath(filePath)));
                     StartPlayback(song);
                 });
+            }
+            finally
+            {
+                ReleaseSourceRequest(cancellation);
             }
         }
 
         private CancellationTokenSource BeginSourceRequest()
         {
-            _sourceRequestCancellation?.Cancel();
-            _sourceRequestCancellation?.Dispose();
-            _sourceRequestCancellation = new CancellationTokenSource();
-            return _sourceRequestCancellation;
+            var next = new CancellationTokenSource();
+            CancellationTokenSource? previous;
+            lock (_sourceRequestLock)
+            {
+                previous = _sourceRequestCancellation;
+                _sourceRequestCancellation = next;
+            }
+
+            // 仅取消旧请求，不在此处提前 Dispose；由各自异步流程的 finally 安全释放
+            try { previous?.Cancel(); } catch (ObjectDisposedException) { }
+            return next;
         }
 
-        private void PlayOnlineSource(string url, Song song, CancellationTokenSource cancellation)
+        private void ReleaseSourceRequest(CancellationTokenSource cancellation)
         {
-            if (cancellation.IsCancellationRequested) return;
+            lock (_sourceRequestLock)
+            {
+                if (ReferenceEquals(_sourceRequestCancellation, cancellation))
+                {
+                    _sourceRequestCancellation = null;
+                }
+            }
+
+            cancellation.Dispose();
+        }
+
+        private void PlayOnlineSource(string url, Song song, CancellationToken token)
+        {
+            if (token.IsCancellationRequested) return;
             try
             {
                 _mediaPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
@@ -154,7 +199,13 @@ namespace music.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Playback] Play error: {ex.Message}");
+                NotifyPlaybackFailed($"播放《{song.Name}》失败：{ex.Message}");
             }
+        }
+
+        private void NotifyPlaybackFailed(string message)
+        {
+            _ = _dispatcherQueue.TryEnqueue(() => PlaybackFailed?.Invoke(this, message));
         }
 
         private void StartPlayback(Song song)
@@ -251,17 +302,31 @@ namespace music.Services
 
         private void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
         {
+            var detail = string.IsNullOrWhiteSpace(args.ErrorMessage)
+                ? $"媒体加载失败（{args.Error}）。"
+                : $"媒体加载失败：{args.ErrorMessage}";
+            var songName = CurrentSong?.Name;
+            var fullMessage = string.IsNullOrWhiteSpace(songName)
+                ? detail
+                : $"无法播放《{songName}》：{detail}";
+
             _ = _dispatcherQueue.TryEnqueue(() =>
             {
                 _isPlaying = false;
                 PlaybackStateChanged?.Invoke(this, false);
+                PlaybackFailed?.Invoke(this, fullMessage);
             });
         }
 
         public void Dispose()
         {
-            _sourceRequestCancellation?.Cancel();
-            _sourceRequestCancellation?.Dispose();
+            CancellationTokenSource? current;
+            lock (_sourceRequestLock)
+            {
+                current = _sourceRequestCancellation;
+                _sourceRequestCancellation = null;
+            }
+            try { current?.Cancel(); } catch (ObjectDisposedException) { }
             _mediaPlayer?.Dispose();
         }
     }
