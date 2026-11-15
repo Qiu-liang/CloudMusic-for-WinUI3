@@ -165,6 +165,57 @@
                     </Border>
                 </StackPanel>
 
+                <!-- 下载设置 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="下载" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Padding="16,12">
+                        <StackPanel Spacing="12">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="下载目录" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="默认保存到 Windows“音乐”文件夹下的 CloudMusic for WinUI 子目录"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         x:Name="DownloadFolderBox"
+                                         IsReadOnly="True"
+                                         VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        x:Name="SelectDownloadFolderButton"
+                                        Click="SelectDownloadFolderButton_Click"
+                                        Content="更改目录"
+                                        Padding="14,8"/>
+                                <Button Grid.Column="2"
+                                        x:Name="OpenDownloadFolderButton"
+                                        Click="OpenDownloadFolderButton_Click"
+                                        Content="打开目录"
+                                        Padding="14,8"/>
+                                <Button Grid.Column="3"
+                                        x:Name="ResetDownloadFolderButton"
+                                        Click="ResetDownloadFolderButton_Click"
+                                        Content="恢复默认"
+                                        Padding="14,8"/>
+                            </Grid>
+                            <TextBlock x:Name="DownloadFolderStatusText"
+                                       FontSize="12"
+                                       Visibility="Collapsed"
+                                       TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
                 <!-- 账户 -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="账户" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>

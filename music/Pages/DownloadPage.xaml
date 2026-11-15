@@ -14,12 +14,34 @@
         </Grid.RowDefinitions>
 
         <!-- 顶部操作栏 -->
-        <Grid Margin="24,8,24,8">
-            <TextBlock x:Name="CountText"
+        <Grid Margin="24,8,24,8" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       x:Name="CountText"
                        Text="共 0 首"
                        Style="{StaticResource BodyTextBlockStyle}"
                        VerticalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <TextBlock Grid.Column="1"
+                       x:Name="DownloadFolderPathText"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <Button Grid.Column="2"
+                    x:Name="OpenDownloadFolderButton"
+                    Click="OpenDownloadFolderButton_Click"
+                    Padding="10,4"
+                    VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE838;" FontSize="13"/>
+                    <TextBlock Text="打开目录" FontSize="12"/>
+                </StackPanel>
+            </Button>
         </Grid>
 
         <!-- 加载中 -->

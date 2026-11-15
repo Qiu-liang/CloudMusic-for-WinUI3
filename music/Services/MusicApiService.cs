@@ -1006,6 +1006,7 @@ namespace music.Services
                 return urlResult;
             }
 
+            var folder = string.Empty;
             try
             {
                 using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
@@ -1013,7 +1014,7 @@ namespace music.Services
                 if (!response.IsSuccessStatusCode)
                     return new ApiResult(false, ApiErrorKind.Http, $"下载服务器返回 HTTP {(int)response.StatusCode}。", (int)response.StatusCode);
 
-                var folder = Path.Combine(ApplicationData.Current.LocalFolder.Path, "Downloads");
+                folder = DownloadFolderStore.GetCurrentFolder();
                 Directory.CreateDirectory(folder);
                 var invalid = Path.GetInvalidFileNameChars();
                 var baseName = new string($"{song.ArtistNames} - {song.Name}".Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
@@ -1031,6 +1032,11 @@ namespace music.Services
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or DirectoryNotFoundException or IOException or NotSupportedException)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] DownloadSong File Error ({folder}): {ex.Message}");
+                return new ApiResult(false, ApiErrorKind.Business, $"无法保存到下载目录（{folder}）：{ex.Message}");
             }
             catch (Exception ex)
             {

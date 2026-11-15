@@ -6,7 +6,8 @@ using System.Linq;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Windows.Storage;
+using music.Services;
+using Windows.System;
 
 namespace music.Pages
 {
@@ -36,13 +37,11 @@ namespace music.Pages
     public sealed partial class DownloadPage : Page
     {
         private readonly ObservableCollection<DownloadedSongItem> _songs = new();
-        private readonly string _downloadFolder;
 
         public DownloadPage()
         {
             InitializeComponent();
             SongsListView.ItemsSource = _songs;
-            _downloadFolder = Path.Combine(ApplicationData.Current.LocalFolder.Path, "Downloads");
             Loaded += DownloadPage_Loaded;
         }
 
@@ -57,14 +56,17 @@ namespace music.Pages
 
             try
             {
-                if (!Directory.Exists(_downloadFolder))
+                var downloadFolder = DownloadFolderStore.GetCurrentFolder();
+                DownloadFolderPathText.Text = $"保存位置：{downloadFolder}";
+
+                if (!Directory.Exists(downloadFolder))
                 {
-                    Directory.CreateDirectory(_downloadFolder);
+                    Directory.CreateDirectory(downloadFolder);
                     ShowEmpty();
                     return;
                 }
 
-                var files = Directory.GetFiles(_downloadFolder, "*.*", SearchOption.TopDirectoryOnly)
+                var files = Directory.GetFiles(downloadFolder, "*.*", SearchOption.TopDirectoryOnly)
                     .Where(f => f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
                                f.EndsWith(".flac", StringComparison.OrdinalIgnoreCase) ||
                                f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ||
@@ -158,7 +160,8 @@ namespace music.Pages
         {
             if (sender is Button button && button.Tag is string fileName)
             {
-                var filePath = Path.Combine(_downloadFolder, fileName);
+                var downloadFolder = DownloadFolderStore.GetCurrentFolder();
+                var filePath = Path.Combine(downloadFolder, fileName);
                 
                 var dialog = new ContentDialog
                 {
@@ -185,6 +188,20 @@ namespace music.Pages
                         System.Diagnostics.Debug.WriteLine($"[Download] Delete Error: {ex.Message}");
                     }
                 }
+            }
+        }
+
+        private async void OpenDownloadFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var downloadFolder = DownloadFolderStore.GetCurrentFolder();
+                Directory.CreateDirectory(downloadFolder);
+                await Launcher.LaunchFolderPathAsync(downloadFolder);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Download] Open Folder Error: {ex.Message}");
             }
         }
     }

@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage;
+using Windows.Storage.Pickers;
+using Windows.System;
 using music.Services;
 
 namespace music.Pages
@@ -21,6 +24,7 @@ namespace music.Pages
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            SyncDownloadFolderState();
         }
 
         private void LoadSettings()
@@ -54,9 +58,22 @@ namespace music.Pages
             }
             SyncQualitySelection(quality);
 
+            // 加载下载目录设置
+            SyncDownloadFolderState();
+
             // 加载实验性功能设置
             var fancyLyrics = settings.Values["FancyLyrics"] as bool? ?? false;
             FancyLyricsComboBox.SelectedIndex = fancyLyrics ? 1 : 0;
+        }
+
+        private void SyncDownloadFolderState()
+        {
+            if (DownloadFolderBox == null || ResetDownloadFolderButton == null) return;
+
+            var currentFolder = DownloadFolderStore.GetCurrentFolder();
+            var defaultFolder = DownloadFolderStore.GetDefaultFolder();
+            DownloadFolderBox.Text = currentFolder;
+            ResetDownloadFolderButton.IsEnabled = !DownloadFolderPolicy.IsDefaultDownloadFolder(currentFolder, defaultFolder);
         }
 
         private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -260,6 +277,65 @@ namespace music.Pages
             if (FancyLyricsComboBox == null) return;
             var settings = ApplicationData.Current.LocalSettings;
             settings.Values["FancyLyrics"] = FancyLyricsComboBox.SelectedIndex == 1;
+        }
+
+        private async void SelectDownloadFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var folderPicker = new FolderPicker();
+                folderPicker.SuggestedStartLocation = PickerLocationId.MusicLibrary;
+                folderPicker.FileTypeFilter.Add("*");
+
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.m_window);
+                WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, hwnd);
+
+                var folder = await folderPicker.PickSingleFolderAsync();
+                if (folder == null) return;
+
+                var saved = DownloadFolderStore.SaveFolder(folder.Path);
+                SyncDownloadFolderState();
+                DownloadFolderStatusText.Text = $"下载目录已更新为：{saved}";
+                DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+                DownloadFolderStatusText.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                DownloadFolderStatusText.Text = $"更改目录失败：{ex.Message}";
+                DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                DownloadFolderStatusText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private async void OpenDownloadFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            var folder = DownloadFolderStore.GetCurrentFolder();
+            try
+            {
+                Directory.CreateDirectory(folder);
+                var launched = await Launcher.LaunchFolderPathAsync(folder);
+                if (!launched)
+                {
+                    DownloadFolderStatusText.Text = $"无法打开目录：{folder}";
+                    DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                    DownloadFolderStatusText.Visibility = Visibility.Visible;
+                }
+            }
+            catch (Exception ex)
+            {
+                DownloadFolderStatusText.Text = $"打开目录失败：{ex.Message}";
+                DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                DownloadFolderStatusText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void ResetDownloadFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            var defaultFolder = DownloadFolderStore.ResetFolder();
+            SyncDownloadFolderState();
+            DownloadFolderStatusText.Text = $"已恢复默认下载目录：{defaultFolder}";
+            DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+            DownloadFolderStatusText.Visibility = Visibility.Visible;
         }
     }
 }
