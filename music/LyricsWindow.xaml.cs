@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -12,6 +14,7 @@ using Microsoft.Graphics.Canvas.Effects;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.Graphics.Canvas.UI;
 using Microsoft.Graphics.Canvas.UI.Xaml;
+using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Windowing;
 using Windows.UI.Text;
@@ -19,6 +22,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics;
 using Windows.Graphics.Display;
@@ -59,21 +63,74 @@ namespace music
         private int _pointerDownLineIndex = -1;
         private bool _longPressFired;
 
-        // 缓存的文本格式，避免在 Draw 中重复创建
+        // 缓存的文本格式与复用画刷，避免在 Draw 中重复创建
         private CanvasTextFormat? _fmtCurrent;
         private CanvasTextFormat? _fmtNear;
         private CanvasTextFormat? _fmtMeasure;
         private CanvasTextFormat? _fmtTranslation;
         private CanvasTextFormat? _fmtNoLyrics;
+        private CanvasSolidColorBrush? _reusableBrush;
 
-        // 缓存的测量用 RenderTarget，避免每帧/每次重算都创建 GPU 纹理
-        private CanvasRenderTarget? _measureTarget;
+        // 歌词行排版与双纹理（清晰 + 预模糊）LRU 缓存
+        private sealed class LineRenderCache : IDisposable
+        {
+            public CanvasTextLayout? CurrentLayout;
+            public CanvasTextLayout? TranslationLayout;
+            public CanvasTextLayout? NearLayout;
+            public CanvasRenderTarget? SharpBitmap;
+            public CanvasRenderTarget? BlurredBitmap;
+            public float OriginX;
+            public float OriginY;
+            public float ContentW;
+            public float ContentH;
+            public bool BitmapsAttempted;
+            public LinkedListNode<int>? LruNode;
 
-        // 模糊专辑封面背景缓存
+            public void DisposeBitmaps()
+            {
+                SharpBitmap?.Dispose();
+                SharpBitmap = null;
+                BlurredBitmap?.Dispose();
+                BlurredBitmap = null;
+                BitmapsAttempted = false;
+            }
+
+            public void Dispose()
+            {
+                DisposeBitmaps();
+                CurrentLayout?.Dispose();
+                CurrentLayout = null;
+                TranslationLayout?.Dispose();
+                TranslationLayout = null;
+                NearLayout?.Dispose();
+                NearLayout = null;
+            }
+        }
+
+        private readonly List<LineRenderCache> _lineCache = new();
+        private readonly LinkedList<int> _bitmapLru = new();
+        private readonly HashSet<int> _pendingBakeIndices = new();
+        private bool _isBakeScheduled;
+        private int _layoutGeneration;
+        private const int MaxCachedBitmapLines = 36;
+        private const float BlurPad = 10f;
+        private const float MaxNonCurrentBlur = 2.2f;
+        private float _cachedLayoutWidth = -1f;
+
+        // 模糊专辑封面背景缓存与复用 HttpClient
         private CanvasRenderTarget? _blurredBg;
+        private string? _loadedCoverUrl;
+        private static readonly HttpClient SharedHttpClient = new();
         private bool _isClosed = false;
 
-        private DispatcherTimer? _scrollTimer;
+        // VSync 对齐的按需动画循环（替代固定 16ms DispatcherTimer）
+        private bool _isAnimationLoopActive;
+        private long _lastRenderTimestamp;
+
+        // 进度条文本缓存，避免秒数未变时重复触发文本排版
+        private double _lastDurationSeconds = -1;
+        private int _lastPosSeconds = -1;
+        private int _lastRemainingSeconds = -1;
 
         // Win2D 不支持逗号分隔的 fallback，使用系统默认 + 手动检测
         private const string PrimaryFont = "Segoe UI Variable";
@@ -97,7 +154,6 @@ namespace music
         private float _currentLineScaleVel;
         private long _lineSwitchAt = -10000;   // 切行时刻（TickCount ms），用于浮现渐变
         private double _lastRawMs = -1;        // 上一帧的原始播放位置（ms），用于单调过滤
-        private long _lastTickAt = -1;         // 上次滚动定时器触发时刻，用于计算真实 dt
 
         private AppWindow? _appWindow;                 // 窗口 presenter，用于全屏切换
 
@@ -147,53 +203,62 @@ namespace music
             ProgressSlider.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(ProgressSlider_PointerReleased), true);
             ProgressSlider.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(ProgressSlider_PointerCaptureLost), true);
 
-            _scrollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-            _scrollTimer.Tick += OnScrollTick;
-            _scrollTimer.Start();
-
             Closed += OnWindowClosed;
         }
 
         private void OnWindowClosed(object sender, WindowEventArgs args)
         {
             _isClosed = true;
+            StopAnimationLoop();
             DetachPlaybackEvents();
             _lyricsCancellation?.Cancel();
             _lyricsCancellation?.Dispose();
             _lyricsCancellation = null;
-            _scrollTimer?.Stop();
-            _scrollTimer = null;
             _userScrollIdleTimer?.Stop();
             _userScrollIdleTimer = null;
             _longPressTimer?.Stop();
             _longPressTimer = null;
 
             // 显式释放所有缓存的 Win2D 资源
-            _fmtCurrent?.Dispose(); _fmtCurrent = null;
-            _fmtNear?.Dispose(); _fmtNear = null;
-            _fmtMeasure?.Dispose(); _fmtMeasure = null;
-            _fmtTranslation?.Dispose(); _fmtTranslation = null;
-            _fmtNoLyrics?.Dispose(); _fmtNoLyrics = null;
-            _measureTarget?.Dispose(); _measureTarget = null;
+            ClearLineCache();
+            DisposeTextFormatsAndBrush();
             _blurredBg?.Dispose(); _blurredBg = null;
 
             BackgroundCanvas?.RemoveFromVisualTree();
             LyricsCanvas?.RemoveFromVisualTree();
         }
 
-        #region Text Format Cache
+        #region Text Format & Line Cache
+
+        private void DisposeTextFormatsAndBrush()
+        {
+            _fmtCurrent?.Dispose(); _fmtCurrent = null;
+            _fmtNear?.Dispose(); _fmtNear = null;
+            _fmtMeasure?.Dispose(); _fmtMeasure = null;
+            _fmtTranslation?.Dispose(); _fmtTranslation = null;
+            _fmtNoLyrics?.Dispose(); _fmtNoLyrics = null;
+            _reusableBrush?.Dispose(); _reusableBrush = null;
+        }
+
+        private void ClearLineCache()
+        {
+            for (int i = 0; i < _lineCache.Count; i++)
+                _lineCache[i].Dispose();
+            _lineCache.Clear();
+            _bitmapLru.Clear();
+            _pendingBakeIndices.Clear();
+            _isBakeScheduled = false;
+            _layoutGeneration++;
+            _cachedLayoutWidth = -1f;
+        }
 
         private void EnsureTextFormats(CanvasDevice device)
         {
             if (_fmtCurrent != null && _fmtNear != null && _fmtMeasure != null
-                && _fmtTranslation != null && _fmtNoLyrics != null)
+                && _fmtTranslation != null && _fmtNoLyrics != null && _reusableBrush != null)
                 return;
 
-            _fmtCurrent?.Dispose();
-            _fmtNear?.Dispose();
-            _fmtMeasure?.Dispose();
-            _fmtTranslation?.Dispose();
-            _fmtNoLyrics?.Dispose();
+            DisposeTextFormatsAndBrush();
 
             // 当前行：放大、Bold 字重，避免字形边缘过厚
             _fmtCurrent = new CanvasTextFormat
@@ -241,30 +306,42 @@ namespace music
                 FontSize = 18 * _dpiScale,
                 HorizontalAlignment = CanvasHorizontalAlignment.Center
             };
-        }
 
-        private void EnsureMeasureTarget(CanvasControl sender)
-        {
-            if (_measureTarget != null)
-                return;
-
-            _measureTarget?.Dispose();
-            _measureTarget = new CanvasRenderTarget(sender, _lyricsWidth, Math.Max(_lyricsHeight, 1), 96);
+            _reusableBrush = new CanvasSolidColorBrush(device, Colors.White);
         }
 
         #endregion
 
         #region Background (Blurred Album Art)
 
-        private void OnScrollTick(object? sender, object e)
+        private void EnsureAnimationLoop()
         {
-            // 真实经过时间：UI 线程繁忙时定时器会延迟触发，
-            // 用固定 dt 会让弹簧按"假时间"推进、收敛严重滞后
-            long now = Environment.TickCount64;
-            float dt = _lastTickAt < 0
+            if (_isClosed || _isAnimationLoopActive) return;
+            _isAnimationLoopActive = true;
+            _lastRenderTimestamp = Stopwatch.GetTimestamp();
+            CompositionTarget.Rendering += OnCompositionRendering;
+        }
+
+        private void StopAnimationLoop()
+        {
+            if (!_isAnimationLoopActive) return;
+            _isAnimationLoopActive = false;
+            CompositionTarget.Rendering -= OnCompositionRendering;
+        }
+
+        private void OnCompositionRendering(object? sender, object e)
+        {
+            if (_isClosed)
+            {
+                StopAnimationLoop();
+                return;
+            }
+
+            long nowTs = Stopwatch.GetTimestamp();
+            float dt = _lastRenderTimestamp <= 0
                 ? 0.016f
-                : Math.Clamp((now - _lastTickAt) / 1000f, 0.001f, 0.05f);
-            _lastTickAt = now;
+                : Math.Clamp((float)(nowTs - _lastRenderTimestamp) / Stopwatch.Frequency, 0.001f, 0.05f);
+            _lastRenderTimestamp = nowTs;
 
             // 自愈：每帧重申滚动目标，防止事件驱动的目标更新遗漏导致偏离锚点
             // 目标 = 行中心的布局坐标（绘制公式 lineTop = offset + anchorY - scroll
@@ -277,87 +354,61 @@ namespace music
                 _targetScrollOffset = Math.Clamp(lineCenter, GetMinScrollTarget(), GetMaxScrollTarget());
             }
 
-            float prev = _scrollOffset;
+            float prevScroll = _scrollOffset;
+            float prevScale = _currentLineScale;
 
             // 临界阻尼弹簧（闭式解，无过冲、对任意 dt 稳定），营造 Apple Music 式呼吸感滚动
-            const float omega = 16f;            // 角频率，收敛时间≈0.4s（300-500ms 区间）
-            float x = _scrollOffset - _targetScrollOffset;
-            float v = _scrollVelocity;
-            float exp = (float)Math.Exp(-omega * dt);
-            float nx = (x + (v + omega * x) * dt) * exp;
-            float nv = (v - (v + omega * x) * omega * dt) * exp;
-
-            if (Math.Abs(nx) < 0.3f && Math.Abs(nv) < 2f)
-            {
-                _scrollOffset = _targetScrollOffset;
-                _scrollVelocity = 0f;
-            }
-            else
-            {
-                _scrollOffset = _targetScrollOffset + nx;
-                _scrollVelocity = nv;
-            }
-
-            if (Math.Abs(_scrollOffset - prev) > 0.05f)
-                LyricsCanvas?.Invalidate();
+            bool scrollSettled;
+            (_scrollOffset, _scrollVelocity, scrollSettled) = LyricWindowHelpers.StepCriticallyDampedSpring(
+                _scrollOffset, _targetScrollOffset, _scrollVelocity,
+                omega: 16f, dt: dt, posEpsilon: 0.3f, velEpsilon: 2f);
 
             // 当前行弹性放大动画：切行时从 0.96 弹回 1.0
-            {
-                const float sOmega = 18f;
-                // x = 当前值 - 目标值（与滚动弹簧的符号约定一致）
-                float sx = _currentLineScale - 1f;
-                float sv = _currentLineScaleVel;
-                float sexp = (float)Math.Exp(-sOmega * dt);
-                float nsx = (sx + (sv + sOmega * sx) * dt) * sexp;
-                float nsv = (sv - (sv + sOmega * sx) * sOmega * dt) * sexp;
+            bool scaleSettled;
+            (_currentLineScale, _currentLineScaleVel, scaleSettled) = LyricWindowHelpers.StepCriticallyDampedSpring(
+                _currentLineScale, 1f, _currentLineScaleVel,
+                omega: 18f, dt: dt, posEpsilon: 0.0005f, velEpsilon: 0.01f);
 
-                if (Math.Abs(nsx) < 0.0005f && Math.Abs(nsv) < 0.01f)
-                {
-                    _currentLineScale = 1f;
-                    _currentLineScaleVel = 0f;
-                }
-                else
-                {
-                    _currentLineScale = 1f + nsx;
-                    _currentLineScaleVel = nsv;
-                }
+            bool appearActive = Environment.TickCount64 - _lineSwitchAt < 300;
+            bool changed = Math.Abs(_scrollOffset - prevScroll) > 0.01f
+                || Math.Abs(_currentLineScale - prevScale) > 0.0001f;
 
-                // 浮现渐变（250ms）或缩放动画未完成期间持续重绘
-                if (Math.Abs(_currentLineScale - 1f) > 0.0005f
-                    || Environment.TickCount64 - _lineSwitchAt < 300)
-                    LyricsCanvas?.Invalidate();
-            }
+            if (changed || !scrollSettled || !scaleSettled || appearActive)
+                LyricsCanvas?.Invalidate();
+
+            if (scrollSettled && scaleSettled && !appearActive)
+                StopAnimationLoop();
         }
 
         private async void LoadBlurredBackgroundAsync()
         {
             if (_isClosed || _currentSong == null || string.IsNullOrEmpty(_currentSong.CoverImgUrl)) return;
 
+            var songId = _currentSong.Id;
+            var coverUrl = _currentSong.CoverImgUrl;
+            if (coverUrl == _loadedCoverUrl && _blurredBg != null) return;
+
             try
             {
-                var httpClient = new System.Net.Http.HttpClient();
-                var bytes = await httpClient.GetByteArrayAsync(_currentSong.CoverImgUrl);
-                httpClient.Dispose();
+                var bytes = await SharedHttpClient.GetByteArrayAsync(coverUrl);
 
-                if (_isClosed) return;
+                if (_isClosed || _currentSong?.Id != songId) return;
 
                 DispatcherQueue.TryEnqueue(async () =>
                 {
-                    if (_isClosed) return;
+                    if (_isClosed || _currentSong?.Id != songId) return;
 
                     try
                     {
                         using var stream = new MemoryStream(bytes).AsRandomAccessStream();
                         var bitmap = await CanvasBitmap.LoadAsync(BackgroundCanvas.Device, stream);
 
-                        if (_isClosed) { bitmap.Dispose(); return; }
+                        if (_isClosed || _currentSong?.Id != songId) { bitmap.Dispose(); return; }
 
                         var device = BackgroundCanvas.Device;
 
-                        // 渲染目标用固定尺寸：窗口构造期画布 Size 还是 0，
-                        // 用它建 RT 会让"模糊背景"退化成单像素纯色（黑底）。
-                        // 绘制时 BackgroundCanvas_Draw 会把这张图拉伸铺满窗口
-                        const int BgSize = 512;
+                        // 256×256 足以呈现极柔和的渐变氛围，比 512×512 减少 75% 切歌瞬间像素计算量
+                        const int BgSize = 256;
 
                         var oldBg = _blurredBg;
                         _blurredBg = new CanvasRenderTarget(device, BgSize, BgSize, 96);
@@ -374,8 +425,9 @@ namespace music
                             using var blurEffect = new GaussianBlurEffect
                             {
                                 Source = tempTarget,
-                                BlurAmount = 48f,
-                                BorderMode = EffectBorderMode.Soft
+                                BlurAmount = 24f,
+                                BorderMode = EffectBorderMode.Soft,
+                                Optimization = EffectOptimization.Speed
                             };
 
                             // 提升饱和度，让模糊背景像 Apple Music 一样鲜艳
@@ -387,7 +439,7 @@ namespace music
 
                             using (var ds = _blurredBg.CreateDrawingSession())
                             {
-                                var drawRect = new Windows.Foundation.Rect(-30, -30, BgSize + 60, BgSize + 60);
+                                var drawRect = new Windows.Foundation.Rect(-15, -15, BgSize + 30, BgSize + 30);
                                 var srcRect = new Windows.Foundation.Rect(0, 0, BgSize, BgSize);
                                 ds.DrawImage(saturateEffect, drawRect, srcRect);
                             }
@@ -395,6 +447,7 @@ namespace music
 
                         // 提取封面主色：缩小到 4x4 求平均，用于背景染色
                         ExtractDominantColor(bitmap);
+                        _loadedCoverUrl = coverUrl;
 
                         bitmap.Dispose();
 
@@ -407,13 +460,13 @@ namespace music
                     catch (ObjectDisposedException) { /* 窗口已关闭 */ }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[LyricsWindow] Blur bg error: {ex.Message}");
+                        Debug.WriteLine($"[LyricsWindow] Blur bg error: {ex.Message}");
                     }
                 });
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[LyricsWindow] Load cover error: {ex.Message}");
+                Debug.WriteLine($"[LyricsWindow] Load cover error: {ex.Message}");
             }
         }
 
@@ -440,7 +493,7 @@ namespace music
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[LyricsWindow] Dominant color error: {ex.Message}");
+                Debug.WriteLine($"[LyricsWindow] Dominant color error: {ex.Message}");
             }
         }
 
@@ -452,11 +505,8 @@ namespace music
             var w = (float)sender.Size.Width;
             var h = (float)sender.Size.Height;
 
-            // 底色取主色调，背景未加载完成时也保持色彩氛围
-            ds.Clear(Color.FromArgb(255,
-                (byte)(_dominantColor.R * 0.45f),
-                (byte)(_dominantColor.G * 0.45f),
-                (byte)(_dominantColor.B * 0.55f)));
+            // 窗口底色 #0C0C0E，再直接以 0.9 透明度叠合背景，与原 CanvasControl Opacity="0.9" 一致
+            ds.Clear(Color.FromArgb(255, 12, 12, 14));
 
             try
             {
@@ -470,16 +520,24 @@ namespace music
                     var drawX = (w - drawW) / 2f;
                     var drawY = (h - drawH) / 2f;
 
-                    ds.DrawImage(bg, new Windows.Foundation.Rect(drawX, drawY, drawW, drawH), srcRect, 1f);
+                    ds.DrawImage(bg, new Windows.Foundation.Rect(drawX, drawY, drawW, drawH), srcRect, 0.9f);
                 }
                 else
                 {
                     // 模糊封面未就绪时，用主色渐变兜底，避免黑底
-                    var bright = Color.FromArgb(255,
+                    using (var baseBrush = new CanvasSolidColorBrush(ds, Color.FromArgb(230,
+                        (byte)(_dominantColor.R * 0.45f),
+                        (byte)(_dominantColor.G * 0.45f),
+                        (byte)(_dominantColor.B * 0.55f))))
+                    {
+                        ds.FillRectangle(0, 0, w, h, baseBrush);
+                    }
+
+                    var bright = Color.FromArgb(230,
                         (byte)Math.Min(255, _dominantColor.R + 60),
                         (byte)Math.Min(255, _dominantColor.G + 60),
                         (byte)Math.Min(255, _dominantColor.B + 70));
-                    var dark = Color.FromArgb(255,
+                    var dark = Color.FromArgb(230,
                         (byte)(_dominantColor.R * 0.30f),
                         (byte)(_dominantColor.G * 0.30f),
                         (byte)(_dominantColor.B * 0.40f));
@@ -496,12 +554,38 @@ namespace music
             catch (ObjectDisposedException) { /* 资源已释放，跳过绘制 */ }
 
             // 冷色主调叠加，避免浅色封面让整页泛白
-            using (var overlay = new CanvasSolidColorBrush(ds, Color.FromArgb(75,
+            using (var overlay = new CanvasSolidColorBrush(ds, Color.FromArgb(68,
                 (byte)(_dominantColor.R * 0.20f),
                 (byte)(_dominantColor.G * 0.24f),
                 (byte)(_dominantColor.B * 0.34f))))
             {
                 ds.FillRectangle(0, 0, w, h, overlay);
+            }
+
+            // 将原 XAML 中的两层全屏渐变暗角合并至此，仅在切歌/缩放时绘制一次
+            using (var vVignette = new CanvasLinearGradientBrush(ds, new[]
+            {
+                new CanvasGradientStop { Position = 0f, Color = Color.FromArgb(0x14, 0, 0, 0) },
+                new CanvasGradientStop { Position = 0.55f, Color = Color.FromArgb(0x1C, 0, 0, 0) },
+                new CanvasGradientStop { Position = 1f, Color = Color.FromArgb(0x47, 0, 0, 0) }
+            }))
+            {
+                vVignette.StartPoint = new System.Numerics.Vector2(0, 0);
+                vVignette.EndPoint = new System.Numerics.Vector2(0, h);
+                ds.FillRectangle(0, 0, w, h, vVignette);
+            }
+
+            using (var hVignette = new CanvasLinearGradientBrush(ds, new[]
+            {
+                new CanvasGradientStop { Position = 0f, Color = Color.FromArgb(0x38, 0, 0, 0) },
+                new CanvasGradientStop { Position = 0.45f, Color = Color.FromArgb(0x10, 0, 0, 0) },
+                new CanvasGradientStop { Position = 0.75f, Color = Color.FromArgb(0x00, 0, 0, 0) },
+                new CanvasGradientStop { Position = 1f, Color = Color.FromArgb(0x08, 0, 0, 0) }
+            }))
+            {
+                hVignette.StartPoint = new System.Numerics.Vector2(0, 0);
+                hVignette.EndPoint = new System.Numerics.Vector2(w, 0);
+                ds.FillRectangle(0, 0, w, h, hVignette);
             }
         }
 
@@ -515,9 +599,142 @@ namespace music
             _lyricsHeight = (float)sender.Size.Height;
             _canvasReady = true;
 
+            if (args.Reason != CanvasCreateResourcesReason.FirstTime)
+            {
+                DisposeTextFormatsAndBrush();
+                ClearLineCache();
+            }
+
             EnsureTextFormats(sender.Device);
-            EnsureMeasureTarget(sender);
             RecalculateLayout();
+        }
+
+        private void TouchBitmapLru(int index, LineRenderCache entry)
+        {
+            if (entry.LruNode != null)
+            {
+                _bitmapLru.Remove(entry.LruNode);
+                _bitmapLru.AddLast(entry.LruNode);
+                return;
+            }
+
+            entry.LruNode = _bitmapLru.AddLast(index);
+            while (_bitmapLru.Count > MaxCachedBitmapLines)
+            {
+                var oldest = _bitmapLru.First;
+                if (oldest == null) break;
+                int evictIndex = oldest.Value;
+                _bitmapLru.RemoveFirst();
+                if (evictIndex >= 0 && evictIndex < _lineCache.Count)
+                {
+                    _lineCache[evictIndex].LruNode = null;
+                    _lineCache[evictIndex].DisposeBitmaps();
+                }
+            }
+        }
+
+        private void QueueBakeRange(int centerIndex, int radius = 4)
+        {
+            if (_isClosed || _lineCache.Count == 0) return;
+
+            int start = Math.Max(0, centerIndex - radius);
+            int end = Math.Min(_lineCache.Count - 1, centerIndex + radius);
+            for (int i = start; i <= end; i++)
+            {
+                if (!_lineCache[i].BitmapsAttempted)
+                    _pendingBakeIndices.Add(i);
+            }
+
+            if (_pendingBakeIndices.Count > 0 && !_isBakeScheduled)
+            {
+                _isBakeScheduled = true;
+                int gen = _layoutGeneration;
+                float maxW = _cachedLayoutWidth;
+                DispatcherQueue.TryEnqueue(() => BakePendingBitmaps(gen, maxW));
+            }
+        }
+
+        // 在 Draw 回调之外的 UI 帧间隙安全烘焙离屏清晰/模糊纹理，避免与 CanvasControl.Draw 的 DrawingSession 冲突
+        private void BakePendingBitmaps(int generation, float maxW)
+        {
+            if (_isClosed || generation != _layoutGeneration) return;
+            _isBakeScheduled = false;
+
+            if (LyricsCanvas == null || !_canvasReady || _fmtNear == null || _reusableBrush == null || maxW <= 0)
+            {
+                _pendingBakeIndices.Clear();
+                return;
+            }
+
+            if (_pendingBakeIndices.Count == 0) return;
+
+            var indices = _pendingBakeIndices.ToArray();
+            _pendingBakeIndices.Clear();
+
+            var device = LyricsCanvas.Device;
+            float dpi = LyricsCanvas.Dpi > 0 ? LyricsCanvas.Dpi : 96f;
+            bool bakedAny = false;
+
+            foreach (int index in indices)
+            {
+                if (_isClosed || generation != _layoutGeneration) break;
+                if (index < 0 || index >= _lineCache.Count || index >= _lyrics.Count) continue;
+
+                var entry = _lineCache[index];
+                if (entry.BitmapsAttempted) continue;
+                entry.BitmapsAttempted = true;
+
+                try
+                {
+                    entry.NearLayout ??= new CanvasTextLayout(device, _lyrics[index].Text, _fmtNear, maxW, float.MaxValue);
+                    var drawBounds = entry.NearLayout.DrawBounds;
+                    if (drawBounds.Width <= 0 || drawBounds.Height <= 0) continue;
+
+                    float originX = (float)drawBounds.X - 2f;
+                    float originY = (float)drawBounds.Y - 2f;
+                    float contentW = MathF.Ceiling((float)drawBounds.Width + 4f);
+                    float contentH = MathF.Ceiling((float)drawBounds.Height + 4f);
+
+                    var sharp = new CanvasRenderTarget(device, contentW, contentH, dpi);
+                    using (var sds = sharp.CreateDrawingSession())
+                    {
+                        sds.Clear(Colors.Transparent);
+                        _reusableBrush.Color = Colors.White;
+                        sds.DrawTextLayout(entry.NearLayout, -originX, -originY, _reusableBrush);
+                    }
+
+                    var blurred = new CanvasRenderTarget(device, contentW + BlurPad * 2f, contentH + BlurPad * 2f, dpi);
+                    using (var bds = blurred.CreateDrawingSession())
+                    {
+                        bds.Clear(Colors.Transparent);
+                        using var blur = new GaussianBlurEffect
+                        {
+                            Source = sharp,
+                            BlurAmount = MaxNonCurrentBlur * _dpiScale,
+                            BorderMode = EffectBorderMode.Soft,
+                            Optimization = EffectOptimization.Speed
+                        };
+                        bds.DrawImage(blur, BlurPad, BlurPad);
+                    }
+
+                    entry.OriginX = originX;
+                    entry.OriginY = originY;
+                    entry.ContentW = contentW;
+                    entry.ContentH = contentH;
+                    entry.SharpBitmap = sharp;
+                    entry.BlurredBitmap = blurred;
+
+                    TouchBitmapLru(index, entry);
+                    bakedAny = true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[LyricsWindow] Bake bitmap error at line {index}: {ex.Message}");
+                }
+            }
+
+            if (bakedAny && !_isClosed && generation == _layoutGeneration)
+                LyricsCanvas?.Invalidate();
         }
 
         private void LyricsCanvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
@@ -530,12 +747,12 @@ namespace music
 
             EnsureTextFormats(sender.Device);
 
-            if (_lyrics.Count == 0 || _fmtNoLyrics == null)
+            if (_lyrics.Count == 0 || _fmtNoLyrics == null || _reusableBrush == null)
             {
-                if (_fmtNoLyrics != null)
+                if (_fmtNoLyrics != null && _reusableBrush != null)
                 {
-                    using var b = new CanvasSolidColorBrush(ds, Color.FromArgb(80, 255, 255, 255));
-                    ds.DrawText("暂无歌词", _lyricsWidth / 2, _lyricsHeight / 2, b, _fmtNoLyrics);
+                    _reusableBrush.Color = Color.FromArgb(80, 255, 255, 255);
+                    ds.DrawText("暂无歌词", _lyricsWidth / 2, _lyricsHeight / 2, _reusableBrush, _fmtNoLyrics);
                 }
                 return;
             }
@@ -545,16 +762,18 @@ namespace music
             float fadeZone = _lyricsHeight * 0.5f;
             float maxW = Math.Max(1, _lyricsWidth - LeftMargin - RightMargin);
             float edgeFade = _lyricsHeight * 0.16f;   // 上下边缘渐隐区高度
+            var device = sender.Device;
 
             for (int i = 0; i < _lyrics.Count; i++)
             {
-                if (i >= _lineOffsets.Count || i >= _lineHeights.Count) continue;
+                if (i >= _lineOffsets.Count || i >= _lineHeights.Count || i >= _lineCache.Count) continue;
 
                 // 行顶部的屏幕 Y 坐标
                 float lineTop = _lineOffsets[i] + anchorY - _scrollOffset;
                 float lineH = _lineHeights[i];
-                // 超出可见区域则跳过
-                if (lineTop + lineH < -50 || lineTop > _lyricsHeight + 50) continue;
+                // 超出可见区域则跳过，超过底边后直接结束循环
+                if (lineTop + lineH < -50) continue;
+                if (lineTop > _lyricsHeight + 50) break;
 
                 // 基于行中心到锚点的距离计算焦点淡出
                 float lineCenter = lineTop + lineH / 2f;
@@ -571,16 +790,15 @@ namespace music
                 edge = edge * edge;
 
                 bool isCurrent = (i == _currentLyricIndex);
-                var fmt = isCurrent ? _fmtCurrent! : _fmtNear!;
-
-                using var layout = new CanvasTextLayout(ds, _lyrics[i].Text, fmt, maxW, float.MaxValue);
-                float mainH = (i < _lineMainHeights.Count) ? _lineMainHeights[i] : (float)layout.LayoutBounds.Height;
-
-                // 原文顶部对齐到行块顶部
+                float mainH = (i < _lineMainHeights.Count) ? _lineMainHeights[i] : lineH;
                 float textY = lineTop;
+                var cacheEntry = _lineCache[i];
 
                 if (isCurrent)
                 {
+                    var currentLayout = cacheEntry.CurrentLayout ??=
+                        new CanvasTextLayout(device, _lyrics[i].Text, _fmtCurrent!, maxW, float.MaxValue);
+
                     // 浮现进度：切行后 250ms 内从"非当前行外观"平滑过渡到完全高亮，
                     // 起始 alpha 与锚点处非当前行一致（150），消除切换瞬间的跳变
                     float appear = Math.Clamp((Environment.TickCount64 - _lineSwitchAt) / 250f, 0f, 1f);
@@ -591,26 +809,32 @@ namespace music
                         _currentLineScale, new System.Numerics.Vector2(LeftMargin, textY + mainH * 0.5f));
 
                     byte shadowA = (byte)Math.Clamp(72f * appear * edge, 0f, 255f);
-                    using (var shadow = new CanvasSolidColorBrush(ds, Color.FromArgb(shadowA, 0, 0, 0)))
+                    if (shadowA > 0)
                     {
-                        ds.DrawTextLayout(layout, LeftMargin, textY + 2, shadow);
+                        _reusableBrush.Color = Color.FromArgb(shadowA, 0, 0, 0);
+                        ds.DrawTextLayout(currentLayout, LeftMargin, textY + 2, _reusableBrush);
                     }
 
-                    float mainA = Math.Clamp((150f + 105f * appear) * edge, 0f, 255f);
-                    using (var mainBrush = new CanvasSolidColorBrush(ds, Color.FromArgb((byte)mainA, 255, 255, 255)))
+                    byte mainA = (byte)Math.Clamp((150f + 105f * appear) * edge, 0f, 255f);
+                    if (mainA > 0)
                     {
-                        ds.DrawTextLayout(layout, LeftMargin, textY, mainBrush);
+                        _reusableBrush.Color = Color.FromArgb(mainA, 255, 255, 255);
+                        ds.DrawTextLayout(currentLayout, LeftMargin, textY, _reusableBrush);
                     }
 
                     // 译文：当前行下方，半透明白，随浮现进度渐入
                     var tr = _lyrics[i].Translation;
                     if (!string.IsNullOrEmpty(tr) && _fmtTranslation != null)
                     {
-                        using var trLayout = new CanvasTextLayout(ds, tr, _fmtTranslation, maxW, float.MaxValue);
+                        var trLayout = cacheEntry.TranslationLayout ??=
+                            new CanvasTextLayout(device, tr, _fmtTranslation, maxW, float.MaxValue);
                         float trY = textY + mainH + TranslationGap;
                         byte trA = (byte)Math.Clamp((140f + 55f * appear) * edge, 0f, 255f);
-                        using var trb = new CanvasSolidColorBrush(ds, Color.FromArgb(trA, 255, 255, 255));
-                        ds.DrawTextLayout(trLayout, LeftMargin, trY, trb);
+                        if (trA > 0)
+                        {
+                            _reusableBrush.Color = Color.FromArgb(trA, 255, 255, 255);
+                            ds.DrawTextLayout(trLayout, LeftMargin, trY, _reusableBrush);
+                        }
                     }
 
                     ds.Transform = System.Numerics.Matrix3x2.Identity;
@@ -618,27 +842,58 @@ namespace music
                 else
                 {
                     byte alpha = (byte)Math.Clamp(fade * edge * 165f, 0f, 165f);
-                    float blurAmount = Math.Clamp((dist / fadeZone - 0.04f) * 3.2f, 0f, 2.2f) * _dpiScale;
-                    using var tb = new CanvasSolidColorBrush(ds, Color.FromArgb(alpha, 255, 255, 255));
+                    if (alpha == 0) continue;
 
-                    if (blurAmount > 0.2f)
+                    float blurAmount = Math.Clamp((dist / fadeZone - 0.04f) * 3.2f, 0f, MaxNonCurrentBlur) * _dpiScale;
+
+                    if (cacheEntry.SharpBitmap != null && cacheEntry.BlurredBitmap != null)
                     {
-                        using var commands = new CanvasCommandList(sender);
-                        using (var lineDs = commands.CreateDrawingSession())
+                        TouchBitmapLru(i, cacheEntry);
+
+                        float baseOpacity = alpha / 255f;
+                        float maxBlur = MaxNonCurrentBlur * _dpiScale;
+                        float blurT = (blurAmount <= 0.2f || maxBlur <= 0.2f)
+                            ? 0f
+                            : Math.Clamp((blurAmount - 0.2f) / (maxBlur - 0.2f), 0f, 1f);
+
+                        if (blurT < 0.99f)
                         {
-                            lineDs.DrawTextLayout(layout, LeftMargin, textY, tb);
+                            float sharpOpacity = baseOpacity * (1f - blurT);
+                            if (sharpOpacity > 0.005f)
+                            {
+                                var dest = new Windows.Foundation.Rect(
+                                    LeftMargin + cacheEntry.OriginX,
+                                    textY + cacheEntry.OriginY,
+                                    cacheEntry.ContentW,
+                                    cacheEntry.ContentH);
+                                ds.DrawImage(cacheEntry.SharpBitmap, dest, cacheEntry.SharpBitmap.Bounds, sharpOpacity);
+                            }
                         }
-                        using var blur = new GaussianBlurEffect
+
+                        if (blurT > 0.01f)
                         {
-                            Source = commands,
-                            BlurAmount = blurAmount,
-                            BorderMode = EffectBorderMode.Hard
-                        };
-                        ds.DrawImage(blur);
+                            float blurOpacity = baseOpacity * blurT;
+                            if (blurOpacity > 0.005f)
+                            {
+                                var dest = new Windows.Foundation.Rect(
+                                    LeftMargin + cacheEntry.OriginX - BlurPad,
+                                    textY + cacheEntry.OriginY - BlurPad,
+                                    cacheEntry.ContentW + BlurPad * 2f,
+                                    cacheEntry.ContentH + BlurPad * 2f);
+                                ds.DrawImage(cacheEntry.BlurredBitmap, dest, cacheEntry.BlurredBitmap.Bounds, blurOpacity);
+                            }
+                        }
                     }
                     else
                     {
-                        ds.DrawTextLayout(layout, LeftMargin, textY, tb);
+                        // 纹理尚未烘焙完成时，立即回退为缓存的矢量排版，确保非当前行任何时刻都不会消失
+                        var nearLayout = cacheEntry.NearLayout ??=
+                            new CanvasTextLayout(device, _lyrics[i].Text, _fmtNear!, maxW, float.MaxValue);
+                        _reusableBrush.Color = Color.FromArgb(alpha, 255, 255, 255);
+                        ds.DrawTextLayout(nearLayout, LeftMargin, textY, _reusableBrush);
+
+                        if (!cacheEntry.BitmapsAttempted)
+                            QueueBakeRange(i);
                     }
                 }
             }
@@ -652,19 +907,19 @@ namespace music
             _lyricsWidth = (float)e.NewSize.Width;
             _lyricsHeight = (float)e.NewSize.Height;
 
-            // 尺寸变化时重建测量 RT 和文本格式（字号含 DPI）
-            _fmtCurrent?.Dispose(); _fmtCurrent = null;
-            _fmtNear?.Dispose(); _fmtNear = null;
-            _fmtMeasure?.Dispose(); _fmtMeasure = null;
-            _fmtTranslation?.Dispose(); _fmtTranslation = null;
-            _fmtNoLyrics?.Dispose(); _fmtNoLyrics = null;
-            _measureTarget?.Dispose(); _measureTarget = null;
-
             if (_canvasReady && LyricsCanvas != null)
             {
                 EnsureTextFormats(LyricsCanvas.Device);
-                EnsureMeasureTarget(LyricsCanvas);
-                RecalculateLayout();
+                float maxW = Math.Max(1, _lyricsWidth - LeftMargin - RightMargin);
+                if (Math.Abs(maxW - _cachedLayoutWidth) > 0.5f || _lineCache.Count != _lyrics.Count)
+                {
+                    RecalculateLayout();
+                }
+                else
+                {
+                    UpdateScrollPosition();
+                    LyricsCanvas.Invalidate();
+                }
             }
         }
 
@@ -672,28 +927,31 @@ namespace music
         {
             if (LyricsCanvas == null || _lyricsWidth <= 0 || !_canvasReady || _fmtMeasure == null) return;
 
-            EnsureMeasureTarget(LyricsCanvas);
-            if (_measureTarget == null) return;
+            var device = LyricsCanvas.Device;
+            float maxW = Math.Max(1, _lyricsWidth - LeftMargin - RightMargin);
 
             _lineHeights.Clear();
             _lineOffsets.Clear();
             _lineMainHeights.Clear();
+            ClearLineCache();
+            _cachedLayoutWidth = maxW;
 
-            using var ds = _measureTarget.CreateDrawingSession();
-            float maxW = Math.Max(1, _lyricsWidth - LeftMargin - RightMargin);
             float total = 0;
 
             foreach (var lyric in _lyrics)
             {
-                using var layout = new CanvasTextLayout(ds, lyric.Text, _fmtMeasure, maxW, float.MaxValue);
+                var entry = new LineRenderCache();
+                var layout = new CanvasTextLayout(device, lyric.Text, _fmtMeasure, maxW, float.MaxValue);
                 float mainH = (float)layout.LayoutBounds.Height;
+                entry.CurrentLayout = layout;
 
                 // 为含译文的行预留译文高度，保证当前行切换时几何稳定、不跳动
                 float extra = 0f;
                 if (!string.IsNullOrEmpty(lyric.Translation) && _fmtTranslation != null)
                 {
-                    using var trLayout = new CanvasTextLayout(ds, lyric.Translation, _fmtTranslation, maxW, float.MaxValue);
+                    var trLayout = new CanvasTextLayout(device, lyric.Translation, _fmtTranslation, maxW, float.MaxValue);
                     extra = TranslationGap + (float)trLayout.LayoutBounds.Height;
+                    entry.TranslationLayout = trLayout;
                 }
 
                 // 行高 = 原文高度 + 译文预留 + 固定间距，保证不会重叠
@@ -701,10 +959,12 @@ namespace music
                 _lineMainHeights.Add(mainH);
                 _lineHeights.Add(lineH);
                 _lineOffsets.Add(total);
+                _lineCache.Add(entry);
                 total += lineH;
             }
 
             UpdateScrollPosition();
+            QueueBakeRange(_currentLyricIndex >= 0 ? _currentLyricIndex : 0, radius: 10);
         }
 
         // 允许首/末行也能滚动到锚点（两端留白），贴近 Apple Music 行为
@@ -733,6 +993,7 @@ namespace music
             if (_currentLyricIndex < 0 || _currentLyricIndex >= _lineOffsets.Count) return;
             if (_isUserScrolling) return;  // 手动滚动期间不抢回视图
             _targetScrollOffset = Math.Clamp(GetLineCenterY(_currentLyricIndex), GetMinScrollTarget(), GetMaxScrollTarget());
+            EnsureAnimationLoop();
         }
 
         #endregion
@@ -743,14 +1004,8 @@ namespace music
         private int HitTestLine(float y)
         {
             float anchorY = _lyricsHeight * AnchorRatio;
-            for (int i = 0; i < _lyrics.Count; i++)
-            {
-                if (i >= _lineOffsets.Count || i >= _lineHeights.Count) continue;
-                float lineTop = _lineOffsets[i] + anchorY - _scrollOffset;
-                float lineBottom = lineTop + _lineHeights[i];
-                if (y >= lineTop && y <= lineBottom) return i;
-            }
-            return -1;
+            float contentY = y - anchorY + _scrollOffset;
+            return LyricWindowHelpers.HitTestLyricLine(_lineOffsets, _lineHeights, contentY);
         }
 
         private void LyricsCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -883,6 +1138,7 @@ namespace music
             BeginUserScroll();
             float target = _targetScrollOffset - delta;   // 向上滚（delta>0）显示更早歌词
             _targetScrollOffset = Math.Clamp(target, GetMinScrollTarget(), GetMaxScrollTarget());
+            EnsureAnimationLoop();
             e.Handled = true;
         }
 
@@ -1103,16 +1359,7 @@ namespace music
                 _lastRawMs = ms;
             }
 
-            int newIndex = -1;
-
-            for (int i = _lyrics.Count - 1; i >= 0; i--)
-            {
-                if (ms >= _lyrics[i].Time.TotalMilliseconds)
-                {
-                    newIndex = i;
-                    break;
-                }
-            }
+            int newIndex = LyricWindowHelpers.FindActiveLyricIndex(_lyrics, ms, _currentLyricIndex);
 
             if (newIndex != _currentLyricIndex)
             {
@@ -1128,6 +1375,7 @@ namespace music
                     _currentLineScaleVel = 0f;
                     _lineSwitchAt = now;
                 }
+                EnsureAnimationLoop();
             }
         }
 
@@ -1155,23 +1403,41 @@ namespace music
             ps.PlaybackStateChanged -= PlaybackService_StateChanged;
         }
 
+        private void RunOnUiThread(Action action)
+        {
+            if (DispatcherQueue.HasThreadAccess)
+            {
+                if (!_isClosed) action();
+                return;
+            }
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_isClosed) action();
+            });
+        }
+
         private void PlaybackService_CurrentSongChanged(object? sender, Song song)
         {
             if (_isClosed) return;
-            _currentSong = song;
-            _lyrics.Clear();
-            _currentLyricIndex = -1;
-            _lastRawMs = -1;
-            _scrollOffset = 0;
-            _targetScrollOffset = 0;
-            DispatcherQueue.TryEnqueue(() =>
+            RunOnUiThread(() =>
             {
-                if (_isClosed) return;
+                _currentSong = song;
+                _lyrics.Clear();
+                _currentLyricIndex = -1;
+                _lastRawMs = -1;
+                _scrollOffset = 0;
+                _targetScrollOffset = 0;
+                _scrollVelocity = 0;
+                _lastDurationSeconds = -1;
+                _lastPosSeconds = -1;
+                _lastRemainingSeconds = -1;
                 SongTitleText.Text = "";
                 ArtistAlbumText.Text = "";
                 _lineHeights.Clear();
                 _lineOffsets.Clear();
                 _lineMainHeights.Clear();
+                ClearLineCache();
+                StopAnimationLoop();
                 LoadCurrentSong();
                 LyricsCanvas?.Invalidate();
                 _ = LoadLyricsAsync();
@@ -1181,9 +1447,8 @@ namespace music
         private void PlaybackService_PositionChanged(object? sender, TimeSpan position)
         {
             if (_isClosed) return;
-            DispatcherQueue.TryEnqueue(() =>
+            RunOnUiThread(() =>
             {
-                if (_isClosed) return;
                 UpdateProgress(position);
                 UpdateLyricsHighlight(position);
             });
@@ -1192,16 +1457,18 @@ namespace music
         private void PlaybackService_DurationChanged(object? sender, TimeSpan duration)
         {
             if (_isClosed) return;
-            DispatcherQueue.TryEnqueue(() =>
+            RunOnUiThread(() =>
             {
-                if (!_isClosed) UpdateProgress(MainWindow.PlaybackService?.GetCurrentPosition() ?? TimeSpan.Zero);
+                double totalSeconds = duration.TotalSeconds;
+                if (Math.Abs(totalSeconds - _lastDurationSeconds) < 0.5) return;
+                UpdateProgress(MainWindow.PlaybackService?.GetCurrentPosition() ?? TimeSpan.Zero);
             });
         }
 
         private void PlaybackService_StateChanged(object? sender, bool isPlaying)
         {
             if (_isClosed) return;
-            DispatcherQueue.TryEnqueue(() => { if (!_isClosed) PlayPauseIcon.Glyph = isPlaying ? "\uE769" : "\uE768"; });
+            RunOnUiThread(() => PlayPauseIcon.Glyph = isPlaying ? "\uE769" : "\uE768");
         }
 
         private void UpdateProgress(TimeSpan position)
@@ -1209,17 +1476,32 @@ namespace music
             // 拖拽期间不更新进度条，避免跳动
             if (_isProgressDragging) return;
             var duration = MainWindow.PlaybackService?.GetDuration() ?? TimeSpan.Zero;
-            if (duration.TotalSeconds > 0)
+            double durationSeconds = duration.TotalSeconds;
+            _lastDurationSeconds = durationSeconds;
+
+            if (durationSeconds > 0)
             {
-                ProgressSlider.Value = Math.Clamp(position.TotalSeconds / duration.TotalSeconds * 100, 0, 100);
+                ProgressSlider.Value = Math.Clamp(position.TotalSeconds / durationSeconds * 100, 0, 100);
                 var remaining = duration > position ? duration - position : TimeSpan.Zero;
-                TotalTimeText.Text = FormatRemainingTime(remaining);
+                int remSec = (int)remaining.TotalSeconds;
+                if (remSec != _lastRemainingSeconds)
+                {
+                    _lastRemainingSeconds = remSec;
+                    TotalTimeText.Text = FormatRemainingTime(remaining);
+                }
             }
-            else
+            else if (_lastRemainingSeconds != -2)
             {
+                _lastRemainingSeconds = -2;
                 TotalTimeText.Text = "-0:00";
             }
-            CurrentTimeText.Text = FormatTime(position);
+
+            int posSec = (int)Math.Max(0, position.TotalSeconds);
+            if (posSec != _lastPosSeconds)
+            {
+                _lastPosSeconds = posSec;
+                CurrentTimeText.Text = FormatTime(position);
+            }
         }
 
         private static string FormatTime(TimeSpan time) => $"{(int)time.TotalMinutes}:{time.Seconds:D2}";

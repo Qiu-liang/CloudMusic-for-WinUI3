@@ -151,30 +151,10 @@
         </Style>
         </Grid.Resources>
 
+        <!-- 背景暗角与 0.9 透明度已直接合并到 BackgroundCanvas_Draw 中，减少全屏透明混合层 -->
         <win2d:CanvasControl x:Name="BackgroundCanvas"
                               Draw="BackgroundCanvas_Draw"
-                              IsHitTestVisible="False"
-                              Opacity="0.9"/>
-
-        <Grid IsHitTestVisible="False">
-            <Grid.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#14000000" Offset="0"/>
-                    <GradientStop Color="#1C000000" Offset="0.55"/>
-                    <GradientStop Color="#47000000" Offset="1"/>
-                </LinearGradientBrush>
-            </Grid.Background>
-        </Grid>
-        <Grid IsHitTestVisible="False">
-            <Grid.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Color="#38000000" Offset="0"/>
-                    <GradientStop Color="#10000000" Offset="0.45"/>
-                    <GradientStop Color="#00000000" Offset="0.75"/>
-                    <GradientStop Color="#08000000" Offset="1"/>
-                </LinearGradientBrush>
-            </Grid.Background>
-        </Grid>
+                              IsHitTestVisible="False"/>
 
         <Grid>
             <Grid.ColumnDefinitions>
