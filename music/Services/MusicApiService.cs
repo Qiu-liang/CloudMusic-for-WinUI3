@@ -498,16 +498,7 @@ namespace music.Services
             try
             {
                 var json = await GetAsync("/vip/info");
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-
-                var isVip = false;
-                if (result.TryGetProperty("data", out var data))
-                {
-                    if (data.TryGetProperty("redVipLevel", out var redVipLevel))
-                    {
-                        isVip = redVipLevel.GetInt32() > 0;
-                    }
-                }
+                var isVip = SongUrlPolicy.EvaluateVipStatus(json);
 
                 var settings = ApplicationData.Current.LocalSettings;
                 settings.Values["IsVip"] = isVip;

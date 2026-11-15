@@ -30,6 +30,7 @@ namespace music.Pages
                 NicknameText.Text = "未登录";
                 StatsText.Text = "请先登录";
                 StatsText.Visibility = Visibility.Visible;
+                VipBadge.Visibility = Visibility.Collapsed;
                 UserInfoSection.Visibility = Visibility.Visible;
                 LoadingPanel.Visibility = Visibility.Collapsed;
             }
@@ -62,10 +63,7 @@ namespace music.Pages
                 }
 
                 var isVip = await App.ApiService.CheckVipStatusAsync();
-                if (isVip)
-                {
-                    VipBadge.Visibility = Visibility.Visible;
-                }
+                VipBadge.Visibility = isVip ? Visibility.Visible : Visibility.Collapsed;
             }
             catch (Exception ex)
             {

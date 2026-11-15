@@ -91,5 +91,58 @@ namespace music.Services
                 levels.Add(candidate);
             }
         }
+
+        /// <summary>
+        /// Evaluates whether a /vip/info response indicates an active, unexpired VIP subscription.
+        /// Note: redVipLevel is a historical growth level and stays &gt; 0 after expiration.
+        /// </summary>
+        public static bool EvaluateVipStatus(string? vipInfoJson, long? fallbackNowMs = null)
+        {
+            if (string.IsNullOrWhiteSpace(vipInfoJson)) return false;
+
+            try
+            {
+                using var document = JsonDocument.Parse(vipInfoJson);
+                var root = document.RootElement;
+                if (root.ValueKind != JsonValueKind.Object) return false;
+                if (!root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+                    return false;
+
+                var now = data.TryGetProperty("now", out var nowElement) &&
+                          nowElement.TryGetInt64(out var serverNow) &&
+                          serverNow > 0
+                    ? serverNow
+                    : (fallbackNowMs ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+                return IsPackageActive(data, "associator", now) ||
+                       IsPackageActive(data, "musicPackage", now) ||
+                       IsPackageActive(data, "redplus", now);
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
+        private static bool IsPackageActive(JsonElement data, string packageName, long nowMs)
+        {
+            if (!data.TryGetProperty(packageName, out var package) || package.ValueKind != JsonValueKind.Object)
+                return false;
+
+            if (!package.TryGetProperty("expireTime", out var expireElement) ||
+                !expireElement.TryGetInt64(out var expireTime) ||
+                expireTime <= nowMs)
+            {
+                return false;
+            }
+
+            if (package.TryGetProperty("rights", out var rightsElement) &&
+                (rightsElement.ValueKind == JsonValueKind.True || rightsElement.ValueKind == JsonValueKind.False))
+            {
+                return rightsElement.GetBoolean();
+            }
+
+            return true;
+        }
     }
 }
