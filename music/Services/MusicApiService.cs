@@ -17,7 +17,10 @@ namespace music.Services
         private readonly SemaphoreSlim _requestSemaphore = new SemaphoreSlim(4, 4);
         private readonly object _cookieLock = new object();
         private readonly object _privilegeLock = new object();
+        private readonly object _likedLock = new object();
         private readonly Dictionary<string, SongQualityPrivilege> _privilegeBySongId = new Dictionary<string, SongQualityPrivilege>(StringComparer.Ordinal);
+        private readonly HashSet<string> _likedSongIds = new HashSet<string>(StringComparer.Ordinal);
+        private bool _hasLoadedLikedIds = false;
         private volatile SongQualityPrivilege? _lastKnownPrivilege;
         // 会话 Cookie 罐（name → value）：UseCookies=false 时请求统一携带由它拼出的
         // Cookie 头，Set-Cookie 响应也回灌到罐里，内容所见即所得、可持久化恢复
@@ -35,6 +38,7 @@ namespace music.Services
 
         public bool IsLoggedIn => !string.IsNullOrEmpty(_cookie) && _userId > 0;
         public long UserId => _userId;
+        public event EventHandler<SongLikeChangedEventArgs>? SongLikeChanged;
 
         // 最近一次 GetAsync 是否因网络等原因失败（用于区分"认证失败"与"服务器不可达"，
         // 避免网络抖动时误清有效的本地登录态）
@@ -205,7 +209,7 @@ namespace music.Services
         {
             if (string.IsNullOrWhiteSpace(cookie)) return false;
 
-            _favoritePlaylistId = string.Empty;
+            ClearLikedState();
 
             // 合并而非替换：保留匿名设备票据，避免每次扫码被服务器视为新设备
             MergeCookieString(cookie);
@@ -610,8 +614,56 @@ namespace music.Services
             }
             ClearPrivilegeCache();
             _userId = 0;
-            _favoritePlaylistId = string.Empty;
+            ClearLikedState();
             _isInitialized = false;
+        }
+
+        private void ClearLikedState()
+        {
+            lock (_likedLock)
+            {
+                _likedSongIds.Clear();
+                _hasLoadedLikedIds = false;
+            }
+            _favoritePlaylistId = string.Empty;
+        }
+
+        private static string AppendTimestamp(string url) =>
+            LikedMusicSyncHelper.AppendTimestamp(url, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+        public bool HasLoadedLikedIds
+        {
+            get
+            {
+                lock (_likedLock) return _hasLoadedLikedIds;
+            }
+        }
+
+        public bool IsSongLiked(string? songId)
+        {
+            if (string.IsNullOrWhiteSpace(songId)) return false;
+            lock (_likedLock)
+            {
+                return _likedSongIds.Contains(songId);
+            }
+        }
+
+        public async Task EnsureLikedSongIdsLoadedAsync()
+        {
+            if (!IsLoggedIn) return;
+            bool loaded;
+            lock (_likedLock) loaded = _hasLoadedLikedIds;
+            if (!loaded)
+            {
+                await GetLikedSongIdsAsync(bypassCache: true);
+            }
+        }
+
+        public async Task<bool> IsFavoritePlaylistAsync(string? playlistId)
+        {
+            if (!IsLoggedIn || string.IsNullOrWhiteSpace(playlistId)) return false;
+            var favoriteId = await GetFavoritePlaylistIdAsync();
+            return !string.IsNullOrEmpty(favoriteId) && string.Equals(favoriteId, playlistId, StringComparison.Ordinal);
         }
 
         private static Dictionary<string, JsonElement> ExtractPrivilegesById(JsonElement root)
@@ -698,6 +750,17 @@ namespace music.Services
                 song.CoverImgUrl = SongUrlPolicy.ReadString(album, "picUrl");
             }
 
+            if (!string.IsNullOrEmpty(song.Id))
+            {
+                lock (_likedLock)
+                {
+                    if (_hasLoadedLikedIds)
+                    {
+                        song.Liked = _likedSongIds.Contains(song.Id);
+                    }
+                }
+            }
+
             return song;
         }
 
@@ -739,7 +802,7 @@ namespace music.Services
                 var url = $"/user/playlist?uid={uid}";
                 if (bypassCache)
                 {
-                    url += $"&timestamp={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                    url = AppendTimestamp(url);
                 }
                 var json = await GetAsync(url);
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
@@ -771,11 +834,40 @@ namespace music.Services
             }
         }
 
-        public async Task<List<Song>> GetPlaylistDetailAsync(string playlistId)
+        public async Task<List<Song>> GetPlaylistDetailAsync(string playlistId, bool bypassCache = true)
         {
             try
             {
-                var json = await GetAsync($"/playlist/track/all?id={playlistId}");
+                var detailUrl = $"/playlist/detail?id={Uri.EscapeDataString(playlistId)}";
+                if (bypassCache) detailUrl = AppendTimestamp(detailUrl);
+
+                var detailJson = await GetAsync(detailUrl);
+                if (LastError != ApiErrorKind.None) return new List<Song>();
+
+                var trackIds = LikedMusicSyncHelper.ExtractPlaylistTrackIds(detailJson);
+                if (trackIds.Count > 0)
+                {
+                    return await GetSongsByIdsAsync(trackIds);
+                }
+
+                // 歌单明确为空（trackCount == 0）时直接返回空列表；否则回退 /playlist/track/all
+                var detailResult = JsonSerializer.Deserialize<JsonElement>(detailJson);
+                if (detailResult.ValueKind == JsonValueKind.Object &&
+                    detailResult.TryGetProperty("playlist", out var playlistObj) &&
+                    playlistObj.ValueKind == JsonValueKind.Object &&
+                    playlistObj.TryGetProperty("trackCount", out var trackCountProp) &&
+                    trackCountProp.TryGetInt32(out var trackCount) &&
+                    trackCount == 0)
+                {
+                    return new List<Song>();
+                }
+
+                var fallbackUrl = $"/playlist/track/all?id={Uri.EscapeDataString(playlistId)}";
+                if (bypassCache) fallbackUrl = AppendTimestamp(fallbackUrl);
+
+                var json = await GetAsync(fallbackUrl);
+                if (LastError != ApiErrorKind.None) return new List<Song>();
+
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
                 var privilegesById = ExtractPrivilegesById(result);
 
@@ -801,11 +893,13 @@ namespace music.Services
             }
         }
 
-        public async Task<PlaylistDetailInfo?> GetPlaylistInfoAsync(string playlistId)
+        public async Task<PlaylistDetailInfo?> GetPlaylistInfoAsync(string playlistId, bool bypassCache = true)
         {
             try
             {
-                var json = await GetAsync($"/playlist/detail?id={playlistId}");
+                var url = $"/playlist/detail?id={Uri.EscapeDataString(playlistId)}";
+                if (bypassCache) url = AppendTimestamp(url);
+                var json = await GetAsync(url);
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
 
                 if (result.TryGetProperty("playlist", out var playlist))
@@ -1277,7 +1371,41 @@ namespace music.Services
             }
         }
 
-        public async Task<List<string>> GetLikedSongIdsAsync()
+        private async Task<List<Song>> GetSongsByIdsAsync(IReadOnlyList<string> ids)
+        {
+            var orderedIds = ids
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (orderedIds.Count == 0) return new List<Song>();
+
+            var songsById = new Dictionary<string, Song>(StringComparer.Ordinal);
+            foreach (var batch in ApiBatching.Chunk(orderedIds, 200))
+            {
+                var json = await GetAsync($"/song/detail?ids={string.Join(",", batch)}");
+                if (LastError != ApiErrorKind.None) return new List<Song>();
+
+                var result = JsonSerializer.Deserialize<JsonElement>(json);
+                var privilegesById = ExtractPrivilegesById(result);
+                if (result.TryGetProperty("songs", out var items) && items.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        var id = SongUrlPolicy.ReadString(item, "id");
+                        JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
+                        var song = ParseSongFromJson(item, priv);
+                        if (!string.IsNullOrEmpty(song.Id))
+                        {
+                            songsById[song.Id] = song;
+                        }
+                    }
+                }
+            }
+
+            return orderedIds.Where(songsById.ContainsKey).Select(id => songsById[id]).ToList();
+        }
+
+        public async Task<List<string>> GetLikedSongIdsAsync(bool bypassCache = false)
         {
             if (!IsLoggedIn)
             {
@@ -1288,13 +1416,18 @@ namespace music.Services
 
             try
             {
-                var json = await GetAsync($"/likelist?uid={_userId}");
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                var ids = new List<string>();
-                if (result.TryGetProperty("ids", out var idsArray))
+                var url = $"/likelist?uid={_userId}";
+                if (bypassCache) url = AppendTimestamp(url);
+
+                var json = await GetAsync(url);
+                if (LastError != ApiErrorKind.None) return new List<string>();
+
+                var ids = LikedMusicSyncHelper.ExtractLikedIds(json);
+                lock (_likedLock)
                 {
-                    foreach (var id in idsArray.EnumerateArray())
-                        ids.Add(id.GetInt64().ToString());
+                    _likedSongIds.Clear();
+                    foreach (var id in ids) _likedSongIds.Add(id);
+                    _hasLoadedLikedIds = true;
                 }
                 return ids;
             }
@@ -1305,37 +1438,34 @@ namespace music.Services
             }
         }
 
-        public async Task<List<Song>> GetLikedSongsAsync(int limit = 0)
+        public async Task<List<Song>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true)
         {
             try
             {
-                var ids = await GetLikedSongIdsAsync();
-                if (ids.Count == 0) return new List<Song>();
-                if (limit > 0) ids = ids.Take(limit).ToList();
+                var ids = await GetLikedSongIdsAsync(bypassCache);
+                if (LastError != ApiErrorKind.None) return new List<Song>();
 
-                var songsById = new Dictionary<string, Song>();
-                foreach (var batch in ApiBatching.Chunk(ids, 200))
+                if (limit <= 0)
                 {
-                    var json = await GetAsync($"/song/detail?ids={string.Join(",", batch)}");
-                    if (LastError != ApiErrorKind.None) return new List<Song>();
-                    var result = JsonSerializer.Deserialize<JsonElement>(json);
-                    var privilegesById = ExtractPrivilegesById(result);
-                    if (result.TryGetProperty("songs", out var items))
+                    // 全量列表优先与账号自身的“我喜欢的音乐”歌单（specialType == 5）保持同一数据源
+                    var favoritePlaylistId = await GetFavoritePlaylistIdAsync(bypassCache);
+                    if (!string.IsNullOrEmpty(favoritePlaylistId))
                     {
-                        foreach (var item in items.EnumerateArray())
+                        var playlistSongs = await GetPlaylistDetailAsync(favoritePlaylistId, bypassCache);
+                        if (LastError == ApiErrorKind.None && (playlistSongs.Count > 0 || ids.Count == 0))
                         {
-                            var id = item.TryGetProperty("id", out var idProp) && idProp.TryGetInt64(out var numId)
-                                ? numId.ToString()
-                                : string.Empty;
-                            JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
-                            var song = ParseSongFromJson(item, priv);
-                            song.Liked = true;
-                            songsById[song.Id] = song;
+                            foreach (var song in playlistSongs) song.Liked = true;
+                            return playlistSongs;
                         }
                     }
                 }
 
-                return ids.Distinct().Where(songsById.ContainsKey).Select(id => songsById[id]).ToList();
+                if (ids.Count == 0) return new List<Song>();
+                if (limit > 0) ids = ids.Take(limit).ToList();
+
+                var songs = await GetSongsByIdsAsync(ids);
+                foreach (var song in songs) song.Liked = true;
+                return songs;
             }
             catch (Exception ex)
             {
@@ -1400,14 +1530,16 @@ namespace music.Services
             }
         }
 
-        // 我喜欢的音乐歌单 id（specialType == 5），作为智能推荐接口的必选参数 pid
-        private async Task<string> GetFavoritePlaylistIdAsync()
+        // 我喜欢的音乐歌单 id（specialType == 5），作为智能推荐接口的必选参数 pid 及喜欢页面对齐依据
+        private async Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false)
         {
             if (!string.IsNullOrEmpty(_favoritePlaylistId)) return _favoritePlaylistId;
 
             try
             {
-                var json = await GetAsync($"/user/playlist?uid={_userId}");
+                var url = $"/user/playlist?uid={_userId}";
+                if (bypassCache) url = AppendTimestamp(url);
+                var json = await GetAsync(url);
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
                 if (result.TryGetProperty("playlist", out var items) && items.ValueKind == JsonValueKind.Array)
                 {
@@ -1435,11 +1567,17 @@ namespace music.Services
         {
             try
             {
-                var json = await GetAsync($"/like?id={songId}&like={like.ToString().ToLower()}");
+                var url = AppendTimestamp($"/like?id={Uri.EscapeDataString(songId)}&like={like.ToString().ToLowerInvariant()}");
+                var json = await GetAsync(url);
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
 
                 if (result.TryGetProperty("code", out var code) && code.GetInt32() == 200)
                 {
+                    lock (_likedLock)
+                    {
+                        LikedMusicSyncHelper.ApplyLikeChange(_likedSongIds, songId, like);
+                    }
+                    SongLikeChanged?.Invoke(this, new SongLikeChangedEventArgs(songId, like));
                     return true;
                 }
 

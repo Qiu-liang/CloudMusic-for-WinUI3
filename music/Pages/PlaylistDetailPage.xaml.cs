@@ -18,11 +18,50 @@ namespace music.Pages
         private string _playlistId = string.Empty;
         private bool _isSubscribed;
         private bool _canSubscribe;
+        private bool _isFavoritePlaylist;
+        private long _loadVersion;
 
         public PlaylistDetailPage()
         {
             this.InitializeComponent();
             SongsListView.ItemsSource = _songs;
+            Loaded += PlaylistDetailPage_Loaded;
+            Unloaded += PlaylistDetailPage_Unloaded;
+        }
+
+        private void PlaylistDetailPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
+            App.ApiService.SongLikeChanged += ApiService_SongLikeChanged;
+        }
+
+        private void PlaylistDetailPage_Unloaded(object sender, RoutedEventArgs e)
+        {
+            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
+        }
+
+        private void ApiService_SongLikeChanged(object? sender, SongLikeChangedEventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                if (!IsLoaded) return;
+
+                foreach (var song in _songModels)
+                {
+                    if (string.Equals(song.Id, e.SongId, StringComparison.Ordinal))
+                        song.Liked = e.IsLiked;
+                }
+                foreach (var item in _songs)
+                {
+                    if (string.Equals(item.Id, e.SongId, StringComparison.Ordinal))
+                        item.IsLiked = e.IsLiked;
+                }
+
+                if (_isFavoritePlaylist && !string.IsNullOrEmpty(_playlistId))
+                {
+                    await LoadPlaylistAsync(_playlistId);
+                }
+            });
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -38,6 +77,8 @@ namespace music.Pages
 
         private async System.Threading.Tasks.Task LoadPlaylistAsync(string playlistId)
         {
+            var version = ++_loadVersion;
+            _isFavoritePlaylist = false;
             ShowLoading();
 
             List<Song> songs;
@@ -56,6 +97,7 @@ namespace music.Pages
                 title = "专辑歌曲";
 
                 var albumInfo = await App.ApiService.GetAlbumInfoAsync(albumId);
+                if (version != _loadVersion) return;
                 if (albumInfo != null)
                 {
                     title = albumInfo.Name;
@@ -64,19 +106,29 @@ namespace music.Pages
             }
             else
             {
-                songs = await App.ApiService.GetPlaylistDetailAsync(playlistId);
+                songs = await App.ApiService.GetPlaylistDetailAsync(playlistId, bypassCache: true);
+                if (version != _loadVersion) return;
                 title = "歌单详情";
 
-                var playlistInfo = await App.ApiService.GetPlaylistInfoAsync(playlistId);
+                var playlistInfo = await App.ApiService.GetPlaylistInfoAsync(playlistId, bypassCache: true);
+                if (version != _loadVersion) return;
                 if (playlistInfo != null)
                 {
                     title = playlistInfo.Name;
                     ShowPlaylistInfo(playlistInfo);
                 }
+
+                _isFavoritePlaylist = await App.ApiService.IsFavoritePlaylistAsync(playlistId);
+                if (version != _loadVersion) return;
             }
 
             if (songs == null || songs.Count == 0)
             {
+                TitleText.Text = title;
+                _songModels.Clear();
+                _songs.Clear();
+                SongsCountText.Text = App.ApiService.LastError == ApiErrorKind.None ? "共 0 首" : string.Empty;
+                PlayAllButton.Visibility = Visibility.Collapsed;
                 ShowError(App.ApiService.LastError != ApiErrorKind.None
                     ? App.ApiService.LastErrorMessage
                     : "歌单为空或加载失败");

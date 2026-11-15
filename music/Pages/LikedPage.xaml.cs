@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using music.Models;
+using music.Services;
 
 namespace music.Pages
 {
@@ -11,21 +12,41 @@ namespace music.Pages
     {
         private readonly ObservableCollection<SongItem> _songs = new();
         private List<Song> _songModels = new();
+        private long _loadVersion;
 
         public LikedPage()
         {
             this.InitializeComponent();
             SongsListView.ItemsSource = _songs;
             Loaded += LikedPage_Loaded;
+            Unloaded += LikedPage_Unloaded;
         }
 
         private async void LikedPage_Loaded(object sender, RoutedEventArgs e)
         {
+            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
+            App.ApiService.SongLikeChanged += ApiService_SongLikeChanged;
             await LoadLikedSongsAsync();
+        }
+
+        private void LikedPage_Unloaded(object sender, RoutedEventArgs e)
+        {
+            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
+        }
+
+        private void ApiService_SongLikeChanged(object? sender, SongLikeChangedEventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                if (!IsLoaded) return;
+                await LoadLikedSongsAsync();
+            });
         }
 
         private async System.Threading.Tasks.Task LoadLikedSongsAsync()
         {
+            var version = ++_loadVersion;
+
             if (!App.ApiService.IsLoggedIn)
             {
                 ShowError("请先登录");
@@ -34,7 +55,8 @@ namespace music.Pages
 
             ShowLoading();
 
-            var songs = await App.ApiService.GetLikedSongsAsync();
+            var songs = await App.ApiService.GetLikedSongsAsync(limit: 0, bypassCache: true);
+            if (version != _loadVersion) return;
 
             if (songs == null || songs.Count == 0)
             {
@@ -80,6 +102,9 @@ namespace music.Pages
 
         private void ShowEmptyState()
         {
+            _songModels.Clear();
+            _songs.Clear();
+            SongsCountText.Text = "共 0 首";
             LoadingPanel.Visibility = Visibility.Collapsed;
             EmptyState.Visibility = Visibility.Visible;
             ErrorPanel.Visibility = Visibility.Collapsed;

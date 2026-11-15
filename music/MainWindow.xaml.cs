@@ -594,6 +594,10 @@ namespace music
 
             SongTitle.Text = song.Name;
             ArtistName.Text = song.ArtistNames;
+            if (App.ApiService.HasLoadedLikedIds && !string.IsNullOrEmpty(song.Id))
+            {
+                song.Liked = App.ApiService.IsSongLiked(song.Id);
+            }
             _currentSongLiked = song.Liked;
             LikeIcon.Glyph = _currentSongLiked ? "\uE735" : "\uE734";
             LikeButton.IsEnabled = App.ApiService.IsLoggedIn && string.IsNullOrEmpty(song.LocalFilePath);
@@ -612,10 +616,33 @@ namespace music
             }
 
             LoadQualitySetting();
+            if (App.ApiService.IsLoggedIn &&
+                string.IsNullOrEmpty(song.LocalFilePath) &&
+                !string.IsNullOrWhiteSpace(song.Id) &&
+                !App.ApiService.HasLoadedLikedIds)
+            {
+                _ = RefreshCurrentSongLikeStateAsync(song);
+            }
             if (string.IsNullOrEmpty(song.LocalFilePath) && song.QualityPrivilege == null)
             {
                 _ = RefreshSongPrivilegeForUiAsync(song);
             }
+        }
+
+        private async System.Threading.Tasks.Task RefreshCurrentSongLikeStateAsync(Song song)
+        {
+            await App.ApiService.EnsureLikedSongIdsLoadedAsync();
+            if (!App.ApiService.HasLoadedLikedIds) return;
+            var liked = App.ApiService.IsSongLiked(song.Id);
+            song.Liked = liked;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (ReferenceEquals(PlaybackService?.CurrentSong, song))
+                {
+                    _currentSongLiked = liked;
+                    LikeIcon.Glyph = liked ? "\uE735" : "\uE734";
+                }
+            });
         }
 
         private async System.Threading.Tasks.Task RefreshSongPrivilegeForUiAsync(Song song)
@@ -653,7 +680,17 @@ namespace music
             {
                 _currentSongLiked = target;
                 song.Liked = target;
+                foreach (var queued in PlaybackService.GetPlaylist())
+                {
+                    if (string.Equals(queued.Id, song.Id, StringComparison.Ordinal))
+                    {
+                        queued.Liked = target;
+                    }
+                }
                 LikeIcon.Glyph = target ? "\uE735" : "\uE734";
+                LikeButton.IsEnabled = true;
+                await RefreshPlaylistsAsync();
+                return;
             }
             else
             {
