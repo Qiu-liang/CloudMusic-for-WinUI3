@@ -4,11 +4,14 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage;
+using music.Services;
 
 namespace music.Pages
 {
     public sealed partial class SettingsPage : Page
     {
+        private bool _isUpdatingQuality;
+
         public SettingsPage()
         {
             this.InitializeComponent();
@@ -39,20 +42,17 @@ namespace music.Pages
             AllowInsecureLoginCheckBox.IsChecked = settings.Values["AllowInsecureLogin"] as bool? ?? false;
 
             // 加载音质设置
-            var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-            QualityComboBox.SelectedIndex = quality switch
+            var storedQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
+            var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
+            var privilege = MainWindow.PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
+            var quality = privilege != null
+                ? privilege.ResolveFallbackQuality(storedQuality, isVip)
+                : SongUrlPolicy.NormalizeQuality(storedQuality);
+            if (!string.Equals(storedQuality, quality, StringComparison.Ordinal))
             {
-                "standard" => 0,
-                "higher" => 1,
-                "exhigh" => 2,
-                "lossless" => 3,
-                "hires" => 4,
-                "jyeffect" => 5,
-                "sky" => 6,
-                "dolby" => 7,
-                "jymaster" => 8,
-                _ => 0
-            };
+                settings.Values["AudioQuality"] = quality;
+            }
+            SyncQualitySelection(quality);
 
             // 加载实验性功能设置
             var fancyLyrics = settings.Values["FancyLyrics"] as bool? ?? false;
@@ -150,13 +150,85 @@ namespace music.Pages
                 TestConnectionButton.IsEnabled = true;
             }
         }
-        private void QualityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        public void SyncQualitySelection(string quality)
         {
+            _isUpdatingQuality = true;
+            try
+            {
+                var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
+                var privilege = MainWindow.PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
+                foreach (var element in QualityComboBox.Items)
+                {
+                    if (element is ComboBoxItem item && item.Tag is string tag)
+                    {
+                        var baseName = SongUrlPolicy.GetQualityDisplayName(tag);
+                        var requiresVip = privilege?.RequiresVip(tag) ?? false;
+                        var canPlay = privilege?.CanUserPlay(tag, isVip) ?? true;
+                        item.Content = requiresVip ? $"{baseName} (VIP)" : baseName;
+                        item.Opacity = canPlay ? 1.0 : 0.55;
+                    }
+                }
+
+                QualityComboBox.SelectedIndex = quality switch
+                {
+                    "standard" => 0,
+                    "higher" => 1,
+                    "exhigh" => 2,
+                    "lossless" => 3,
+                    "hires" => 4,
+                    "jyeffect" => 5,
+                    "sky" => 6,
+                    "dolby" => 7,
+                    "jymaster" => 8,
+                    _ => 0
+                };
+            }
+            finally
+            {
+                _isUpdatingQuality = false;
+            }
+        }
+
+        private async void QualityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isUpdatingQuality) return;
             if (QualityComboBox.SelectedItem is ComboBoxItem item && item.Tag is string quality)
             {
-                // 播放时 GetSongUrlAsync 会读取该值并传给 /song/url/v1 的 level 参数
                 var settings = ApplicationData.Current.LocalSettings;
+                var previousQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
+                var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
+                var privilege = App.m_window is MainWindow mw
+                    ? await mw.EnsureCurrentSongPrivilegeAsync()
+                    : (MainWindow.PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege);
+
+                if (privilege != null && !privilege.CanUserPlay(quality, isVip))
+                {
+                    var fallback = privilege.ResolveFallbackQuality(quality, isVip, previousQuality);
+                    settings.Values["AudioQuality"] = fallback;
+                    SyncQualitySelection(fallback);
+                    if (App.m_window is MainWindow mainWindow)
+                    {
+                        mainWindow.LoadQualitySetting();
+                    }
+
+                    var dialog = new ContentDialog
+                    {
+                        Title = "VIP 专属音质",
+                        Content = $"当前歌曲的“{SongUrlPolicy.GetQualityDisplayName(quality)}”音质需要 VIP 会员权限，已为您退回“{SongUrlPolicy.GetQualityDisplayName(fallback)}”音质。",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await dialog.ShowAsync();
+                    return;
+                }
+
+                // 播放时 GetSongUrlAsync 会读取该值并传给 /song/url/v1 的 level 参数
                 settings.Values["AudioQuality"] = quality;
+                SyncQualitySelection(quality);
+                if (App.m_window is MainWindow window)
+                {
+                    window.LoadQualitySetting();
+                }
             }
         }
 

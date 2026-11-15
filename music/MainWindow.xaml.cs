@@ -69,26 +69,70 @@ namespace music
             ContentFrame.Navigated += ContentFrame_Navigated;
         }
 
-        private void LoadQualitySetting()
+        public SongQualityPrivilege? GetCurrentSongPrivilege() =>
+            PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
+
+        public async System.Threading.Tasks.Task<SongQualityPrivilege?> EnsureCurrentSongPrivilegeAsync(bool forceRefresh = false)
+        {
+            var song = PlaybackService?.CurrentSong;
+            if (song != null && string.IsNullOrEmpty(song.LocalFilePath) && !string.IsNullOrWhiteSpace(song.Id))
+            {
+                if (forceRefresh || song.QualityPrivilege == null)
+                {
+                    song.QualityPrivilege = await App.ApiService.GetSongQualityPrivilegeAsync(song.Id, forceRefresh);
+                }
+                return song.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
+            }
+
+            return App.ApiService.LastKnownPrivilege;
+        }
+
+        public void LoadQualitySetting()
         {
             var settings = ApplicationData.Current.LocalSettings;
-            var quality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
+            var storedQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
+            var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
+            var privilege = GetCurrentSongPrivilege();
+            var effectiveQuality = privilege != null
+                ? privilege.ResolveFallbackQuality(storedQuality, isVip)
+                : SongUrlPolicy.NormalizeQuality(storedQuality);
 
-            var qualityName = quality switch
+            if (!string.Equals(storedQuality, effectiveQuality, StringComparison.Ordinal))
             {
-                "standard" => "标准",
-                "higher" => "较高",
-                "exhigh" => "极高",
-                "lossless" => "无损",
-                "hires" => "Hi-Res",
-                "jyeffect" => "高清环绕声",
-                "sky" => "沉浸环绕声",
-                "dolby" => "杜比全景声",
-                "jymaster" => "超清母带",
-                _ => "标准"
-            };
+                settings.Values["AudioQuality"] = effectiveQuality;
+            }
 
-            QualityText.Text = qualityName;
+            QualityText.Text = SongUrlPolicy.GetQualityDisplayName(effectiveQuality);
+            UpdateQualityMenuAvailability(isVip, privilege);
+        }
+
+        private void UpdateQualityMenuAvailability(bool isVip, SongQualityPrivilege? privilege)
+        {
+            if (QualityMenuFlyout?.Items == null) return;
+
+            foreach (var element in QualityMenuFlyout.Items)
+            {
+                if (element is MenuFlyoutItem item && item.Tag is string tag)
+                {
+                    var baseName = SongUrlPolicy.GetQualityDisplayName(tag);
+                    var requiresVip = privilege?.RequiresVip(tag) ?? false;
+                    var canPlay = privilege?.CanUserPlay(tag, isVip) ?? true;
+                    item.Text = requiresVip ? $"{baseName} (VIP)" : baseName;
+                    item.Opacity = canPlay ? 1.0 : 0.55;
+                }
+            }
+        }
+
+        private async void QualityMenuFlyout_Opening(object sender, object e)
+        {
+            var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
+            UpdateQualityMenuAvailability(isVip, GetCurrentSongPrivilege());
+
+            var privilege = await EnsureCurrentSongPrivilegeAsync();
+            if (privilege != null)
+            {
+                DispatcherQueue.TryEnqueue(() => UpdateQualityMenuAvailability(isVip, privilege));
+            }
         }
 
         private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
@@ -303,9 +347,10 @@ namespace music
                 }
             });
 
-            // 登录态变化后同步播放栏红心按钮的可用状态
+            // 登录态变化后同步播放栏红心按钮与可用音质状态
             var currentSong = PlaybackService.CurrentSong;
             if (currentSong != null) UpdateSongInfo(currentSong);
+            DispatcherQueue.TryEnqueue(LoadQualitySetting);
         }
 
         private async System.Threading.Tasks.Task LoadUserInfoAsync()
@@ -323,6 +368,7 @@ namespace music
                     LoginIcon.Symbol = Symbol.Contact;
                     LogoutButton.Visibility = Visibility.Visible;
                     VipBadge.Visibility = isVip ? Visibility.Visible : Visibility.Collapsed;
+                    LoadQualitySetting();
                 });
 
                 // 登录成功后加载歌单
@@ -564,6 +610,31 @@ namespace music
                 AlbumImage.Visibility = Visibility.Collapsed;
                 AlbumCoverIcon.Visibility = Visibility.Visible;
             }
+
+            LoadQualitySetting();
+            if (string.IsNullOrEmpty(song.LocalFilePath) && song.QualityPrivilege == null)
+            {
+                _ = RefreshSongPrivilegeForUiAsync(song);
+            }
+        }
+
+        private async System.Threading.Tasks.Task RefreshSongPrivilegeForUiAsync(Song song)
+        {
+            var privilege = await App.ApiService.GetSongQualityPrivilegeAsync(song.Id);
+            if (privilege == null) return;
+            song.QualityPrivilege = privilege;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (ReferenceEquals(PlaybackService?.CurrentSong, song))
+                {
+                    LoadQualitySetting();
+                    if (ContentFrame.Content is Pages.SettingsPage settingsPage)
+                    {
+                        var currentQuality = ApplicationData.Current.LocalSettings.Values["AudioQuality"]?.ToString() ?? "standard";
+                        settingsPage.SyncQualitySelection(currentQuality);
+                    }
+                }
+            });
         }
 
         private string FormatTime(TimeSpan time)
@@ -794,28 +865,48 @@ namespace music
             CreatedPlaylistHeader.Visibility = Visibility.Visible;
         }
 
-        private void Quality_Click(object sender, RoutedEventArgs e)
+        private async void Quality_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuFlyoutItem item && item.Tag is string quality)
             {
                 var settings = ApplicationData.Current.LocalSettings;
-                settings.Values["AudioQuality"] = quality;
+                var previousQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
+                var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
+                var privilege = await EnsureCurrentSongPrivilegeAsync();
 
-                var qualityName = quality switch
+                if (privilege != null && !privilege.CanUserPlay(quality, isVip))
                 {
-                    "standard" => "标准",
-                    "higher" => "较高",
-                    "exhigh" => "极高",
-                    "lossless" => "无损",
-                    "hires" => "Hi-Res",
-                    "jyeffect" => "高清环绕声",
-                    "sky" => "沉浸环绕声",
-                    "dolby" => "杜比全景声",
-                    "jymaster" => "超清母带",
-                    _ => "标准"
-                };
+                    var fallback = privilege.ResolveFallbackQuality(quality, isVip, previousQuality);
+                    settings.Values["AudioQuality"] = fallback;
+                    QualityText.Text = SongUrlPolicy.GetQualityDisplayName(fallback);
+                    UpdateQualityMenuAvailability(isVip, privilege);
+                    if (ContentFrame.Content is Pages.SettingsPage settingsPage)
+                    {
+                        settingsPage.SyncQualitySelection(fallback);
+                    }
 
-                QualityText.Text = qualityName;
+                    await ShowMessageAsync(
+                        "VIP 专属音质",
+                        $"当前歌曲的“{SongUrlPolicy.GetQualityDisplayName(quality)}”音质需要 VIP 会员权限，已为您退回“{SongUrlPolicy.GetQualityDisplayName(fallback)}”音质。");
+                    return;
+                }
+
+                settings.Values["AudioQuality"] = quality;
+                QualityText.Text = SongUrlPolicy.GetQualityDisplayName(quality);
+                UpdateQualityMenuAvailability(isVip, privilege);
+                if (ContentFrame.Content is Pages.SettingsPage currentSettingsPage)
+                {
+                    currentSettingsPage.SyncQualitySelection(quality);
+                }
+
+                if (PlaybackService?.CurrentSong != null &&
+                    PlaybackService.IsPlaying &&
+                    string.IsNullOrEmpty(PlaybackService.CurrentSong.LocalFilePath) &&
+                    !string.Equals(previousQuality, quality, StringComparison.OrdinalIgnoreCase))
+                {
+                    await PlaybackService.PlayAsync(PlaybackService.CurrentSong);
+                }
+
                 System.Diagnostics.Debug.WriteLine($"[Settings] Audio quality changed to: {quality}");
             }
         }

@@ -445,18 +445,20 @@
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                         <DropDownButton.Flyout>
-                            <MenuFlyout Placement="TopEdgeAlignedRight">
+                            <MenuFlyout x:Name="QualityMenuFlyout"
+                                        Placement="TopEdgeAlignedRight"
+                                        Opening="QualityMenuFlyout_Opening">
                                 <MenuFlyoutItem Text="标准" Click="Quality_Click" Tag="standard"/>
                                 <MenuFlyoutItem Text="较高" Click="Quality_Click" Tag="higher"/>
                                 <MenuFlyoutItem Text="极高" Click="Quality_Click" Tag="exhigh"/>
                                 <MenuFlyoutSeparator/>
-                                <MenuFlyoutItem Text="无损 (VIP)" Click="Quality_Click" Tag="lossless"/>
-                                <MenuFlyoutItem Text="Hi-Res (VIP)" Click="Quality_Click" Tag="hires"/>
+                                <MenuFlyoutItem Text="无损" Click="Quality_Click" Tag="lossless"/>
+                                <MenuFlyoutItem Text="Hi-Res" Click="Quality_Click" Tag="hires"/>
                                 <MenuFlyoutSeparator/>
-                                <MenuFlyoutItem Text="高清臻音 (VIP)" Click="Quality_Click" Tag="jyeffect"/>
+                                <MenuFlyoutItem Text="高清环绕声" Click="Quality_Click" Tag="jyeffect"/>
                                 <MenuFlyoutItem Text="沉浸环绕声" Click="Quality_Click" Tag="sky"/>
                                 <MenuFlyoutItem Text="杜比全景声" Click="Quality_Click" Tag="dolby"/>
-                                <MenuFlyoutItem Text="超清母带 (VIP)" Click="Quality_Click" Tag="jymaster"/>
+                                <MenuFlyoutItem Text="超清母带" Click="Quality_Click" Tag="jymaster"/>
                             </MenuFlyout>
                         </DropDownButton.Flyout>
                     </DropDownButton>

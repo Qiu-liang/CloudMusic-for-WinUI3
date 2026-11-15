@@ -16,6 +16,9 @@ namespace music.Services
         private readonly HttpClient _httpClient;
         private readonly SemaphoreSlim _requestSemaphore = new SemaphoreSlim(4, 4);
         private readonly object _cookieLock = new object();
+        private readonly object _privilegeLock = new object();
+        private readonly Dictionary<string, SongQualityPrivilege> _privilegeBySongId = new Dictionary<string, SongQualityPrivilege>(StringComparer.Ordinal);
+        private volatile SongQualityPrivilege? _lastKnownPrivilege;
         // 会话 Cookie 罐（name → value）：UseCookies=false 时请求统一携带由它拼出的
         // Cookie 头，Set-Cookie 响应也回灌到罐里，内容所见即所得、可持久化恢复
         private readonly Dictionary<string, string> _sessionCookies = new Dictionary<string, string>();
@@ -502,6 +505,7 @@ namespace music.Services
 
                 var settings = ApplicationData.Current.LocalSettings;
                 settings.Values["IsVip"] = isVip;
+                ClearPrivilegeCache();
 
                 System.Diagnostics.Debug.WriteLine($"[API] VIP Status: {isVip}");
                 return isVip;
@@ -511,6 +515,68 @@ namespace music.Services
                 System.Diagnostics.Debug.WriteLine($"[API] CheckVipStatus Error: {ex.Message}");
                 return false;
             }
+        }
+
+        public SongQualityPrivilege? LastKnownPrivilege => _lastKnownPrivilege;
+
+        private void CacheSongPrivilege(string songId, SongQualityPrivilege? privilege)
+        {
+            if (privilege == null) return;
+            _lastKnownPrivilege = privilege;
+            if (string.IsNullOrWhiteSpace(songId)) return;
+            lock (_privilegeLock)
+            {
+                _privilegeBySongId[songId] = privilege;
+            }
+        }
+
+        private void ClearPrivilegeCache()
+        {
+            lock (_privilegeLock)
+            {
+                _privilegeBySongId.Clear();
+            }
+            _lastKnownPrivilege = null;
+        }
+
+        public async Task<SongQualityPrivilege?> GetSongQualityPrivilegeAsync(
+            string songId,
+            bool forceRefresh = false,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(songId)) return _lastKnownPrivilege;
+
+            if (!forceRefresh)
+            {
+                lock (_privilegeLock)
+                {
+                    if (_privilegeBySongId.TryGetValue(songId, out var cached))
+                    {
+                        return cached;
+                    }
+                }
+            }
+
+            try
+            {
+                var json = await GetAsync($"/song/detail?ids={Uri.EscapeDataString(songId)}", cancellationToken);
+                var privilege = SongQualityPrivilege.FromSongDetailJson(json, songId);
+                if (privilege != null)
+                {
+                    CacheSongPrivilege(songId, privilege);
+                    return privilege;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetSongQualityPrivilege Error: {ex.Message}");
+            }
+
+            return _lastKnownPrivilege;
         }
 
         public async Task InitializeAsync()
@@ -542,32 +608,65 @@ namespace music.Services
                 _cookie = string.Empty;
                 _sessionCookies.Clear();
             }
+            ClearPrivilegeCache();
             _userId = 0;
             _favoritePlaylistId = string.Empty;
             _isInitialized = false;
         }
 
-        private Song ParseSongFromJson(JsonElement item)
+        private static Dictionary<string, JsonElement> ExtractPrivilegesById(JsonElement root)
+        {
+            var map = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("privileges", out var privileges) &&
+                privileges.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var priv in privileges.EnumerateArray())
+                {
+                    if (priv.ValueKind != JsonValueKind.Object) continue;
+                    if (priv.TryGetProperty("id", out var idProp))
+                    {
+                        var id = idProp.ValueKind == JsonValueKind.Number && idProp.TryGetInt64(out var numId)
+                            ? numId.ToString()
+                            : idProp.GetString() ?? string.Empty;
+                        if (!string.IsNullOrEmpty(id))
+                        {
+                            map[id] = priv;
+                        }
+                    }
+                }
+            }
+            return map;
+        }
+
+        private Song ParseSongFromJson(JsonElement item, JsonElement? privilege = null)
         {
             var song = new Song
             {
-                Id = item.GetProperty("id").GetInt64().ToString(),
-                Name = item.GetProperty("name").GetString() ?? string.Empty,
-                Duration = item.GetProperty("dt").GetInt64()
+                Id = SongUrlPolicy.ReadString(item, "id"),
+                Name = SongUrlPolicy.ReadString(item, "name"),
+                Duration = SongUrlPolicy.ReadInt64(item, "dt")
             };
 
             // 解析VIP信息
-            if (item.TryGetProperty("fee", out var fee))
+            if (SongUrlPolicy.TryReadInt32(item, "fee", out var fee))
             {
-                song.Fee = fee.GetInt32();
+                song.Fee = fee;
                 System.Diagnostics.Debug.WriteLine($"[API] Song '{song.Name}' fee={song.Fee}");
             }
-            if (item.TryGetProperty("vipFlag", out var vipFlag))
-                song.VipFlag = vipFlag.GetBoolean();
-            if (item.TryGetProperty("vipPlayFlag", out var vipPlayFlag))
-                song.VipPlayFlag = vipPlayFlag.GetBoolean();
-            if (item.TryGetProperty("payPlayFlag", out var payPlayFlag))
-                song.PayPlayFlag = payPlayFlag.GetBoolean();
+            song.VipFlag = SongUrlPolicy.ReadBoolean(item, "vipFlag");
+            song.VipPlayFlag = SongUrlPolicy.ReadBoolean(item, "vipPlayFlag");
+            song.PayPlayFlag = SongUrlPolicy.ReadBoolean(item, "payPlayFlag");
+
+            song.QualityPrivilege = SongQualityPrivilege.FromJson(item, privilege);
+            if (song.QualityPrivilege != null)
+            {
+                if (song.Fee == 0 && song.QualityPrivilege.Fee != 0)
+                {
+                    song.Fee = song.QualityPrivilege.Fee;
+                }
+                CacheSongPrivilege(song.Id, song.QualityPrivilege);
+            }
 
             // 设置IsVip和IsPaid
             song.IsVip = song.Fee == 1 || song.VipFlag || song.VipPlayFlag;
@@ -576,29 +675,27 @@ namespace music.Services
             if (song.IsVip)
                 System.Diagnostics.Debug.WriteLine($"[API] Song '{song.Name}' is VIP");
 
-            if (item.TryGetProperty("ar", out var artists))
+            if (item.TryGetProperty("ar", out var artists) && artists.ValueKind == JsonValueKind.Array)
             {
                 foreach (var artist in artists.EnumerateArray())
                 {
+                    if (artist.ValueKind != JsonValueKind.Object) continue;
                     song.Artists.Add(new Artist
                     {
-                        Id = artist.GetProperty("id").GetInt64().ToString(),
-                        Name = artist.GetProperty("name").GetString() ?? string.Empty
+                        Id = SongUrlPolicy.ReadString(artist, "id"),
+                        Name = SongUrlPolicy.ReadString(artist, "name")
                     });
                 }
             }
 
-            if (item.TryGetProperty("al", out var album))
+            if (item.TryGetProperty("al", out var album) && album.ValueKind == JsonValueKind.Object)
             {
                 song.Album = new Album
                 {
-                    Id = album.GetProperty("id").GetInt64().ToString(),
-                    Name = album.GetProperty("name").GetString() ?? string.Empty
+                    Id = SongUrlPolicy.ReadString(album, "id"),
+                    Name = SongUrlPolicy.ReadString(album, "name")
                 };
-                if (album.TryGetProperty("picUrl", out var picUrl))
-                {
-                    song.CoverImgUrl = picUrl.GetString() ?? string.Empty;
-                }
+                song.CoverImgUrl = SongUrlPolicy.ReadString(album, "picUrl");
             }
 
             return song;
@@ -680,13 +777,18 @@ namespace music.Services
             {
                 var json = await GetAsync($"/playlist/track/all?id={playlistId}");
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
+                var privilegesById = ExtractPrivilegesById(result);
 
                 var songs = new List<Song>();
                 if (result.TryGetProperty("songs", out var items))
                 {
                     foreach (var item in items.EnumerateArray())
                     {
-                        songs.Add(ParseSongFromJson(item));
+                        var id = item.TryGetProperty("id", out var idProp) && idProp.TryGetInt64(out var numId)
+                            ? numId.ToString()
+                            : string.Empty;
+                        JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
+                        songs.Add(ParseSongFromJson(item, priv));
                     }
                 }
 
@@ -820,6 +922,7 @@ namespace music.Services
             var levels = SongUrlPolicy.BuildQualityFallbackLevels(quality);
             var encodedId = Uri.EscapeDataString(songId);
             ApiResult? lastFailure = null;
+            string? trialFallbackUrl = null;
 
             foreach (var level in levels)
             {
@@ -833,10 +936,15 @@ namespace music.Services
 
                 if (response.Success)
                 {
-                    var url = SongUrlPolicy.ExtractSongUrl(response.Body);
-                    if (!string.IsNullOrEmpty(url))
+                    var urlData = SongUrlPolicy.ExtractSongUrlData(response.Body);
+                    if (urlData != null && !string.IsNullOrEmpty(urlData.Url))
                     {
-                        return (url, new ApiResult(true, ApiErrorKind.None, string.Empty, 200));
+                        if (!urlData.IsFreeTrial)
+                        {
+                            return (urlData.Url, new ApiResult(true, ApiErrorKind.None, string.Empty, 200));
+                        }
+
+                        trialFallbackUrl ??= urlData.Url;
                     }
 
                     lastFailure = new ApiResult(false, ApiErrorKind.Business, "当前音质没有可用的音频地址，可能受版权或 VIP 权限限制。");
@@ -848,10 +956,20 @@ namespace music.Services
                     {
                         return (string.Empty, response.Result);
                     }
+
+                    if (SongUrlPolicy.ShouldShortCircuitV1Fallback(response.Result))
+                    {
+                        break;
+                    }
                 }
             }
 
-            // /song/url/v1 各降级音质均失败或无 URL 时，回退旧版 /song/url 接口
+            if (!string.IsNullOrEmpty(trialFallbackUrl))
+            {
+                return (trialFallbackUrl, new ApiResult(true, ApiErrorKind.None, string.Empty, 200));
+            }
+
+            // /song/url/v1 各降级音质均失败、遇风控(-460)或无 URL 时，立即回退旧版 /song/url 接口
             cancellationToken.ThrowIfCancellationRequested();
             var legacyResponse = await SendWithResultAsync(
                 HttpMethod.Get,
@@ -869,12 +987,10 @@ namespace music.Services
 
                 lastFailure ??= new ApiResult(false, ApiErrorKind.Business, "当前歌曲暂无可用音源，可能受版权或 VIP 权限限制。");
             }
-            else
-            {
-                lastFailure ??= legacyResponse.Result;
-            }
 
-            var finalFailure = lastFailure ?? new ApiResult(false, ApiErrorKind.Business, "获取歌曲播放地址失败，请稍后重试。");
+            var finalFailure = SongUrlPolicy.ResolveFinalPlaybackUrlFailure(
+                lastFailure,
+                legacyResponse.Success ? null : legacyResponse.Result);
             LastError = finalFailure.Error;
             LastErrorMessage = finalFailure.DisplayMessage;
             return (string.Empty, finalFailure);
@@ -1197,11 +1313,16 @@ namespace music.Services
                     var json = await GetAsync($"/song/detail?ids={string.Join(",", batch)}");
                     if (LastError != ApiErrorKind.None) return new List<Song>();
                     var result = JsonSerializer.Deserialize<JsonElement>(json);
+                    var privilegesById = ExtractPrivilegesById(result);
                     if (result.TryGetProperty("songs", out var items))
                     {
                         foreach (var item in items.EnumerateArray())
                         {
-                            var song = ParseSongFromJson(item);
+                            var id = item.TryGetProperty("id", out var idProp) && idProp.TryGetInt64(out var numId)
+                                ? numId.ToString()
+                                : string.Empty;
+                            JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
+                            var song = ParseSongFromJson(item, priv);
                             song.Liked = true;
                             songsById[song.Id] = song;
                         }
@@ -1331,13 +1452,18 @@ namespace music.Services
             {
                 var json = await GetAsync($"/artist/songs?id={artistId}&limit={limit}");
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
+                var privilegesById = ExtractPrivilegesById(result);
 
                 var songs = new List<Song>();
                 if (result.TryGetProperty("songs", out var items))
                 {
                     foreach (var item in items.EnumerateArray())
                     {
-                        songs.Add(ParseSongFromJson(item));
+                        var id = item.TryGetProperty("id", out var idProp) && idProp.TryGetInt64(out var numId)
+                            ? numId.ToString()
+                            : string.Empty;
+                        JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
+                        songs.Add(ParseSongFromJson(item, priv));
                     }
                 }
 
@@ -1356,13 +1482,18 @@ namespace music.Services
             {
                 var json = await GetAsync($"/album?id={albumId}");
                 var result = JsonSerializer.Deserialize<JsonElement>(json);
+                var privilegesById = ExtractPrivilegesById(result);
 
                 var songs = new List<Song>();
                 if (result.TryGetProperty("songs", out var items))
                 {
                     foreach (var item in items.EnumerateArray())
                     {
-                        songs.Add(ParseSongFromJson(item));
+                        var id = item.TryGetProperty("id", out var idProp) && idProp.TryGetInt64(out var numId)
+                            ? numId.ToString()
+                            : string.Empty;
+                        JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
+                        songs.Add(ParseSongFromJson(item, priv));
                     }
                 }
 
@@ -1483,43 +1614,38 @@ namespace music.Services
                     {
                         var song = new Song
                         {
-                            Id = item.GetProperty("id").GetInt64().ToString(),
-                            Name = item.GetProperty("name").GetString() ?? string.Empty
+                            Id = SongUrlPolicy.ReadString(item, "id"),
+                            Name = SongUrlPolicy.ReadString(item, "name")
                         };
 
-                        if (item.TryGetProperty("song", out var songObj))
+                        if (item.TryGetProperty("song", out var songObj) && songObj.ValueKind == JsonValueKind.Object)
                         {
-                            if (songObj.TryGetProperty("artists", out var artists))
+                            if (songObj.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
                             {
                                 foreach (var artist in artists.EnumerateArray())
                                 {
+                                    if (artist.ValueKind != JsonValueKind.Object) continue;
                                     song.Artists.Add(new Artist
                                     {
-                                        Id = artist.GetProperty("id").GetInt64().ToString(),
-                                        Name = artist.GetProperty("name").GetString() ?? string.Empty
+                                        Id = SongUrlPolicy.ReadString(artist, "id"),
+                                        Name = SongUrlPolicy.ReadString(artist, "name")
                                     });
                                 }
                             }
 
-                            if (songObj.TryGetProperty("album", out var album))
+                            if (songObj.TryGetProperty("album", out var album) && album.ValueKind == JsonValueKind.Object)
                             {
                                 song.Album = new Album
                                 {
-                                    Id = album.GetProperty("id").GetInt64().ToString(),
-                                    Name = album.GetProperty("name").GetString() ?? string.Empty
+                                    Id = SongUrlPolicy.ReadString(album, "id"),
+                                    Name = SongUrlPolicy.ReadString(album, "name")
                                 };
                                 // 从 album 获取封面
-                                if (album.TryGetProperty("picUrl", out var albumPicUrl))
-                                {
-                                    song.CoverImgUrl = albumPicUrl.GetString() ?? string.Empty;
-                                }
+                                song.CoverImgUrl = SongUrlPolicy.ReadString(album, "picUrl");
                             }
 
                             // 解析时长 - 字段名是 duration
-                            if (songObj.TryGetProperty("duration", out var duration))
-                            {
-                                song.Duration = duration.GetInt64();
-                            }
+                            song.Duration = SongUrlPolicy.ReadInt64(songObj, "duration");
                         }
 
                         // 从外层获取封面（如果 song 对象没有）
@@ -1715,30 +1841,29 @@ namespace music.Services
                                 song.ResourceType = resourceType.GetString() ?? string.Empty;
                             
                             // 解析歌曲信息
-                            if (item.TryGetProperty("data", out var songData))
+                            if (item.TryGetProperty("data", out var songData) && songData.ValueKind == JsonValueKind.Object)
                             {
-                                song.Id = songData.GetProperty("id").GetInt64().ToString();
-                                song.Name = songData.GetProperty("name").GetString() ?? string.Empty;
+                                song.Id = SongUrlPolicy.ReadString(songData, "id");
+                                song.Name = SongUrlPolicy.ReadString(songData, "name");
                                 
-                                if (songData.TryGetProperty("ar", out var artists))
+                                if (songData.TryGetProperty("ar", out var artists) && artists.ValueKind == JsonValueKind.Array)
                                 {
                                     var artistNames = new List<string>();
                                     foreach (var artist in artists.EnumerateArray())
                                     {
-                                        artistNames.Add(artist.GetProperty("name").GetString() ?? string.Empty);
+                                        if (artist.ValueKind != JsonValueKind.Object) continue;
+                                        artistNames.Add(SongUrlPolicy.ReadString(artist, "name"));
                                     }
                                     song.Artist = string.Join(" / ", artistNames);
                                 }
                                 
-                                if (songData.TryGetProperty("al", out var album))
-                                    song.AlbumName = album.GetProperty("name").GetString() ?? string.Empty;
+                                if (songData.TryGetProperty("al", out var album) && album.ValueKind == JsonValueKind.Object)
+                                    song.AlbumName = SongUrlPolicy.ReadString(album, "name");
                                 
-                                if (songData.TryGetProperty("dt", out var duration))
-                                    song.Duration = duration.GetInt64();
+                                song.Duration = SongUrlPolicy.ReadInt64(songData, "dt");
                                 
                                 // VIP信息
-                                if (songData.TryGetProperty("fee", out var fee))
-                                    song.Fee = fee.GetInt32();
+                                song.Fee = SongUrlPolicy.ReadInt32(songData, "fee");
                             }
                             
                             songs.Add(song);

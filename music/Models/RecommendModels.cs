@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using music.Services;
 
 namespace music.Models
 {
@@ -23,6 +24,7 @@ namespace music.Models
         public bool IsVip { get; set; } = false;
         public bool IsPaid { get; set; } = false;
         public string? LocalFilePath { get; set; }
+        public SongQualityPrivilege? QualityPrivilege { get; set; }
 
         public string ArtistNames => string.Join(" / ", Artists.ConvertAll(a => a.Name));
         

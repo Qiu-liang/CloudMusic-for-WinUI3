@@ -154,12 +154,12 @@
                                 <ComboBoxItem Content="标准" Tag="standard"/>
                                 <ComboBoxItem Content="较高" Tag="higher"/>
                                 <ComboBoxItem Content="极高" Tag="exhigh"/>
-                                <ComboBoxItem Content="无损 (VIP)" Tag="lossless"/>
-                                <ComboBoxItem Content="Hi-Res (VIP)" Tag="hires"/>
-                                <ComboBoxItem Content="高清臻音 (VIP)" Tag="jyeffect"/>
+                                <ComboBoxItem Content="无损" Tag="lossless"/>
+                                <ComboBoxItem Content="Hi-Res" Tag="hires"/>
+                                <ComboBoxItem Content="高清环绕声" Tag="jyeffect"/>
                                 <ComboBoxItem Content="沉浸环绕声" Tag="sky"/>
                                 <ComboBoxItem Content="杜比全景声" Tag="dolby"/>
-                                <ComboBoxItem Content="超清母带 (VIP)" Tag="jymaster"/>
+                                <ComboBoxItem Content="超清母带" Tag="jymaster"/>
                             </ComboBox>
                         </Grid>
                     </Border>

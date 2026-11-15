@@ -12,8 +12,10 @@ namespace music.Services
         InvalidResponse
     }
 
-    public sealed record ApiResult(bool Success, ApiErrorKind Error, string Message, int Code = 0)
+    public sealed record ApiResult(bool Success, ApiErrorKind Error, string Message, int Code = 0, int BusinessCode = 0)
     {
+        public bool IsRiskControl => BusinessCode == -460 || Code == -460;
+
         public static ApiResult FromHttpResponse(int statusCode, string body, bool requireBusinessCode = false)
         {
             var isHttpSuccess = statusCode >= 200 && statusCode < 300;
@@ -29,18 +31,20 @@ namespace music.Services
                 if (root.ValueKind != JsonValueKind.Object)
                     return new ApiResult(false, ApiErrorKind.InvalidResponse, "服务器返回了无法识别的结果。");
 
-                var hasCode = root.TryGetProperty("code", out var codeElement);
-                var code = hasCode && codeElement.TryGetInt32(out var value) ? value : 0;
+                var hasCode = root.TryGetProperty("code", out _);
+                var hasNumericCode = SongUrlPolicy.TryReadInt32(root, "code", out var code);
                 if (!hasCode)
                     return requireBusinessCode
                         ? new ApiResult(false, ApiErrorKind.InvalidResponse, "服务器未返回业务状态码。")
                         : new ApiResult(true, ApiErrorKind.None, string.Empty);
+                if (!hasNumericCode)
+                    return new ApiResult(false, ApiErrorKind.InvalidResponse, "服务器返回了无效的状态码。");
                 if (code == 200)
-                    return new ApiResult(true, ApiErrorKind.None, string.Empty, code);
+                    return new ApiResult(true, ApiErrorKind.None, string.Empty, code, code);
 
                 var message = ExtractErrorMessage(root);
                 var error = code == 301 || code == 401 ? ApiErrorKind.Authentication : ApiErrorKind.Business;
-                return new ApiResult(false, error, string.IsNullOrWhiteSpace(message) ? "操作未完成，请重试。" : message, code);
+                return new ApiResult(false, error, string.IsNullOrWhiteSpace(message) ? "操作未完成，请重试。" : message, code, code);
             }
             catch (JsonException)
             {
@@ -60,7 +64,7 @@ namespace music.Services
                 var root = document.RootElement;
                 if (root.ValueKind == JsonValueKind.Object)
                 {
-                    var bizCode = root.TryGetProperty("code", out var codeElement) && codeElement.TryGetInt32(out var value) ? value : 0;
+                    var bizCode = SongUrlPolicy.ReadInt32(root, "code");
                     var bizMessage = ExtractErrorMessage(root);
                     if (bizCode == 301 || bizCode == 401) error = ApiErrorKind.Authentication;
 
@@ -73,7 +77,7 @@ namespace music.Services
                     };
 
                     if (!string.IsNullOrEmpty(detail))
-                        return new ApiResult(false, error, $"服务器返回 HTTP {statusCode}（{detail}）。", statusCode);
+                        return new ApiResult(false, error, $"服务器返回 HTTP {statusCode}（{detail}）。", statusCode, bizCode);
                 }
             }
             catch (JsonException)
