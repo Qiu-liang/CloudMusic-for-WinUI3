@@ -210,7 +210,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="更绚丽的歌词" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="沉浸式歌词" FontSize="14" FontWeight="SemiBold"/>
                                 <TextBlock Text="启用后歌词页面将显示更丰富的视觉效果" FontSize="12" 
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
