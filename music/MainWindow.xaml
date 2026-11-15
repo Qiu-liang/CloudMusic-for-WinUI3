@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:music"
+    xmlns:controls="using:music.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -285,15 +286,19 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- 歌曲信息 -->
-                <StackPanel Grid.Column="0" 
-                            Orientation="Horizontal" 
-                            Spacing="10" 
-                            VerticalAlignment="Center" 
-                            HorizontalAlignment="Left" 
-                            Margin="16,0,0,0">
-                    <Border x:Name="AlbumCover" 
+                <Grid Grid.Column="0"
+                      VerticalAlignment="Center"
+                      Margin="16,0,12,0"
+                      ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*" MaxWidth="220"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            x:Name="AlbumCover" 
                             Width="48" Height="48" 
                             CornerRadius="4"
+                            VerticalAlignment="Center"
                             Background="{ThemeResource ControlFillColorDefaultBrush}"
                             Tapped="AlbumCover_Tapped"
                             PointerEntered="AlbumCover_PointerEntered"
@@ -304,20 +309,18 @@
                             <Image x:Name="AlbumImage" Stretch="UniformToFill" Visibility="Collapsed"/>
                         </Grid>
                     </Border>
-                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <TextBlock x:Name="SongTitle" 
                                    Text="未播放"
                                    Style="{StaticResource BodyStrongTextBlockStyle}"
                                    FontSize="14"
-                                   MaxWidth="160"
+                                   MaxLines="1"
+                                   TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:Name="ArtistName" 
-                                   Text=""
-                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                   FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   MaxWidth="160"
-                                   TextTrimming="CharacterEllipsis"/>
+                        <controls:MarqueeText x:Name="ArtistName" 
+                                              FontSize="12"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                              HorizontalAlignment="Stretch"/>
                         <StackPanel Orientation="Horizontal" Spacing="2">
                             <Button x:Name="LikeButton"
                                     Click="LikeButton_Click"
@@ -339,7 +342,7 @@
                             </Button>
                         </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </Grid>
 
                 <!-- 播放控制 -->
                 <Grid Grid.Column="1" VerticalAlignment="Center">
