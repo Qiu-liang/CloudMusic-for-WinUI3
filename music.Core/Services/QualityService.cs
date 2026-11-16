@@ -4,8 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
 using music.Core.Netease;
-using music.Models;
-using music.Services;
 
 namespace music.Core.Services
 {
@@ -29,14 +27,16 @@ namespace music.Core.Services
         private const string AudioQualityKey = "AudioQuality";
         private readonly NeteaseHttpTransport _transport;
         private readonly ISettingsStore _settings;
+        private readonly IApiLog _log;
         private readonly object _privilegeLock = new();
         private readonly Dictionary<string, SongQualityPrivilege> _privilegeBySongId = new(StringComparer.Ordinal);
         private volatile SongQualityPrivilege? _lastKnownPrivilege;
 
-        public QualityService(NeteaseHttpTransport transport, ISettingsStore settings)
+        public QualityService(NeteaseHttpTransport transport, ISettingsStore settings, IApiLog? log = null)
         {
             _transport = transport;
             _settings = settings;
+            _log = log ?? NullApiLog.Instance;
         }
 
         public SongQualityPrivilege? LastKnownPrivilege => _lastKnownPrivilege;
@@ -109,7 +109,7 @@ namespace music.Core.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetSongQualityPrivilege Error: {ex.Message}");
+                _log.Write($"GetSongQualityPrivilege Error: {ex}");
             }
 
             return _lastKnownPrivilege;

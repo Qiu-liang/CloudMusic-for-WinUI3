@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Netease;
 using music.Core.Netease.Mapping;
 using music.Core.Results;
-using music.Models;
-using music.Services;
 
 namespace music.Core.Services
 {
@@ -17,12 +17,13 @@ namespace music.Core.Services
         event EventHandler<SongLikeChangedEventArgs>? SongLikeChanged;
 
         bool IsSongLiked(string? songId);
-        Task EnsureLikedSongIdsLoadedAsync();
-        Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false);
-        Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true);
-        Task<ApiResult> LikeSongAsync(string songId, bool like = true);
-        Task<bool> IsFavoritePlaylistAsync(string? playlistId);
-        Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false);
+        Task EnsureLikedSongIdsLoadedAsync(CancellationToken cancellationToken = default);
+        Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false, CancellationToken cancellationToken = default);
+        Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true, CancellationToken cancellationToken = default);
+        Task<ApiResult> LikeSongAsync(string songId, bool like = true, CancellationToken cancellationToken = default);
+        Task<bool> IsFavoritePlaylistAsync(string? playlistId, CancellationToken cancellationToken = default);
+        Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false, CancellationToken cancellationToken = default);
+        Task<ApiResult<List<Song>>> LoadPlaylistSongsAsync(string playlistId, bool bypassCache = true, CancellationToken cancellationToken = default);
         void ClearState();
     }
 
@@ -31,6 +32,7 @@ namespace music.Core.Services
         private readonly NeteaseHttpTransport _transport;
         private readonly IQualityService _qualityService;
         private readonly ISessionService _sessionService;
+        private readonly IApiLog _log;
         private readonly object _likedLock = new();
         private readonly HashSet<string> _likedSongIds = new(StringComparer.Ordinal);
         private bool _hasLoadedLikedIds;
@@ -39,11 +41,13 @@ namespace music.Core.Services
         public LibraryService(
             NeteaseHttpTransport transport,
             IQualityService qualityService,
-            ISessionService sessionService)
+            ISessionService sessionService,
+            IApiLog? log = null)
         {
             _transport = transport;
             _qualityService = qualityService;
             _sessionService = sessionService;
+            _log = log ?? NullApiLog.Instance;
             _sessionService.SessionCleared += (_, _) => ClearState();
             _sessionService.SessionChanged += (_, _) => ClearState();
         }
@@ -77,16 +81,16 @@ namespace music.Core.Services
             _favoritePlaylistId = string.Empty;
         }
 
-        public async Task EnsureLikedSongIdsLoadedAsync()
+        public async Task EnsureLikedSongIdsLoadedAsync(CancellationToken cancellationToken = default)
         {
             if (!_sessionService.IsLoggedIn) return;
             if (!HasLoadedLikedIds)
             {
-                await GetLikedSongIdsAsync(bypassCache: true).ConfigureAwait(false);
+                await GetLikedSongIdsAsync(bypassCache: true, cancellationToken).ConfigureAwait(false);
             }
         }
 
-        public async Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false)
+        public async Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false, CancellationToken cancellationToken = default)
         {
             if (!_sessionService.IsLoggedIn)
             {
@@ -100,7 +104,7 @@ namespace music.Core.Services
                 var url = $"/likelist?uid={_sessionService.UserId}";
                 if (bypassCache) url = AppendTimestamp(url);
 
-                var response = await _transport.GetAsync(url).ConfigureAwait(false);
+                var response = await _transport.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 if (!response.Success)
                 {
                     return ApiResult<List<string>>.Fail(response.Result, new List<string>());
@@ -115,20 +119,24 @@ namespace music.Core.Services
                 }
                 return ApiResult<List<string>>.Ok(ids);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetLikedSongIds Error: {ex.Message}");
+                _log.Write($"GetLikedSongIds Error: {ex}");
                 return ApiResult<List<string>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<string>());
             }
         }
 
-        public async Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true)
+        public async Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true, CancellationToken cancellationToken = default)
         {
             try
             {
-                var idsResult = await GetLikedSongIdsAsync(bypassCache).ConfigureAwait(false);
+                var idsResult = await GetLikedSongIdsAsync(bypassCache, cancellationToken).ConfigureAwait(false);
                 if (!idsResult.Success)
                 {
                     return ApiResult<List<Song>>.Fail(idsResult.Status, new List<Song>());
@@ -137,10 +145,10 @@ namespace music.Core.Services
                 var ids = idsResult.Value;
                 if (limit <= 0)
                 {
-                    var favoritePlaylistId = await GetFavoritePlaylistIdAsync(bypassCache).ConfigureAwait(false);
+                    var favoritePlaylistId = await GetFavoritePlaylistIdAsync(bypassCache, cancellationToken).ConfigureAwait(false);
                     if (!string.IsNullOrEmpty(favoritePlaylistId))
                     {
-                        var playlistSongsResult = await LoadPlaylistSongsInternalAsync(favoritePlaylistId, bypassCache).ConfigureAwait(false);
+                        var playlistSongsResult = await LoadPlaylistSongsAsync(favoritePlaylistId, bypassCache, cancellationToken).ConfigureAwait(false);
                         if (playlistSongsResult.Success && (playlistSongsResult.Value.Count > 0 || ids.Count == 0))
                         {
                             foreach (var song in playlistSongsResult.Value) song.Liked = true;
@@ -152,26 +160,30 @@ namespace music.Core.Services
                 if (ids.Count == 0) return ApiResult<List<Song>>.Ok(new List<Song>());
                 if (limit > 0) ids = ids.Take(limit).ToList();
 
-                var songsResult = await GetSongsByIdsInternalAsync(ids).ConfigureAwait(false);
+                var songsResult = await GetSongsByIdsInternalAsync(ids, cancellationToken).ConfigureAwait(false);
                 if (!songsResult.Success) return songsResult;
                 foreach (var song in songsResult.Value) song.Liked = true;
                 return songsResult;
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetLikedSongs Error: {ex.Message}");
+                _log.Write($"GetLikedSongs Error: {ex}");
                 return ApiResult<List<Song>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<Song>());
             }
         }
 
-        public async Task<ApiResult> LikeSongAsync(string songId, bool like = true)
+        public async Task<ApiResult> LikeSongAsync(string songId, bool like = true, CancellationToken cancellationToken = default)
         {
             try
             {
                 var url = AppendTimestamp($"/like?id={Uri.EscapeDataString(songId)}&like={like.ToString().ToLowerInvariant()}");
-                var response = await _transport.GetAsync(url).ConfigureAwait(false);
+                var response = await _transport.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 if (!response.Success)
                 {
                     return response.Result;
@@ -189,21 +201,25 @@ namespace music.Core.Services
 
                 return new ApiResult(false, ApiErrorKind.Business, "操作未完成，请重试。");
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] LikeSong Error: {ex.Message}");
+                _log.Write($"LikeSong Error: {ex}");
                 return new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message);
             }
         }
 
-        public async Task<bool> IsFavoritePlaylistAsync(string? playlistId)
+        public async Task<bool> IsFavoritePlaylistAsync(string? playlistId, CancellationToken cancellationToken = default)
         {
             if (!_sessionService.IsLoggedIn || string.IsNullOrWhiteSpace(playlistId)) return false;
-            var favoriteId = await GetFavoritePlaylistIdAsync().ConfigureAwait(false);
+            var favoriteId = await GetFavoritePlaylistIdAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
             return !string.IsNullOrEmpty(favoriteId) && string.Equals(favoriteId, playlistId, StringComparison.Ordinal);
         }
 
-        public async Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false)
+        public async Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false, CancellationToken cancellationToken = default)
         {
             if (!string.IsNullOrEmpty(_favoritePlaylistId)) return _favoritePlaylistId;
 
@@ -211,28 +227,35 @@ namespace music.Core.Services
             {
                 var url = $"/user/playlist?uid={_sessionService.UserId}";
                 if (bypassCache) url = AppendTimestamp(url);
-                var response = await _transport.GetAsync(url).ConfigureAwait(false);
+                var response = await _transport.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 if (response.Success)
                 {
-                    var found = PlaylistJsonMapper.FindFavoritePlaylistId(response.Body);
+                    var found = PlaylistJsonMapper.FindFavoritePlaylistId(response.Body, _log);
                     if (!string.IsNullOrEmpty(found))
                         _favoritePlaylistId = found;
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"/user/playlist 获取喜欢歌单失败: {ex.Message}");
+                _log.Write($"/user/playlist 获取喜欢歌单失败: {ex}");
             }
 
             return _favoritePlaylistId;
         }
 
-        internal async Task<ApiResult<List<Song>>> LoadPlaylistSongsInternalAsync(string playlistId, bool bypassCache)
+        public async Task<ApiResult<List<Song>>> LoadPlaylistSongsAsync(
+            string playlistId,
+            bool bypassCache = true,
+            CancellationToken cancellationToken = default)
         {
             var detailUrl = $"/playlist/detail?id={Uri.EscapeDataString(playlistId)}";
             if (bypassCache) detailUrl = AppendTimestamp(detailUrl);
 
-            var detailResponse = await _transport.GetAsync(detailUrl).ConfigureAwait(false);
+            var detailResponse = await _transport.GetAsync(detailUrl, cancellationToken).ConfigureAwait(false);
             if (!detailResponse.Success)
             {
                 return ApiResult<List<Song>>.Fail(detailResponse.Result, new List<Song>());
@@ -241,7 +264,7 @@ namespace music.Core.Services
             var trackIds = LikedMusicSyncHelper.ExtractPlaylistTrackIds(detailResponse.Body);
             if (trackIds.Count > 0)
             {
-                return await GetSongsByIdsInternalAsync(trackIds).ConfigureAwait(false);
+                return await GetSongsByIdsInternalAsync(trackIds, cancellationToken).ConfigureAwait(false);
             }
 
             if (PlaylistJsonMapper.IsTrackCountZero(detailResponse.Body))
@@ -252,7 +275,7 @@ namespace music.Core.Services
             var fallbackUrl = $"/playlist/track/all?id={Uri.EscapeDataString(playlistId)}";
             if (bypassCache) fallbackUrl = AppendTimestamp(fallbackUrl);
 
-            var fallbackResponse = await _transport.GetAsync(fallbackUrl).ConfigureAwait(false);
+            var fallbackResponse = await _transport.GetAsync(fallbackUrl, cancellationToken).ConfigureAwait(false);
             if (!fallbackResponse.Success)
             {
                 return ApiResult<List<Song>>.Fail(fallbackResponse.Result, new List<Song>());
@@ -265,7 +288,9 @@ namespace music.Core.Services
             return ApiResult<List<Song>>.Ok(songs);
         }
 
-        internal async Task<ApiResult<List<Song>>> GetSongsByIdsInternalAsync(IReadOnlyList<string> ids)
+        internal async Task<ApiResult<List<Song>>> GetSongsByIdsInternalAsync(
+            IReadOnlyList<string> ids,
+            CancellationToken cancellationToken = default)
         {
             var orderedIds = ids
                 .Where(id => !string.IsNullOrWhiteSpace(id))
@@ -276,7 +301,7 @@ namespace music.Core.Services
             var songsById = new Dictionary<string, Song>(StringComparer.Ordinal);
             foreach (var batch in ApiBatching.Chunk(orderedIds, 200))
             {
-                var response = await _transport.GetAsync($"/song/detail?ids={string.Join(",", batch)}").ConfigureAwait(false);
+                var response = await _transport.GetAsync($"/song/detail?ids={string.Join(",", batch)}", cancellationToken).ConfigureAwait(false);
                 if (!response.Success)
                 {
                     return ApiResult<List<Song>>.Fail(response.Result, new List<Song>());

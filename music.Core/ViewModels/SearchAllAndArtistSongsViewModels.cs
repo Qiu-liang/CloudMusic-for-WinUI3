@@ -9,6 +9,7 @@ namespace music.Core.ViewModels
     public sealed class SearchAllSongsViewModel : SongListViewModelBase
     {
         private readonly ISearchService _searchService;
+        private readonly IApiLog _log;
         private string _keywords = string.Empty;
         private string _title = "全部单曲";
 
@@ -19,6 +20,7 @@ namespace music.Core.ViewModels
             : base(playback, log)
         {
             _searchService = searchService;
+            _log = log;
             RetryCommand = new AsyncRelayCommand(() => LoadAsync(_keywords), log: log);
         }
 
@@ -39,7 +41,7 @@ namespace music.Core.ViewModels
 
             try
             {
-                var result = await _searchService.SearchSongsAsync(_keywords, 100);
+                var result = await _searchService.SearchSongsAsync(_keywords, 100, cancellationToken: token);
                 if (!IsCurrentLoad(version, token)) return;
 
                 if (!result.Success)
@@ -60,9 +62,12 @@ namespace music.Core.ViewModels
                 SetSongs(songs);
                 ShowContent();
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SearchAllSongs] Load Error: {ex.Message}");
+                _log.Write($"SearchAllSongs Load Error: {ex}");
                 if (IsCurrentLoad(version, token))
                     ShowError("加载失败，请稍后重试");
             }
@@ -89,26 +94,32 @@ namespace music.Core.ViewModels
             var (version, token) = BeginLoad();
             ShowLoading();
 
-            var result = await _artistService.GetArtistSongsAsync(_artistId, 50, token);
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
-                ClearSongs(string.Empty);
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
+                var result = await _artistService.GetArtistSongsAsync(_artistId, 50, token);
+                if (!IsCurrentLoad(version, token)) return;
 
-            var songs = result.Value;
-            if (songs.Count == 0)
+                if (!result.Success)
+                {
+                    ClearSongs(string.Empty);
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
+
+                var songs = result.Value;
+                if (songs.Count == 0)
+                {
+                    ClearSongs(string.Empty);
+                    ShowEmpty();
+                    return;
+                }
+
+                SetSongs(songs);
+                ShowContent();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
             {
-                ClearSongs(string.Empty);
-                ShowEmpty();
-                return;
             }
-
-            SetSongs(songs);
-            ShowContent();
         }
     }
 }

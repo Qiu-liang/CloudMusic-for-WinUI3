@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace music.Services
+namespace music.Core.Netease
 {
     // 解析 Cookie 字符串：兼容夹在其中的 Set-Cookie 属性（Path/Expires/Max-Age 等），
     // 只保留真正的 name=value 对，避免属性名混进请求的 Cookie 头

@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Results;
 using music.Core.Services;
 using music.Core.ViewModels;
-using music.Models;
-using music.Services;
 using Xunit;
 
 namespace music.Tests;
@@ -22,22 +21,22 @@ public class PlaylistDetailViewModelTests
         public Func<string, Task<PlaylistDetailInfo?>>? OnGetInfo { get; set; }
         public Func<string, bool, Task<ApiResult>>? OnSubscribe { get; set; }
 
-        public Task<ApiResult<List<PlaylistInfo>>> GetUserPlaylistsAsync(long uid, bool bypassCache = false) =>
+        public Task<ApiResult<List<PlaylistInfo>>> GetUserPlaylistsAsync(long uid, bool bypassCache = false, CancellationToken ct = default) =>
             Task.FromResult(ApiResult<List<PlaylistInfo>>.Ok(new List<PlaylistInfo>()));
 
-        public Task<ApiResult<List<Song>>> GetPlaylistDetailAsync(string playlistId, bool bypassCache = true) =>
+        public Task<ApiResult<List<Song>>> GetPlaylistDetailAsync(string playlistId, bool bypassCache = true, CancellationToken ct = default) =>
             OnGetDetail != null ? OnGetDetail(playlistId) : Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
 
-        public Task<PlaylistDetailInfo?> GetPlaylistInfoAsync(string playlistId, bool bypassCache = true) =>
+        public Task<PlaylistDetailInfo?> GetPlaylistInfoAsync(string playlistId, bool bypassCache = true, CancellationToken ct = default) =>
             OnGetInfo != null ? OnGetInfo(playlistId) : Task.FromResult<PlaylistDetailInfo?>(null);
 
-        public Task<AlbumDetailInfo?> GetAlbumInfoAsync(string albumId) => Task.FromResult<AlbumDetailInfo?>(null);
-        public Task<ApiResult<List<Song>>> GetAlbumSongsAsync(string albumId) =>
+        public Task<AlbumDetailInfo?> GetAlbumInfoAsync(string albumId, CancellationToken ct = default) => Task.FromResult<AlbumDetailInfo?>(null);
+        public Task<ApiResult<List<Song>>> GetAlbumSongsAsync(string albumId, CancellationToken ct = default) =>
             Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
-        public Task<ApiResult> CreatePlaylistAsync(string name) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, string.Empty));
-        public Task<ApiResult> DeletePlaylistAsync(string playlistId) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, string.Empty));
+        public Task<ApiResult> CreatePlaylistAsync(string name, CancellationToken ct = default) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, string.Empty));
+        public Task<ApiResult> DeletePlaylistAsync(string playlistId, CancellationToken ct = default) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, string.Empty));
 
-        public Task<ApiResult> SetPlaylistSubscriptionAsync(string playlistId, bool subscribe) =>
+        public Task<ApiResult> SetPlaylistSubscriptionAsync(string playlistId, bool subscribe, CancellationToken ct = default) =>
             OnSubscribe != null ? OnSubscribe(playlistId, subscribe) : Task.FromResult(new ApiResult(true, ApiErrorKind.None, string.Empty));
 
         public void NotifyUserPlaylistsChanged() => UserPlaylistsChanged?.Invoke(this, EventArgs.Empty);
@@ -59,12 +58,18 @@ public class PlaylistDetailViewModelTests
         public bool FavoritePlaylist { get; set; }
         public event EventHandler<SongLikeChangedEventArgs>? SongLikeChanged;
         public bool IsSongLiked(string? songId) => false;
-        public Task EnsureLikedSongIdsLoadedAsync() => Task.CompletedTask;
-        public Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false) => Task.FromResult(ApiResult<List<string>>.Ok(new List<string>()));
-        public Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true) => Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
-        public Task<ApiResult> LikeSongAsync(string songId, bool like = true) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, string.Empty));
-        public Task<bool> IsFavoritePlaylistAsync(string? playlistId) => Task.FromResult(FavoritePlaylist);
-        public Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false) => Task.FromResult(FavoritePlaylist ? "fav1" : string.Empty);
+        public Task EnsureLikedSongIdsLoadedAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false, CancellationToken ct = default) =>
+            Task.FromResult(ApiResult<List<string>>.Ok(new List<string>()));
+        public Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true, CancellationToken ct = default) =>
+            Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
+        public Task<ApiResult> LikeSongAsync(string songId, bool like = true, CancellationToken ct = default) =>
+            Task.FromResult(new ApiResult(true, ApiErrorKind.None, string.Empty));
+        public Task<bool> IsFavoritePlaylistAsync(string? playlistId, CancellationToken ct = default) => Task.FromResult(FavoritePlaylist);
+        public Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false, CancellationToken ct = default) =>
+            Task.FromResult(FavoritePlaylist ? "fav1" : string.Empty);
+        public Task<ApiResult<List<Song>>> LoadPlaylistSongsAsync(string playlistId, bool bypassCache = true, CancellationToken ct = default) =>
+            Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
         public void ClearState() { }
         public void RaiseLikeChanged(string id, bool liked) => SongLikeChanged?.Invoke(this, new SongLikeChangedEventArgs(id, liked));
     }
@@ -77,17 +82,17 @@ public class PlaylistDetailViewModelTests
         public event EventHandler? SessionChanged;
         public event EventHandler? SessionCleared { add { } remove { } }
         public event EventHandler? VipStatusRefreshed { add { } remove { } }
-        public Task InitializeAsync() => Task.CompletedTask;
-        public Task<bool> LoginAnonymouslyAsync() => Task.FromResult(true);
-        public Task<(bool, string, int, string)> LoginWithPhoneAsync(string p, string pw) => Task.FromResult((true, "", 200, ""));
+        public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task<bool> LoginAnonymouslyAsync(CancellationToken ct = default) => Task.FromResult(true);
+        public Task<(bool, string, int, string)> LoginWithPhoneAsync(string p, string pw, CancellationToken ct = default) => Task.FromResult((true, "", 200, ""));
         public Task<QrCodePayload?> GenerateQrCodeAsync(CancellationToken ct = default) => Task.FromResult<QrCodePayload?>(null);
         public Task<ApiResult<QrLoginStatusResult>> CheckQrStatusAsync(string k, CancellationToken ct = default) =>
             Task.FromResult(ApiResult<QrLoginStatusResult>.Ok(new QrLoginStatusResult(QrLoginState.Waiting, 801, "")));
-        public Task<bool> SetLoginCookieAsync(string cookie) => Task.FromResult(true);
-        public Task<ApiResult<UserInfo?>> GetUserInfoAsync() => Task.FromResult(ApiResult<UserInfo?>.Ok(null));
+        public Task<bool> SetLoginCookieAsync(string cookie, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<ApiResult<UserInfo?>> GetUserInfoAsync(CancellationToken ct = default) => Task.FromResult(ApiResult<UserInfo?>.Ok(null));
         public UserInfo? GetCachedUserInfo() => null;
         public bool GetVipStatus() => false;
-        public Task<bool> CheckVipStatusAsync() => Task.FromResult(false);
+        public Task<bool> CheckVipStatusAsync(CancellationToken ct = default) => Task.FromResult(false);
         public void ResetLogin() { IsLoggedIn = false; UserId = 0; SessionChanged?.Invoke(this, EventArgs.Empty); }
     }
 

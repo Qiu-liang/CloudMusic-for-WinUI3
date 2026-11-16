@@ -58,7 +58,7 @@ namespace music.Composition
             CookieJar = new SessionCookieJar(CredentialStore, ApiLog);
             Transport = new NeteaseHttpTransport(Endpoint, CookieJar, SettingsStore, ApiLog);
 
-            QualityService = new QualityService(Transport, SettingsStore);
+            QualityService = new QualityService(Transport, SettingsStore, ApiLog);
             SongSourceResolver = new SongSourceResolver(Transport, SettingsStore);
 
             SessionService = new SessionService(
@@ -73,20 +73,22 @@ namespace music.Composition
             LibraryService = new LibraryService(
                 Transport,
                 QualityService,
-                SessionService);
+                SessionService,
+                ApiLog);
 
-            PlaylistService = new PlaylistService(Transport, LibraryService, QualityService);
-            ArtistService = new ArtistService(Transport, LibraryService, QualityService);
+            PlaylistService = new PlaylistService(Transport, LibraryService, QualityService, ApiLog);
+            ArtistService = new ArtistService(Transport, LibraryService, QualityService, ApiLog);
             RecommendationService = new RecommendationService(
-                Transport, SessionService, LibraryService, QualityService, CookieJar);
-            SearchService = new SearchService(Transport, LibraryService, QualityService);
-            CloudService = new CloudService(Transport, SessionService);
-            ProfileService = new ProfileService(Transport);
-            LyricsService = new LyricsService(Transport);
+                Transport, SessionService, LibraryService, QualityService, CookieJar, ApiLog);
+            SearchService = new SearchService(Transport, LibraryService, QualityService, ApiLog);
+            CloudService = new CloudService(Transport, SessionService, ApiLog);
+            ProfileService = new ProfileService(Transport, ApiLog);
+            LyricsService = new LyricsService(Transport, ApiLog);
             DownloadService = new DownloadService(
                 SongSourceResolver,
                 SettingsStore,
-                ApplicationData.Current.LocalFolder.Path);
+                ApplicationData.Current.LocalFolder.Path,
+                log: ApiLog);
             ServerConnectionTester = new ServerConnectionTester();
             CoverArtService = new CoverArtService();
             LocalMusicService = new LocalMusicService(SettingsStore);
@@ -149,7 +151,8 @@ namespace music.Composition
                 ArtistService,
                 ProfileService,
                 PlaybackCoordinator!,
-                nav));
+                nav,
+                ApiLog));
             nav.Register(PageKey.ArtistTopSongs, typeof(ArtistTopSongsPage), () => new ArtistTopSongsViewModel(
                 ArtistService,
                 PlaybackCoordinator!,
@@ -166,7 +169,8 @@ namespace music.Composition
             nav.Register(PageKey.Search, typeof(SearchPage), () => new SearchViewModel(
                 SearchService,
                 PlaybackCoordinator!,
-                nav));
+                nav,
+                ApiLog));
             nav.Register(PageKey.SearchAllResults, typeof(SearchAllResultsPage), () => new SearchAllResultsViewModel(
                 SearchService,
                 nav,
@@ -189,7 +193,8 @@ namespace music.Composition
                 ProfileService,
                 SessionService,
                 nav,
-                nav));
+                nav,
+                ApiLog));
             nav.Register(PageKey.ProfilePlaylists, typeof(ProfilePlaylistsPage), () => new ProfilePlaylistsViewModel(
                 PlaylistService,
                 SessionService,
@@ -297,6 +302,7 @@ namespace music.Composition
             DownloadService.Dispose();
             ServerConnectionTester.Dispose();
             CoverArtService.Dispose();
+            ApiLog.Dispose();
         }
     }
 }

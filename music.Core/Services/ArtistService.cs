@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Netease;
 using music.Core.Netease.Mapping;
 using music.Core.Results;
-using music.Models;
-using music.Services;
 
 namespace music.Core.Services
 {
@@ -22,15 +22,18 @@ namespace music.Core.Services
         private readonly NeteaseHttpTransport _transport;
         private readonly ILibraryService _libraryService;
         private readonly IQualityService _qualityService;
+        private readonly IApiLog _log;
 
         public ArtistService(
             NeteaseHttpTransport transport,
             ILibraryService libraryService,
-            IQualityService qualityService)
+            IQualityService qualityService,
+            IApiLog? log = null)
         {
             _transport = transport;
             _libraryService = libraryService;
             _qualityService = qualityService;
+            _log = log ?? NullApiLog.Instance;
         }
 
         public async Task<ApiResult<ArtistDetailInfo?>> GetArtistDetailAsync(string artistId, CancellationToken cancellationToken = default)
@@ -51,7 +54,7 @@ namespace music.Core.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetArtistDetail Error: {ex.Message}");
+                _log.Write($"GetArtistDetail Error: {ex}");
                 return ApiResult<ArtistDetailInfo?>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     null);
@@ -80,7 +83,7 @@ namespace music.Core.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetArtistSongs Error: {ex.Message}");
+                _log.Write($"GetArtistSongs Error: {ex}");
                 return ApiResult<List<Song>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<Song>());
@@ -105,7 +108,7 @@ namespace music.Core.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetArtistAlbums Error: {ex.Message}");
+                _log.Write($"GetArtistAlbums Error: {ex}");
                 return ApiResult<List<SearchAlbumInfo>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<SearchAlbumInfo>());

@@ -123,7 +123,7 @@ CloudMusic-for-WinUI3/
 └── music/                              # WinUI 3 client application layer
     ├── App.xaml / .cs                  # Application entry point
     ├── MainWindow.xaml / .cs           # Main window (navigation, search bar, player bar, play queue)
-    ├── LyricsWindow.xaml / .cs         # Standalone desktop lyrics window (Win2D rendering, click-through, translations)
+    ├── LyricsWindow.xaml / .cs         # Standalone desktop lyrics window (split into .Rendering.cs & .Interop.cs)
     ├── music.csproj                    # Application project file
     ├── Package.appxmanifest            # Application manifest
     │
@@ -132,7 +132,7 @@ CloudMusic-for-WinUI3/
     │
     ├── Infrastructure/Platform/        # Windows / WinUI 3 platform adapters
     │   ├── DialogService.cs            # Content dialogs & login dialog service
-    │   ├── FileApiLog.cs               # Local debug log file writer
+    │   ├── FileApiLog.cs               # Async bounded-channel & size-rotating file logger
     │   ├── LocalSettingsStore.cs       # LocalSettings adapter
     │   ├── MediaPlayerAdapter.cs       # Windows MediaPlayer adapter
     │   ├── NavigationService.cs        # Frame navigation & route request resolution
@@ -168,10 +168,10 @@ The project uses an **MVVM + Clean Core** architecture that decouples business l
 
 ### Core Layers
 
-- **music.Core** — Pure .NET 8 library containing HTTP transport (`NeteaseHttpTransport` with `SemaphoreSlim` throttling), JSON mappers, unified `ApiResult` error semantics, domain services (`SessionService`, `LibraryService`, `PlaylistService`, `PlaybackCoordinator`, etc.), and `ViewModels`.
+- **music.Core** — Pure .NET 8 library (standardized on `music.Core.*` namespaces without exposing `InternalsVisibleTo` to the app layer) containing HTTP transport (`NeteaseHttpTransport` with `SemaphoreSlim` throttling), JSON mappers, unified `ApiResult` error semantics, end-to-end `CancellationToken` propagation, `IApiLog` logging, domain services (`SessionService`, `LibraryService`, `PlaylistService`, `PlaybackCoordinator`, etc.), and `ViewModels`.
 - **music/Composition** — `AppCompositionRoot` wires services, platform adapters, and route factories without global static service access from Views.
-- **music/Infrastructure/Platform** — Implements the ports defined in `music.Core.Abstractions` (`IUiDispatcher`, `IMediaPlayer`, `INavigationService`, `IDialogService`, `ICredentialStore`, `ISettingsStore`, etc.).
-- **music/Pages & Windows** — Handles XAML `{x:Bind}` bindings, page navigation lifecycle, and UI-specific concerns such as Win2D lyrics rendering, Win32 window interop, and horizontal scroll animations.
+- **music/Infrastructure/Platform** — Implements the ports defined in `music.Core.Abstractions` (`IUiDispatcher`, `IMediaPlayer`, `INavigationService`, `IDialogService`, `ICredentialStore`, `ISettingsStore`, `IApiLog`, etc.).
+- **music/Pages & Windows (Code-Behind Boundary)** — Business state, data loading, and commands belong in Core `ViewModels`; Views keep only XAML `{x:Bind}` bindings, page navigation lifecycle, and UI-specific concerns such as Win2D lyrics rendering, Win32 window interop, and horizontal scroll animations.
 
 ### Page Navigation
 

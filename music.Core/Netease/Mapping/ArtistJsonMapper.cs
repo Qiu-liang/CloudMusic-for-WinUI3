@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using music.Services;
+using music.Core.Models;
 
 namespace music.Core.Netease.Mapping
 {

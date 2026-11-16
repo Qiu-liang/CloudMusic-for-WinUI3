@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using music.Models;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Models;
 
 namespace music.Core.Netease.Mapping
 {
@@ -50,7 +50,6 @@ namespace music.Core.Netease.Mapping
             if (SongUrlPolicy.TryReadInt32(item, "fee", out var fee))
             {
                 song.Fee = fee;
-                System.Diagnostics.Debug.WriteLine($"[API] Song '{song.Name}' fee={song.Fee}");
             }
             song.VipFlag = SongUrlPolicy.ReadBoolean(item, "vipFlag");
             song.VipPlayFlag = SongUrlPolicy.ReadBoolean(item, "vipPlayFlag");
@@ -68,9 +67,6 @@ namespace music.Core.Netease.Mapping
 
             song.IsVip = song.Fee == 1 || song.VipFlag || song.VipPlayFlag;
             song.IsPaid = song.Fee == 4 || song.PayPlayFlag;
-
-            if (song.IsVip)
-                System.Diagnostics.Debug.WriteLine($"[API] Song '{song.Name}' is VIP");
 
             if (item.TryGetProperty("ar", out var artists) && artists.ValueKind == JsonValueKind.Array)
             {
@@ -216,7 +212,8 @@ namespace music.Core.Netease.Mapping
         public static List<Song> ParseIntelligenceSongs(
             string json,
             Func<string, bool>? isLikedLookup = null,
-            Action<string, SongQualityPrivilege>? onPrivilegeParsed = null)
+            Action<string, SongQualityPrivilege>? onPrivilegeParsed = null,
+            IApiLog? log = null)
         {
             var songs = new List<Song>();
             if (string.IsNullOrWhiteSpace(json)) return songs;
@@ -237,7 +234,7 @@ namespace music.Core.Netease.Mapping
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"GetIntelligenceSongs: 跳过无法解析的条目 {ex.GetType().Name}");
+                        log?.Write($"GetIntelligenceSongs: 跳过无法解析的条目 {ex.GetType().Name}");
                     }
                 }
             }

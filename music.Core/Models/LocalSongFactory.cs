@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 
-namespace music.Models
+namespace music.Core.Models
 {
     public static class LocalSongFactory
     {

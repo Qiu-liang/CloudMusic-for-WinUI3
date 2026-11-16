@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using music.Services;
+using music.Core.Netease;
 
-namespace music.Models
+namespace music.Core.Models
 {
     public class Song
     {

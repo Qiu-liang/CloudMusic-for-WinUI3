@@ -5,10 +5,10 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Netease;
 using music.Core.Netease.Mapping;
-using music.Models;
-using music.Services;
 
 namespace music.Core.Services
 {
@@ -20,10 +20,12 @@ namespace music.Core.Services
     public sealed class LyricsService : ILyricsService
     {
         private readonly NeteaseHttpTransport _transport;
+        private readonly IApiLog _log;
 
-        public LyricsService(NeteaseHttpTransport transport)
+        public LyricsService(NeteaseHttpTransport transport, IApiLog? log = null)
         {
             _transport = transport;
+            _log = log ?? NullApiLog.Instance;
         }
 
         public async Task<LyricInfo?> GetLyricsAsync(string songId, CancellationToken cancellationToken = default)
@@ -31,7 +33,7 @@ namespace music.Core.Services
             try
             {
                 var resp = await _transport.GetAsync($"/lyric?id={Uri.EscapeDataString(songId)}", cancellationToken).ConfigureAwait(false);
-                return resp.Success ? LyricJsonMapper.ParseLyricInfo(resp.Body) : null;
+                return resp.Success ? LyricJsonMapper.ParseLyricInfo(resp.Body, _log) : null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -39,7 +41,7 @@ namespace music.Core.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetLyrics Error: {ex.Message}");
+                _log.Write($"GetLyrics Error: {ex}");
                 return null;
             }
         }

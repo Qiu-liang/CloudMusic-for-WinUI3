@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
+using music.Core.Results;
 using music.Core.Services;
-using music.Models;
-using music.Services;
 using Xunit;
 
 namespace music.Tests;

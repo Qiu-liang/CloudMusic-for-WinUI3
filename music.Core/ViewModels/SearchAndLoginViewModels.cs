@@ -4,11 +4,11 @@ using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
+using music.Core.Results;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
-using music.Models;
-using music.Services;
 
 namespace music.Core.ViewModels
 {
@@ -17,6 +17,7 @@ namespace music.Core.ViewModels
         private readonly ISearchService _searchService;
         private readonly IPlaybackCoordinator _playback;
         private readonly INavigationService _navigation;
+        private readonly IApiLog _log;
         private List<Song> _songModels = new();
         private string _currentQuery = string.Empty;
         private string _title = "搜索";
@@ -24,11 +25,13 @@ namespace music.Core.ViewModels
         public SearchViewModel(
             ISearchService searchService,
             IPlaybackCoordinator playback,
-            INavigationService navigation)
+            INavigationService navigation,
+            IApiLog? log = null)
         {
             _searchService = searchService;
             _playback = playback;
             _navigation = navigation;
+            _log = log ?? NullApiLog.Instance;
             Songs = new ObservableCollection<SongItem>();
             Artists = new ObservableCollection<ArtistItem>();
             Playlists = new ObservableCollection<PlaylistItem>();
@@ -62,13 +65,13 @@ namespace music.Core.ViewModels
 
             try
             {
-                var artistsResult = await _searchService.SearchArtistsAsync(query, 10);
+                var artistsResult = await _searchService.SearchArtistsAsync(query, 10, token);
                 if (!IsCurrentLoad(version, token)) return;
-                var songsResult = await _searchService.SearchSongsAsync(query, 39);
+                var songsResult = await _searchService.SearchSongsAsync(query, 39, cancellationToken: token);
                 if (!IsCurrentLoad(version, token)) return;
-                var playlistsResult = await _searchService.SearchPlaylistsAsync(query, 20);
+                var playlistsResult = await _searchService.SearchPlaylistsAsync(query, 20, token);
                 if (!IsCurrentLoad(version, token)) return;
-                var albumsResult = await _searchService.SearchAlbumsAsync(query, 20);
+                var albumsResult = await _searchService.SearchAlbumsAsync(query, 20, token);
                 if (!IsCurrentLoad(version, token)) return;
 
                 var artists = artistsResult.Value;
@@ -155,9 +158,12 @@ namespace music.Core.ViewModels
                     ShowContent();
                 }
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Search] Error: {ex.Message}");
+                _log.Write($"Search Error: {ex}");
                 if (IsCurrentLoad(version, token))
                 {
                     Title = $"搜索 \"{query}\" 失败";
@@ -360,7 +366,7 @@ namespace music.Core.ViewModels
                     if (!_isQrLoginActive || _isClosed || generation != _qrGeneration) break;
 
                     consecutiveFailures++;
-                    System.Diagnostics.Debug.WriteLine($"[QR] 状态轮询失败({consecutiveFailures}): {ex.Message}");
+                    _log.Write($"[QR] 状态轮询失败({consecutiveFailures}): {ex}");
 
                     if (consecutiveFailures >= 5)
                     {

@@ -8,7 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="music" />
     <InternalsVisibleTo Include="music.Tests" />
   </ItemGroup>
 </Project>

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace music.Services
+namespace music.Core.Services
 {
     /// <summary>
     /// Centralizes resolution, validation, and settings dictionary persistence of the music download directory.

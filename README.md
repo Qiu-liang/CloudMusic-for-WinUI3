@@ -125,7 +125,7 @@ CloudMusic-for-WinUI3/
 └── music/                              # WinUI 3 客户端应用层
     ├── App.xaml / .cs                  # 应用程序入口
     ├── MainWindow.xaml / .cs           # 主窗口（导航框架、搜索框、播放栏、播放队列面板）
-    ├── LyricsWindow.xaml / .cs         # 独立桌面歌词窗口（Win2D 绘制、点击穿透、译文同步）
+    ├── LyricsWindow.xaml / .cs / .Rendering.cs / .Interop.cs # 独立桌面歌词窗口（Win2D 绘制、点击穿透、译文同步）
     ├── music.csproj                    # 应用项目文件
     ├── Package.appxmanifest            # 应用清单
     │
@@ -134,7 +134,7 @@ CloudMusic-for-WinUI3/
     │
     ├── Infrastructure/Platform/        # Windows / WinUI 3 平台端口实现
     │   ├── DialogService.cs            # 弹窗与登录框服务
-    │   ├── FileApiLog.cs               # 本地日志文件写入
+    │   ├── FileApiLog.cs               # 基于异步队列与大小轮转的本地日志文件写入
     │   ├── LocalSettingsStore.cs       # LocalSettings 封装
     │   ├── MediaPlayerAdapter.cs       # Windows MediaPlayer 适配器
     │   ├── NavigationService.cs        # Frame 页面导航与路由请求解析
@@ -170,10 +170,10 @@ CloudMusic-for-WinUI3/
 
 ### 核心分层
 
-- **music.Core** — 纯 .NET 8 类库，包含网络传输（`NeteaseHttpTransport` + `SemaphoreSlim` 限流）、JSON 映射、统一 `ApiResult` 错误模型、各领域服务（`SessionService` / `LibraryService` / `PlaylistService` / `PlaybackCoordinator` 等）以及页面 `ViewModel`。
+- **music.Core** — 纯 .NET 8 类库（统一使用 `music.Core.*` 命名空间，对应用层关闭 `InternalsVisibleTo`），包含网络传输（`NeteaseHttpTransport` + `SemaphoreSlim` 限流）、JSON 映射、统一 `ApiResult` 错误模型、全链路 `CancellationToken`、基于 `IApiLog` 的结构化日志、各领域服务（`SessionService` / `LibraryService` / `PlaylistService` / `PlaybackCoordinator` 等）以及页面 `ViewModel`。
 - **music/Composition** — `AppCompositionRoot` 负责统一装配服务、平台端口与页面路由工厂，View 不直接访问全局静态服务或 `HttpClient`。
-- **music/Infrastructure/Platform** — 实现 `music.Core.Abstractions` 中定义的端口（`IUiDispatcher`、`IMediaPlayer`、`INavigationService`、`IDialogService`、`ICredentialStore`、`ISettingsStore` 等）。
-- **music/Pages & Windows** — 负责 XAML 数据绑定（`{x:Bind}`）、页面生命周期管理，以及 Win2D 歌词绘制、Win32 窗口互操作与横向滚轮动画等纯 UI 逻辑。
+- **music/Infrastructure/Platform** — 实现 `music.Core.Abstractions` 中定义的端口（`IUiDispatcher`、`IMediaPlayer`、`INavigationService`、`IDialogService`、`ICredentialStore`、`ISettingsStore`、`IApiLog` 等）。
+- **music/Pages & Windows（Code-Behind 边界）** — 业务状态、数据加载与命令调度全部归属 Core `ViewModel`；View 层仅保留 XAML `{x:Bind}` 绑定、页面导航生命周期，以及 Win2D 歌词绘制、Win32 窗口互操作与横向滚轮动画等纯 UI 逻辑。
 
 ### 页面导航
 

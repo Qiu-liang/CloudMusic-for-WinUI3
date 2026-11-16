@@ -3,10 +3,10 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
-using music.Models;
 
 namespace music.Core.ViewModels
 {
@@ -29,6 +29,7 @@ namespace music.Core.ViewModels
         private readonly IPlaybackCoordinator _playback;
         private readonly IDialogService _dialogs;
         private readonly IFilePickerService _filePicker;
+        private readonly IApiLog _log;
         private string _countText = string.Empty;
         private string _downloadFolderPathText = string.Empty;
 
@@ -43,6 +44,7 @@ namespace music.Core.ViewModels
             _playback = playback;
             _dialogs = dialogs;
             _filePicker = filePicker;
+            _log = log;
             Songs = new ObservableCollection<AudioFileItem>();
             OpenFolderCommand = new AsyncRelayCommand(OpenFolderAsync, log: log);
         }
@@ -98,7 +100,7 @@ namespace music.Core.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Download] Load Error: {ex.Message}");
+                _log.Write($"Download Load Error: {ex}");
                 Songs.Clear();
                 CountText = "共 0 首";
                 ShowEmpty();
@@ -128,7 +130,7 @@ namespace music.Core.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Download] Delete Error: {ex.Message}");
+                _log.Write($"Download Delete Error: {ex}");
             }
         }
 
@@ -140,7 +142,7 @@ namespace music.Core.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Download] Open Folder Error: {ex.Message}");
+                _log.Write($"Download Open Folder Error: {ex}");
             }
         }
     }
@@ -150,6 +152,7 @@ namespace music.Core.ViewModels
         private readonly ILocalMusicService _localMusicService;
         private readonly IPlaybackCoordinator _playback;
         private readonly IFilePickerService _filePicker;
+        private readonly IApiLog _log;
         private string _countText = string.Empty;
         private string _loadingText = "正在扫描...";
 
@@ -162,6 +165,7 @@ namespace music.Core.ViewModels
             _localMusicService = localMusicService;
             _playback = playback;
             _filePicker = filePicker;
+            _log = log;
             Songs = new ObservableCollection<AudioFileItem>();
             ScanCommand = new AsyncRelayCommand(ScanAsync, log: log);
         }
@@ -223,7 +227,7 @@ namespace music.Core.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Local] Load Error: {ex.Message}");
+                _log.Write($"Local Load Error: {ex}");
                 Songs.Clear();
                 CountText = "共 0 首";
                 ShowEmpty();

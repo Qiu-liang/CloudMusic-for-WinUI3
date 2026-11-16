@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Results;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
-using music.Models;
-using music.Services;
 
 namespace music.Core.ViewModels
 {
@@ -147,50 +146,57 @@ namespace music.Core.ViewModels
             ApiResult? failure = null;
             string title = "歌单详情";
 
-            if (_playlistId.StartsWith("artist_", StringComparison.Ordinal))
+            try
             {
-                var artistId = _playlistId.Substring("artist_".Length);
-                var artistSongsResult = await _artistService.GetArtistSongsAsync(artistId, cancellationToken: token);
-                if (!IsCurrentLoad(version, token)) return;
-                songs = artistSongsResult.Value;
-                if (!artistSongsResult.Success) failure = artistSongsResult.Status;
-                title = "歌手热门歌曲";
-            }
-            else if (_playlistId.StartsWith("album_", StringComparison.Ordinal))
-            {
-                var albumId = _playlistId.Substring("album_".Length);
-                var albumSongsResult = await _playlistService.GetAlbumSongsAsync(albumId);
-                if (!IsCurrentLoad(version, token)) return;
-                songs = albumSongsResult.Value;
-                if (!albumSongsResult.Success) failure = albumSongsResult.Status;
-                title = "专辑歌曲";
-
-                var albumInfo = await _playlistService.GetAlbumInfoAsync(albumId);
-                if (!IsCurrentLoad(version, token)) return;
-                if (albumInfo != null)
+                if (_playlistId.StartsWith("artist_", StringComparison.Ordinal))
                 {
-                    title = albumInfo.Name;
-                    ApplyAlbumInfo(albumInfo);
+                    var artistId = _playlistId.Substring("artist_".Length);
+                    var artistSongsResult = await _artistService.GetArtistSongsAsync(artistId, cancellationToken: token);
+                    if (!IsCurrentLoad(version, token)) return;
+                    songs = artistSongsResult.Value;
+                    if (!artistSongsResult.Success) failure = artistSongsResult.Status;
+                    title = "歌手热门歌曲";
+                }
+                else if (_playlistId.StartsWith("album_", StringComparison.Ordinal))
+                {
+                    var albumId = _playlistId.Substring("album_".Length);
+                    var albumSongsResult = await _playlistService.GetAlbumSongsAsync(albumId, token);
+                    if (!IsCurrentLoad(version, token)) return;
+                    songs = albumSongsResult.Value;
+                    if (!albumSongsResult.Success) failure = albumSongsResult.Status;
+                    title = "专辑歌曲";
+
+                    var albumInfo = await _playlistService.GetAlbumInfoAsync(albumId, token);
+                    if (!IsCurrentLoad(version, token)) return;
+                    if (albumInfo != null)
+                    {
+                        title = albumInfo.Name;
+                        ApplyAlbumInfo(albumInfo);
+                    }
+                }
+                else
+                {
+                    var songsResult = await _playlistService.GetPlaylistDetailAsync(_playlistId, bypassCache: true, token);
+                    if (!IsCurrentLoad(version, token)) return;
+                    songs = songsResult.Value;
+                    if (!songsResult.Success) failure = songsResult.Status;
+                    title = "歌单详情";
+
+                    var playlistInfo = await _playlistService.GetPlaylistInfoAsync(_playlistId, bypassCache: true, token);
+                    if (!IsCurrentLoad(version, token)) return;
+                    if (playlistInfo != null)
+                    {
+                        title = playlistInfo.Name;
+                        ApplyPlaylistInfo(playlistInfo);
+                    }
+
+                    _isFavoritePlaylist = await _libraryService.IsFavoritePlaylistAsync(_playlistId, token);
+                    if (!IsCurrentLoad(version, token)) return;
                 }
             }
-            else
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
             {
-                var songsResult = await _playlistService.GetPlaylistDetailAsync(_playlistId, bypassCache: true);
-                if (!IsCurrentLoad(version, token)) return;
-                songs = songsResult.Value;
-                if (!songsResult.Success) failure = songsResult.Status;
-                title = "歌单详情";
-
-                var playlistInfo = await _playlistService.GetPlaylistInfoAsync(_playlistId, bypassCache: true);
-                if (!IsCurrentLoad(version, token)) return;
-                if (playlistInfo != null)
-                {
-                    title = playlistInfo.Name;
-                    ApplyPlaylistInfo(playlistInfo);
-                }
-
-                _isFavoritePlaylist = await _libraryService.IsFavoritePlaylistAsync(_playlistId);
-                if (!IsCurrentLoad(version, token)) return;
+                return;
             }
 
             if (songs.Count == 0)

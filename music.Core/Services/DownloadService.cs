@@ -6,8 +6,8 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
-using music.Models;
-using music.Services;
+using music.Core.Models;
+using music.Core.Results;
 
 namespace music.Core.Services
 {
@@ -75,17 +75,20 @@ namespace music.Core.Services
         private readonly ISongSourceResolver _sourceResolver;
         private readonly ISettingsStore _settings;
         private readonly string _localAppFolder;
+        private readonly IApiLog _log;
         private readonly HttpClient _httpClient;
 
         public DownloadService(
             ISongSourceResolver sourceResolver,
             ISettingsStore settings,
             string localAppFolder,
-            HttpMessageHandler? handler = null)
+            HttpMessageHandler? handler = null,
+            IApiLog? log = null)
         {
             _sourceResolver = sourceResolver;
             _settings = settings;
             _localAppFolder = localAppFolder;
+            _log = log ?? NullApiLog.Instance;
             _httpClient = new HttpClient(handler ?? new SocketsHttpHandler { UseCookies = false })
             {
                 Timeout = TimeSpan.FromSeconds(60)
@@ -165,12 +168,12 @@ namespace music.Core.Services
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or DirectoryNotFoundException or IOException or NotSupportedException)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] DownloadSong File Error ({folder}): {ex.Message}");
+                _log.Write($"DownloadSong File Error ({folder}): {ex}");
                 return new ApiResult(false, ApiErrorKind.Business, $"无法保存到下载目录（{folder}）：{ex.Message}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] DownloadSong Error: {ex.Message}");
+                _log.Write($"DownloadSong Error: {ex}");
                 return ApiResult.NetworkError();
             }
         }

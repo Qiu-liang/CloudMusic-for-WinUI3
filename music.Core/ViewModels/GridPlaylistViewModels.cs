@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
+using music.Core.Results;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
-using music.Services;
 
 namespace music.Core.ViewModels
 {
@@ -20,6 +21,7 @@ namespace music.Core.ViewModels
     {
         private readonly IRecommendationService _recommendationService;
         private readonly INavigationService _navigation;
+        private readonly IApiLog _log;
 
         public RecommendRadarViewModel(
             IRecommendationService recommendationService,
@@ -28,6 +30,7 @@ namespace music.Core.ViewModels
         {
             _recommendationService = recommendationService;
             _navigation = navigation;
+            _log = log;
             Playlists = new ObservableCollection<PlaylistItem>();
             RetryCommand = new AsyncRelayCommand(LoadAsync, log: log);
         }
@@ -42,7 +45,7 @@ namespace music.Core.ViewModels
 
             try
             {
-                var result = await _recommendationService.GetRecommendResourceAsync();
+                var result = await _recommendationService.GetRecommendResourceAsync(token);
                 if (!IsCurrentLoad(version, token)) return;
 
                 if (!result.Success)
@@ -76,9 +79,12 @@ namespace music.Core.ViewModels
 
                 ShowContent();
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[RecommendRadar] Load Error: {ex.Message}");
+                _log.Write($"RecommendRadar Load Error: {ex}");
                 if (IsCurrentLoad(version, token))
                     ShowError("加载失败，请稍后重试");
             }
@@ -95,6 +101,7 @@ namespace music.Core.ViewModels
     {
         private readonly IRecommendationService _recommendationService;
         private readonly INavigationService _navigation;
+        private readonly IApiLog _log;
 
         public AllPlaylistsViewModel(
             IRecommendationService recommendationService,
@@ -103,6 +110,7 @@ namespace music.Core.ViewModels
         {
             _recommendationService = recommendationService;
             _navigation = navigation;
+            _log = log;
             Playlists = new ObservableCollection<PlaylistItem>();
             RetryCommand = new AsyncRelayCommand(LoadAsync, log: log);
         }
@@ -117,7 +125,7 @@ namespace music.Core.ViewModels
 
             try
             {
-                var result = await _recommendationService.GetRecommendedPlaylistsAsync(50);
+                var result = await _recommendationService.GetRecommendedPlaylistsAsync(50, token);
                 if (!IsCurrentLoad(version, token)) return;
 
                 if (!result.Success)
@@ -151,9 +159,12 @@ namespace music.Core.ViewModels
 
                 ShowContent();
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[AllPlaylists] Load Error: {ex.Message}");
+                _log.Write($"AllPlaylists Load Error: {ex}");
                 if (IsCurrentLoad(version, token))
                     ShowError("加载失败，请稍后重试");
             }
@@ -170,6 +181,7 @@ namespace music.Core.ViewModels
     {
         private readonly ISearchService _searchService;
         private readonly INavigationService _navigation;
+        private readonly IApiLog _log;
         private string _searchType = "playlist";
         private string _keywords = string.Empty;
         private string _title = "搜索结果";
@@ -181,6 +193,7 @@ namespace music.Core.ViewModels
         {
             _searchService = searchService;
             _navigation = navigation;
+            _log = log;
             Items = new ObservableCollection<PlaylistItem>();
             RetryCommand = new AsyncRelayCommand(() => LoadAsync(_searchType, _keywords), log: log);
         }
@@ -213,13 +226,13 @@ namespace music.Core.ViewModels
                 ApiResult? failure = null;
                 if (_searchType == "playlist")
                 {
-                    var res = await _searchService.SearchPlaylistsAsync(_keywords, 50);
+                    var res = await _searchService.SearchPlaylistsAsync(_keywords, 50, token);
                     if (!res.Success) failure = res.Status;
                     results = res.Value;
                 }
                 else
                 {
-                    var res = await _searchService.SearchAlbumsAsync(_keywords, 50);
+                    var res = await _searchService.SearchAlbumsAsync(_keywords, 50, token);
                     if (!res.Success) failure = res.Status;
                     results = new List<RecommendedPlaylist>();
                     foreach (var album in res.Value)
@@ -266,9 +279,12 @@ namespace music.Core.ViewModels
 
                 ShowContent();
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SearchAllResults] Load Error: {ex.Message}");
+                _log.Write($"SearchAllResults Load Error: {ex}");
                 if (IsCurrentLoad(version, token))
                     ShowError("加载失败，请稍后重试");
             }

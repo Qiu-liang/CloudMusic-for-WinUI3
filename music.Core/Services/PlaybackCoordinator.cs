@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
-using music.Models;
-using music.Services;
+using music.Core.Models;
 
 namespace music.Core.Services
 {
@@ -177,7 +176,7 @@ namespace music.Core.Services
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Playback] Error: {ex.Message}");
+                _log.Write($"Playback Error: {ex}");
                 if (!token.IsCancellationRequested)
                 {
                     NotifyPlaybackFailed($"播放《{song.Name}》失败：{ex.Message}");
@@ -201,7 +200,7 @@ namespace music.Core.Services
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Playback] Play error: {ex.Message}");
+                _log.Write($"Playback Play error: {ex}");
                 NotifyPlaybackFailed($"播放《{song.Name}》失败：{ex.Message}");
             }
         }
@@ -223,7 +222,7 @@ namespace music.Core.Services
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Playback] Local play error: {ex.Message}");
+                _log.Write($"Playback Local play error: {ex}");
             }
             finally
             {

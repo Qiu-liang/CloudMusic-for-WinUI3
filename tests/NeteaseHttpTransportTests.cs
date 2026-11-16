@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Netease;
-using music.Services;
+using music.Core.Results;
 using Xunit;
 
 namespace music.Tests;

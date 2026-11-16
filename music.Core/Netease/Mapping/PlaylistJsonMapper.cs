@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Models;
 
 namespace music.Core.Netease.Mapping
 {
@@ -51,7 +52,7 @@ namespace music.Core.Netease.Mapping
             }
         }
 
-        public static PlaylistDetailInfo? ParsePlaylistInfo(string json)
+        public static PlaylistDetailInfo? ParsePlaylistInfo(string json, IApiLog? log = null)
         {
             try
             {
@@ -93,12 +94,12 @@ namespace music.Core.Netease.Mapping
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetPlaylistInfo Error: {ex.Message}");
+                log?.Write($"GetPlaylistInfo parse error: {ex.Message}");
             }
             return null;
         }
 
-        public static string? FindFavoritePlaylistId(string json)
+        public static string? FindFavoritePlaylistId(string json, IApiLog? log = null)
         {
             try
             {
@@ -118,7 +119,7 @@ namespace music.Core.Netease.Mapping
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] FindFavoritePlaylistId Error: {ex.Message}");
+                log?.Write($"FindFavoritePlaylistId parse error: {ex.Message}");
             }
             return null;
         }

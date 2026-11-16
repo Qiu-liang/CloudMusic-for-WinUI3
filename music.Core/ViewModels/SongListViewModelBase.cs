@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
-using music.Models;
 
 namespace music.Core.ViewModels
 {

@@ -8,10 +8,10 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using music.Composition;
+using music.Core.Models;
 using music.Core.Mvvm;
+using music.Core.Services;
 using music.Core.ViewModels;
-using music.Models;
-using music.Services;
 
 namespace music
 {
@@ -32,9 +32,9 @@ namespace music
 
         internal MainWindow(AppCompositionRoot root)
         {
+            _root = root;
             InitializeComponent();
 
-            _root = root;
             root.InitializeUi(this.DispatcherQueue);
             root.AttachMainWindow(this, ContentFrame, ApplyTheme);
 
@@ -68,8 +68,12 @@ namespace music
 
             SyncShellToUi();
             SyncPlayerBarToUi();
+            Bindings?.Update();
             _shellVm.InitializeSessionRestore();
         }
+
+        public ShellViewModel ShellVm => _shellVm;
+        public PlayerBarViewModel PlayerBarVm => _playerBarVm;
 
         private void MainWindow_Closed(object sender, WindowEventArgs args)
         {
@@ -85,23 +89,9 @@ namespace music
 
         private void ShellVm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            switch (e.PropertyName)
+            if (e.PropertyName == nameof(ShellViewModel.ShowBackBar))
             {
-                case nameof(ShellViewModel.LoginStatusText):
-                    LoginStatusText.Text = _shellVm.LoginStatusText;
-                    break;
-                case nameof(ShellViewModel.LoginSubText):
-                    LoginSubText.Text = _shellVm.LoginSubText;
-                    break;
-                case nameof(ShellViewModel.ShowLogoutButton):
-                    LogoutButton.Visibility = _shellVm.ShowLogoutButton ? Visibility.Visible : Visibility.Collapsed;
-                    break;
-                case nameof(ShellViewModel.ShowVipBadge):
-                    VipBadge.Visibility = _shellVm.ShowVipBadge ? Visibility.Visible : Visibility.Collapsed;
-                    break;
-                case nameof(ShellViewModel.ShowBackBar):
-                    SyncBackBarToUi();
-                    break;
+                SyncBackBarToUi();
             }
         }
 
@@ -114,12 +104,6 @@ namespace music
         {
             switch (e.PropertyName)
             {
-                case nameof(PlayerBarViewModel.SongTitle):
-                    SongTitle.Text = _playerBarVm.SongTitle;
-                    break;
-                case nameof(PlayerBarViewModel.ArtistName):
-                    ArtistName.Text = _playerBarVm.ArtistName;
-                    break;
                 case nameof(PlayerBarViewModel.CoverUrl):
                 case nameof(PlayerBarViewModel.HasCover):
                     SyncCoverToUi();
@@ -129,21 +113,6 @@ namespace music
                     break;
                 case nameof(PlayerBarViewModel.CurrentSongLiked):
                     LikeIcon.Glyph = _playerBarVm.CurrentSongLiked ? "\uE735" : "\uE734";
-                    break;
-                case nameof(PlayerBarViewModel.IsLikeEnabled):
-                    LikeButton.IsEnabled = _playerBarVm.IsLikeEnabled;
-                    break;
-                case nameof(PlayerBarViewModel.IsDownloadEnabled):
-                    DownloadButton.IsEnabled = _playerBarVm.IsDownloadEnabled;
-                    break;
-                case nameof(PlayerBarViewModel.CurrentTimeText):
-                    CurrentTime.Text = _playerBarVm.CurrentTimeText;
-                    break;
-                case nameof(PlayerBarViewModel.TotalTimeText):
-                    TotalTime.Text = _playerBarVm.TotalTimeText;
-                    break;
-                case nameof(PlayerBarViewModel.ProgressPercent):
-                    ProgressSlider.Value = _playerBarVm.ProgressPercent;
                     break;
                 case nameof(PlayerBarViewModel.VolumePercent):
                     _syncingVolume = true;
@@ -163,16 +132,8 @@ namespace music
                 case nameof(PlayerBarViewModel.RepeatMode):
                     SyncRepeatToUi();
                     break;
-                case nameof(PlayerBarViewModel.QualityText):
-                    QualityText.Text = _playerBarVm.QualityText;
-                    break;
                 case nameof(PlayerBarViewModel.QualityOptions):
                     SyncQualityOptionsToUi();
-                    break;
-                case nameof(PlayerBarViewModel.IsErrorOpen):
-                case nameof(PlayerBarViewModel.ErrorMessage):
-                    PlaybackErrorInfoBar.Message = _playerBarVm.ErrorMessage;
-                    PlaybackErrorInfoBar.IsOpen = _playerBarVm.IsErrorOpen;
                     break;
             }
         }
@@ -187,11 +148,7 @@ namespace music
 
         private void SyncShellToUi()
         {
-            LoginStatusText.Text = _shellVm.LoginStatusText;
-            LoginSubText.Text = _shellVm.LoginSubText;
             LoginIcon.Symbol = Symbol.Contact;
-            LogoutButton.Visibility = _shellVm.ShowLogoutButton ? Visibility.Visible : Visibility.Collapsed;
-            VipBadge.Visibility = _shellVm.ShowVipBadge ? Visibility.Visible : Visibility.Collapsed;
             SyncBackBarToUi();
         }
 
@@ -199,16 +156,11 @@ namespace music
         {
             PlayPauseIcon.Glyph = _playerBarVm.IsPlaying ? "\uE769" : "\uE768";
             LikeIcon.Glyph = _playerBarVm.CurrentSongLiked ? "\uE735" : "\uE734";
-            LikeButton.IsEnabled = _playerBarVm.IsLikeEnabled;
-            DownloadButton.IsEnabled = _playerBarVm.IsDownloadEnabled;
             ShuffleButton.Opacity = _playerBarVm.IsShuffleEnabled ? 1.0 : 0.5;
             SyncRepeatToUi();
-            QualityText.Text = _playerBarVm.QualityText;
             SyncQualityOptionsToUi();
             if (_playerBarVm.CurrentSong != null)
             {
-                SongTitle.Text = _playerBarVm.SongTitle;
-                ArtistName.Text = _playerBarVm.ArtistName;
                 SyncCoverToUi();
             }
         }

@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Models;
 
 namespace music.Core.Netease.Mapping
 {
     internal static class CloudJsonMapper
     {
-        public static List<CloudSongInfo> ParseCloudSongs(string json)
+        public static List<CloudSongInfo> ParseCloudSongs(string json, IApiLog? log = null)
         {
             var songs = new List<CloudSongInfo>();
             var result = JsonSerializer.Deserialize<JsonElement>(json);
@@ -95,7 +96,7 @@ namespace music.Core.Netease.Mapping
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[API] Cloud item parse error: {ex.Message}");
+                        log?.Write($"Cloud item parse error: {ex.Message}");
                     }
                 }
 

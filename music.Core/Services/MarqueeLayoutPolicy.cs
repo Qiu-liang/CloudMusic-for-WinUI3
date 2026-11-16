@@ -1,6 +1,6 @@
 using System;
 
-namespace music.Services
+namespace music.Core.Services
 {
     public readonly record struct MarqueeScrollMetrics(
         bool ShouldScroll,

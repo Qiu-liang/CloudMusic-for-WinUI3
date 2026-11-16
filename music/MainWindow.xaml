@@ -77,11 +77,11 @@
                     <StackPanel VerticalAlignment="Center" Spacing="1">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBlock x:Name="LoginStatusText" 
-                                       Text="未登录"
+                                       Text="{x:Bind ShellVm.LoginStatusText, Mode=OneWay}"
                                        Style="{StaticResource BodyStrongTextBlockStyle}"
                                        FontSize="13"/>
                             <Border x:Name="VipBadge"
-                                    Visibility="Collapsed"
+                                    Visibility="{x:Bind ShellVm.ShowVipBadge, Mode=OneWay}"
                                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                                     CornerRadius="4"
                                     Padding="6,2"
@@ -93,7 +93,7 @@
                             </Border>
                         </StackPanel>
                         <TextBlock x:Name="LoginSubText" 
-                                   Text="点击登录"
+                                   Text="{x:Bind ShellVm.LoginSubText, Mode=OneWay}"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -103,7 +103,7 @@
                             Padding="4"
                             Background="Transparent"
                             BorderThickness="0"
-                            Visibility="Collapsed"
+                            Visibility="{x:Bind ShellVm.ShowLogoutButton, Mode=OneWay}"
                             ToolTipService.ToolTip="退出登录"
                             VerticalAlignment="Center">
                         <FontIcon Glyph="&#xE7E8;" FontSize="14"/>
@@ -264,7 +264,8 @@
                      MaxWidth="640"
                      Severity="Error"
                      Title="播放失败"
-                     IsOpen="False"
+                     Message="{x:Bind PlayerBarVm.ErrorMessage, Mode=OneWay}"
+                     IsOpen="{x:Bind PlayerBarVm.IsErrorOpen, Mode=OneWay}"
                      IsClosable="True"
                      Canvas.ZIndex="20"/>
 
@@ -311,20 +312,21 @@
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <TextBlock x:Name="SongTitle" 
-                                   Text="未播放"
+                                   Text="{x:Bind PlayerBarVm.SongTitle, Mode=OneWay}"
                                    Style="{StaticResource BodyStrongTextBlockStyle}"
                                    FontSize="14"
                                    MaxLines="1"
                                    TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis"/>
                         <controls:MarqueeText x:Name="ArtistName" 
+                                              Text="{x:Bind PlayerBarVm.ArtistName, Mode=OneWay}"
                                               FontSize="12"
                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                               HorizontalAlignment="Stretch"/>
                         <StackPanel Orientation="Horizontal" Spacing="2">
                             <Button x:Name="LikeButton"
                                     Click="LikeButton_Click"
-                                    IsEnabled="False"
+                                    IsEnabled="{x:Bind PlayerBarVm.IsLikeEnabled, Mode=OneWay}"
                                     Padding="4,2"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -333,7 +335,7 @@
                             </Button>
                             <Button x:Name="DownloadButton"
                                     Click="DownloadButton_Click"
-                                    IsEnabled="False"
+                                    IsEnabled="{x:Bind PlayerBarVm.IsDownloadEnabled, Mode=OneWay}"
                                     Padding="4,2"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -402,7 +404,7 @@
                         
                         <TextBlock x:Name="CurrentTime" 
                                    Grid.Column="0"
-                                   Text="00:00" 
+                                   Text="{x:Bind PlayerBarVm.CurrentTimeText, Mode=OneWay}" 
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
                                    Width="36"
@@ -414,13 +416,14 @@
                                 MinWidth="150"
                                 Height="27"
                                 Minimum="0" Maximum="100" 
+                                Value="{x:Bind PlayerBarVm.ProgressPercent, Mode=OneWay}"
                                 ValueChanged="ProgressSlider_ValueChanged"
                                 IsThumbToolTipEnabled="False"
                                 VerticalAlignment="Center"
                                 Margin="0,-2,0,0"/>
                         <TextBlock x:Name="TotalTime" 
                                    Grid.Column="2"
-                                   Text="00:00" 
+                                   Text="{x:Bind PlayerBarVm.TotalTimeText, Mode=OneWay}" 
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontSize="11"
                                    Width="36"
@@ -443,7 +446,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <FontIcon Glyph="&#xE7F4;" FontSize="14"/>
                             <TextBlock x:Name="QualityText" 
-                                       Text="标准" 
+                                       Text="{x:Bind PlayerBarVm.QualityText, Mode=OneWay}" 
                                        FontSize="12"
                                        VerticalAlignment="Center"/>
                         </StackPanel>

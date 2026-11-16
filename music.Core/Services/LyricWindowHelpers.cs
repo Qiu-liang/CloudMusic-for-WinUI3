@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using music.Models;
+using music.Core.Models;
 
-namespace music.Services
+namespace music.Core.Services
 {
     /// <summary>
     /// Pure helper algorithms for <see cref="music.LyricsWindow"/> so lookup and spring math

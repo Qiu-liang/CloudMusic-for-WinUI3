@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Services;
-using music.Models;
 
 namespace music.Core.ViewModels
 {
@@ -13,6 +13,7 @@ namespace music.Core.ViewModels
         private readonly IRecommendationService _recommendationService;
         private readonly ISessionService _sessionService;
         private readonly IDialogService _dialogs;
+        private readonly IApiLog _log;
         private string _pageType = "daily";
         private string _title = "推荐歌曲";
 
@@ -27,6 +28,7 @@ namespace music.Core.ViewModels
             _recommendationService = recommendationService;
             _sessionService = sessionService;
             _dialogs = dialogs;
+            _log = log;
 
             RetryCommand = new AsyncRelayCommand(() => LoadAsync(_pageType), log: log);
             LoginCommand = new AsyncRelayCommand(LoginAndReloadAsync, log: log);
@@ -57,21 +59,21 @@ namespace music.Core.ViewModels
                 {
                     case "intelligence":
                         Title = "你的红心歌曲和相似推荐";
-                        var intelRes = await _recommendationService.GetIntelligenceSongsAsync();
+                        var intelRes = await _recommendationService.GetIntelligenceSongsAsync(token);
                         songs = intelRes.Value;
                         if (!intelRes.Success) failureMessage = intelRes.Status.DisplayMessage;
                         emptyMessage = "暂无智能推荐";
                         break;
                     case "guess":
                         Title = "猜你喜欢的歌";
-                        var guessRes = await _recommendationService.GetPersonalizedSongsAsync(100);
+                        var guessRes = await _recommendationService.GetPersonalizedSongsAsync(100, token);
                         songs = guessRes.Value;
                         if (!guessRes.Success) failureMessage = guessRes.Status.DisplayMessage;
                         emptyMessage = "暂无推荐歌曲";
                         break;
                     default:
                         Title = "推荐歌曲";
-                        var res = await _recommendationService.GetDailyRecommendSongsAsync(100);
+                        var res = await _recommendationService.GetDailyRecommendSongsAsync(100, token);
                         songs = res.Value;
                         if (!res.Success) failureMessage = res.Status.DisplayMessage;
                         emptyMessage = "每日推荐为空";
@@ -90,9 +92,12 @@ namespace music.Core.ViewModels
                 SetSongs(songs);
                 ShowContent();
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[RecommendAll] Load Error: {ex.Message}");
+                _log.Write($"RecommendAll Load Error: {ex}");
                 if (IsCurrentLoad(version, token))
                     ShowError("加载失败");
             }

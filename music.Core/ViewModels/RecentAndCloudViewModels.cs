@@ -1,13 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
-using music.Models;
-using music.Services;
 
 namespace music.Core.ViewModels
 {
@@ -46,44 +46,50 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var result = await _profileService.GetRecentSongsAsync(100);
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
-                _songModels.Clear();
-                Songs.Clear();
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
+                var result = await _profileService.GetRecentSongsAsync(100, token);
+                if (!IsCurrentLoad(version, token)) return;
 
-            var songs = result.Value;
-            if (songs.Count == 0)
-            {
-                _songModels.Clear();
-                Songs.Clear();
-                ShowEmpty();
-                return;
-            }
-
-            _songModels = songs;
-            Songs.Clear();
-            foreach (var song in songs)
-            {
-                Songs.Add(new RecentSongItem
+                if (!result.Success)
                 {
-                    Id = song.Id,
-                    Name = song.Name,
-                    Artist = song.Artist,
-                    AlbumName = song.AlbumName,
-                    DurationFormatted = song.DurationFormatted,
-                    PlayTimeFormatted = song.PlayTimeFormatted,
-                    PlatformName = song.PlatformName,
-                    IsVip = song.IsVip
-                });
-            }
+                    _songModels.Clear();
+                    Songs.Clear();
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
 
-            ShowContent();
+                var songs = result.Value;
+                if (songs.Count == 0)
+                {
+                    _songModels.Clear();
+                    Songs.Clear();
+                    ShowEmpty();
+                    return;
+                }
+
+                _songModels = songs;
+                Songs.Clear();
+                foreach (var song in songs)
+                {
+                    Songs.Add(new RecentSongItem
+                    {
+                        Id = song.Id,
+                        Name = song.Name,
+                        Artist = song.Artist,
+                        AlbumName = song.AlbumName,
+                        DurationFormatted = song.DurationFormatted,
+                        PlayTimeFormatted = song.PlayTimeFormatted,
+                        PlatformName = song.PlatformName,
+                        IsVip = song.IsVip
+                    });
+                }
+
+                ShowContent();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
         }
 
         public Task PlaySongAsync(RecentSongItem? item)
@@ -160,47 +166,53 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var result = await _cloudService.GetCloudSongsAsync();
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
-                _songModels.Clear();
-                Songs.Clear();
-                SongsCountText = string.Empty;
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
+                var result = await _cloudService.GetCloudSongsAsync(cancellationToken: token);
+                if (!IsCurrentLoad(version, token)) return;
 
-            if (result.Value.Count == 0)
-            {
-                _songModels.Clear();
-                Songs.Clear();
-                SongsCountText = "共 0 首";
-                ShowEmpty();
-                return;
-            }
-
-            _songModels = result.Value;
-            Songs.Clear();
-            foreach (var song in result.Value)
-            {
-                Songs.Add(new CloudSongItem
+                if (!result.Success)
                 {
-                    SongId = song.SongId,
-                    SongName = song.SongName,
-                    Artist = song.Artist,
-                    Album = song.Album,
-                    FileName = song.FileName,
-                    CoverUrl = song.CoverUrl,
-                    FileSizeFormatted = song.FileSizeFormatted,
-                    DurationFormatted = song.DurationFormatted,
-                    AddTimeFormatted = song.AddTimeFormatted
-                });
-            }
+                    _songModels.Clear();
+                    Songs.Clear();
+                    SongsCountText = string.Empty;
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
 
-            SongsCountText = $"共 {Songs.Count} 首";
-            ShowContent();
+                if (result.Value.Count == 0)
+                {
+                    _songModels.Clear();
+                    Songs.Clear();
+                    SongsCountText = "共 0 首";
+                    ShowEmpty();
+                    return;
+                }
+
+                _songModels = result.Value;
+                Songs.Clear();
+                foreach (var song in result.Value)
+                {
+                    Songs.Add(new CloudSongItem
+                    {
+                        SongId = song.SongId,
+                        SongName = song.SongName,
+                        Artist = song.Artist,
+                        Album = song.Album,
+                        FileName = song.FileName,
+                        CoverUrl = song.CoverUrl,
+                        FileSizeFormatted = song.FileSizeFormatted,
+                        DurationFormatted = song.DurationFormatted,
+                        AddTimeFormatted = song.AddTimeFormatted
+                    });
+                }
+
+                SongsCountText = $"共 {Songs.Count} 首";
+                ShowContent();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
         }
 
         private async Task LoginAndReloadAsync()

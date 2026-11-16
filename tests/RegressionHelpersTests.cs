@@ -1,5 +1,7 @@
-using music.Models;
-using music.Services;
+using music.Core.Models;
+using music.Core.Netease;
+using music.Core.Results;
+using music.Core.Services;
 using Xunit;
 
 namespace music.Tests;

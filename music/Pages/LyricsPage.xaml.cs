@@ -5,8 +5,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.ViewModels;
-using music.Models;
 
 namespace music.Pages
 {

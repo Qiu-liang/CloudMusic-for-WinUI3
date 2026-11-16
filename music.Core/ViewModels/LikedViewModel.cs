@@ -1,8 +1,8 @@
+using System;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
 using music.Core.Mvvm;
 using music.Core.Services;
-using music.Services;
 
 namespace music.Core.ViewModels
 {
@@ -51,25 +51,31 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var result = await _libraryService.GetLikedSongsAsync(limit: 0, bypassCache: true);
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
-                ClearSongs(string.Empty);
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
+                var result = await _libraryService.GetLikedSongsAsync(limit: 0, bypassCache: true, token);
+                if (!IsCurrentLoad(version, token)) return;
 
-            if (result.Value.Count == 0)
+                if (!result.Success)
+                {
+                    ClearSongs(string.Empty);
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
+
+                if (result.Value.Count == 0)
+                {
+                    ClearSongs();
+                    ShowEmpty();
+                    return;
+                }
+
+                SetSongs(result.Value, forceLiked: true);
+                ShowContent();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
             {
-                ClearSongs();
-                ShowEmpty();
-                return;
             }
-
-            SetSongs(result.Value, forceLiked: true);
-            ShowContent();
         }
 
         private async Task LoginAndReloadAsync()

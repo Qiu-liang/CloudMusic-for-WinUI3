@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Models;
 
 namespace music.Core.Netease.Mapping
 {
@@ -52,7 +53,7 @@ namespace music.Core.Netease.Mapping
             return users;
         }
 
-        public static List<RecentSong> ParseRecentSongs(string json)
+        public static List<RecentSong> ParseRecentSongs(string json, IApiLog? log = null)
         {
             var songs = new List<RecentSong>();
             var result = JsonSerializer.Deserialize<JsonElement>(json);
@@ -104,7 +105,7 @@ namespace music.Core.Netease.Mapping
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[API] Recent song parse error: {ex.Message}");
+                            log?.Write($"Recent song parse error: {ex.Message}");
                         }
                 }
             }

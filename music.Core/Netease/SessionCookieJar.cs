@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using music.Core.Abstractions;
-using music.Services;
 
 namespace music.Core.Netease
 {

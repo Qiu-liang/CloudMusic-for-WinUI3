@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using music.Core.Results;
 
-namespace music.Services
+namespace music.Core.Netease
 {
     /// <summary>
     /// Parsed /song/url/v1 item metadata returned by the API.

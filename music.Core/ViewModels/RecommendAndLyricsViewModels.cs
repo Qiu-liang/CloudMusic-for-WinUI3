@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Results;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
-using music.Models;
-using music.Services;
 
 namespace music.Core.ViewModels
 {
@@ -18,6 +17,7 @@ namespace music.Core.ViewModels
         private readonly ISessionService _sessionService;
         private readonly IPlaybackCoordinator _playback;
         private readonly INavigationService _navigation;
+        private readonly IApiLog _log;
 
         private List<Song> _dailyModels = new();
         private List<Song> _personalizedModels = new();
@@ -36,6 +36,7 @@ namespace music.Core.ViewModels
             _sessionService = sessionService;
             _playback = playback;
             _navigation = navigation;
+            _log = log;
 
             Playlists = new ObservableCollection<PlaylistItem>();
             PersonalizedSongs = new ObservableCollection<SongItem>();
@@ -76,20 +77,20 @@ namespace music.Core.ViewModels
                 var isLoggedIn = _sessionService.IsLoggedIn;
 
                 // 严格保留原有 6 次 API 调用顺序
-                var playlistsResult = await _recommendationService.GetRecommendedPlaylistsAsync(20);
+                var playlistsResult = await _recommendationService.GetRecommendedPlaylistsAsync(20, token);
                 if (!IsCurrentLoad(version, token)) return;
-                var personalizedResult = await _recommendationService.GetPersonalizedSongsAsync(20);
+                var personalizedResult = await _recommendationService.GetPersonalizedSongsAsync(20, token);
                 if (!IsCurrentLoad(version, token)) return;
-                var dailyResult = await _recommendationService.GetDailyRecommendSongsAsync(38);
+                var dailyResult = await _recommendationService.GetDailyRecommendSongsAsync(38, token);
                 if (!IsCurrentLoad(version, token)) return;
                 var radarResult = isLoggedIn
-                    ? await _recommendationService.GetRecommendResourceAsync()
+                    ? await _recommendationService.GetRecommendResourceAsync(token)
                     : ApiResult<List<RecommendedPlaylist>>.Ok(new List<RecommendedPlaylist>());
                 if (!IsCurrentLoad(version, token)) return;
-                var guessResult = await _recommendationService.GetPersonalizedSongsAsync(38);
+                var guessResult = await _recommendationService.GetPersonalizedSongsAsync(38, token);
                 if (!IsCurrentLoad(version, token)) return;
                 var likedResult = isLoggedIn
-                    ? await _recommendationService.GetIntelligenceSongsAsync()
+                    ? await _recommendationService.GetIntelligenceSongsAsync(token)
                     : ApiResult<List<Song>>.Ok(new List<Song>());
                 if (!IsCurrentLoad(version, token)) return;
 
@@ -146,9 +147,12 @@ namespace music.Core.ViewModels
 
                 ShowContent();
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Recommend] Load Error: {ex.Message}");
+                _log.Write($"Recommend Load Error: {ex}");
                 if (IsCurrentLoad(version, token))
                     ShowError("加载失败，请稍后重试");
             }

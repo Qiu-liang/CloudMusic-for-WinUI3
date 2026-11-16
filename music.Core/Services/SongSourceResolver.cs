@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
 using music.Core.Netease;
-using music.Services;
+using music.Core.Results;
 
 namespace music.Core.Services
 {

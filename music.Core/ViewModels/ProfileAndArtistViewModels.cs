@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
@@ -15,6 +16,7 @@ namespace music.Core.ViewModels
         private readonly ISessionService _sessionService;
         private readonly INavigationService _navigation;
         private readonly IPageRequestFactory _requestFactory;
+        private readonly IApiLog _log;
 
         private string _nickname = string.Empty;
         private string _avatarUrl = string.Empty;
@@ -29,12 +31,14 @@ namespace music.Core.ViewModels
             IProfileService profileService,
             ISessionService sessionService,
             INavigationService navigation,
-            IPageRequestFactory requestFactory)
+            IPageRequestFactory requestFactory,
+            IApiLog? log = null)
         {
             _profileService = profileService;
             _sessionService = sessionService;
             _navigation = navigation;
             _requestFactory = requestFactory;
+            _log = log ?? NullApiLog.Instance;
             ForceLogoutCommand = new RelayCommand(ForceLogout);
         }
 
@@ -78,7 +82,7 @@ namespace music.Core.ViewModels
 
             try
             {
-                var userResult = await _profileService.GetUserDetailAsync(_sessionService.UserId);
+                var userResult = await _profileService.GetUserDetailAsync(_sessionService.UserId, token);
                 if (!IsCurrentLoad(version, token)) return;
 
                 var userInfo = userResult.Value;
@@ -96,7 +100,7 @@ namespace music.Core.ViewModels
                     }
                 }
 
-                IsVip = await _sessionService.CheckVipStatusAsync();
+                IsVip = await _sessionService.CheckVipStatusAsync(token);
                 if (!IsCurrentLoad(version, token)) return;
 
                 if (!userResult.Success && string.IsNullOrEmpty(Nickname))
@@ -108,9 +112,13 @@ namespace music.Core.ViewModels
                     ShowForceLogout = true;
                 }
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+                return;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Profile] LoadError: {ex.Message}");
+                _log.Write($"Profile LoadError: {ex}");
             }
 
             if (string.IsNullOrEmpty(Nickname))
@@ -166,54 +174,60 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var result = await _playlistService.GetUserPlaylistsAsync(_sessionService.UserId);
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
+                var result = await _playlistService.GetUserPlaylistsAsync(_sessionService.UserId, cancellationToken: token);
+                if (!IsCurrentLoad(version, token)) return;
+
+                if (!result.Success)
+                {
+                    CreatedPlaylists.Clear();
+                    CollectedPlaylists.Clear();
+                    OnPropertyChanged(nameof(HasCreated));
+                    OnPropertyChanged(nameof(HasCollected));
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
+
+                var allPlaylists = result.Value;
+
+                var created = new List<PlaylistItem>();
+                var collected = new List<PlaylistItem>();
+
+                foreach (var p in allPlaylists)
+                {
+                    var item = new PlaylistItem
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        PicUrl = p.CoverImgUrl,
+                        TrackCount = p.TrackCount,
+                        PlayCount = p.PlayCount,
+                        PlayCountFormatted = p.PlayCountFormatted
+                    };
+
+                    if (p.CreatorId == _sessionService.UserId)
+                        created.Add(item);
+                    else
+                        collected.Add(item);
+                }
+
                 CreatedPlaylists.Clear();
+                foreach (var item in created) CreatedPlaylists.Add(item);
                 CollectedPlaylists.Clear();
+                foreach (var item in collected) CollectedPlaylists.Add(item);
+
                 OnPropertyChanged(nameof(HasCreated));
                 OnPropertyChanged(nameof(HasCollected));
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
 
-            var allPlaylists = result.Value;
-
-            var created = new List<PlaylistItem>();
-            var collected = new List<PlaylistItem>();
-
-            foreach (var p in allPlaylists)
-            {
-                var item = new PlaylistItem
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    PicUrl = p.CoverImgUrl,
-                    TrackCount = p.TrackCount,
-                    PlayCount = p.PlayCount,
-                    PlayCountFormatted = p.PlayCountFormatted
-                };
-
-                if (p.CreatorId == _sessionService.UserId)
-                    created.Add(item);
+                if (CreatedPlaylists.Count == 0 && CollectedPlaylists.Count == 0)
+                    ShowEmpty();
                 else
-                    collected.Add(item);
+                    ShowContent();
             }
-
-            CreatedPlaylists.Clear();
-            foreach (var item in created) CreatedPlaylists.Add(item);
-            CollectedPlaylists.Clear();
-            foreach (var item in collected) CollectedPlaylists.Add(item);
-
-            OnPropertyChanged(nameof(HasCreated));
-            OnPropertyChanged(nameof(HasCollected));
-
-            if (CreatedPlaylists.Count == 0 && CollectedPlaylists.Count == 0)
-                ShowEmpty();
-            else
-                ShowContent();
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
         }
 
         public void OpenPlaylist(PlaylistItem? playlist)
@@ -261,40 +275,46 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var result = isFollowsMode
-                ? await _profileService.GetFollowsAsync(_sessionService.UserId)
-                : await _profileService.GetFollowedsAsync(_sessionService.UserId);
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
-                Users.Clear();
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
+                var result = isFollowsMode
+                    ? await _profileService.GetFollowsAsync(_sessionService.UserId, cancellationToken: token)
+                    : await _profileService.GetFollowedsAsync(_sessionService.UserId, cancellationToken: token);
+                if (!IsCurrentLoad(version, token)) return;
 
-            var users = result.Value;
-
-            Users.Clear();
-            foreach (var u in users)
-            {
-                Users.Add(new FollowUserItem
+                if (!result.Success)
                 {
-                    UserId = u.UserId,
-                    Nickname = u.Nickname,
-                    AvatarUrl = u.AvatarUrl,
-                    Signature = u.Signature
-                });
-            }
+                    Users.Clear();
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
 
-            if (Users.Count == 0)
-            {
-                EmptyText = isFollowsMode ? "暂无关注" : "暂无粉丝";
-                ShowEmpty();
+                var users = result.Value;
+
+                Users.Clear();
+                foreach (var u in users)
+                {
+                    Users.Add(new FollowUserItem
+                    {
+                        UserId = u.UserId,
+                        Nickname = u.Nickname,
+                        AvatarUrl = u.AvatarUrl,
+                        Signature = u.Signature
+                    });
+                }
+
+                if (Users.Count == 0)
+                {
+                    EmptyText = isFollowsMode ? "暂无关注" : "暂无粉丝";
+                    ShowEmpty();
+                }
+                else
+                {
+                    ShowContent();
+                }
             }
-            else
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
             {
-                ShowContent();
             }
         }
 
@@ -310,6 +330,7 @@ namespace music.Core.ViewModels
         private readonly IProfileService _profileService;
         private readonly IPlaybackCoordinator _playback;
         private readonly IPageRequestFactory _requestFactory;
+        private readonly IApiLog _log;
 
         private string _title = "歌手详情";
         private string _artistName = string.Empty;
@@ -325,12 +346,14 @@ namespace music.Core.ViewModels
             IArtistService artistService,
             IProfileService profileService,
             IPlaybackCoordinator playback,
-            IPageRequestFactory requestFactory)
+            IPageRequestFactory requestFactory,
+            IApiLog? log = null)
         {
             _artistService = artistService;
             _profileService = profileService;
             _playback = playback;
             _requestFactory = requestFactory;
+            _log = log ?? NullApiLog.Instance;
         }
 
         public NavigationRequest CreateChildRequest(PageKey key, object? parameter = null) =>
@@ -392,7 +415,7 @@ namespace music.Core.ViewModels
 
                 if (long.TryParse(artistId, out var uid))
                 {
-                    var userResult = await _profileService.GetUserDetailAsync(uid);
+                    var userResult = await _profileService.GetUserDetailAsync(uid, token);
                     if (!IsCurrentLoad(version, token)) return;
 
                     var userInfo = userResult.Value;
@@ -441,9 +464,12 @@ namespace music.Core.ViewModels
                 ShowPlayAll = false;
                 ShowContent();
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[ArtistDetail] LoadArtistInfo Error: {ex.Message}");
+                _log.Write($"ArtistDetail LoadArtistInfo Error: {ex}");
                 if (IsCurrentLoad(version, token))
                 {
                     Title = "加载失败";
@@ -453,10 +479,10 @@ namespace music.Core.ViewModels
             }
         }
 
-        public Task PlaySongsAsync(IReadOnlyList<Models.Song>? songs)
+        public Task PlaySongsAsync(IReadOnlyList<Song>? songs)
         {
             if (songs == null || songs.Count == 0) return Task.CompletedTask;
-            return _playback.PlayAsync(new List<Models.Song>(songs), 0);
+            return _playback.PlayAsync(new List<Song>(songs), 0);
         }
     }
 
@@ -479,31 +505,37 @@ namespace music.Core.ViewModels
             var (version, token) = BeginLoad();
             ShowLoading();
 
-            var result = await _artistService.GetArtistAlbumsAsync(artistId, 50, token);
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
-                Albums.Clear();
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
+                var result = await _artistService.GetArtistAlbumsAsync(artistId, 50, token);
+                if (!IsCurrentLoad(version, token)) return;
 
-            var albums = result.Value;
-
-            Albums.Clear();
-            foreach (var a in albums)
-            {
-                Albums.Add(new AlbumItem
+                if (!result.Success)
                 {
-                    Id = a.Id,
-                    Name = a.Name,
-                    PicUrl = a.PicUrl,
-                    Size = a.Size
-                });
-            }
+                    Albums.Clear();
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
 
-            ShowContent();
+                var albums = result.Value;
+
+                Albums.Clear();
+                foreach (var a in albums)
+                {
+                    Albums.Add(new AlbumItem
+                    {
+                        Id = a.Id,
+                        Name = a.Name,
+                        PicUrl = a.PicUrl,
+                        Size = a.Size
+                    });
+                }
+
+                ShowContent();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
+            {
+            }
         }
 
         public void OpenAlbum(AlbumItem? album)
@@ -550,33 +582,39 @@ namespace music.Core.ViewModels
             var (version, token) = BeginLoad();
             ShowLoading();
 
-            var result = await _artistService.GetArtistDetailAsync(artistId, token);
-            if (!IsCurrentLoad(version, token)) return;
-
-            if (!result.Success)
+            try
             {
-                ShowError(result.Status.DisplayMessage);
-                return;
-            }
+                var result = await _artistService.GetArtistDetailAsync(artistId, token);
+                if (!IsCurrentLoad(version, token)) return;
 
-            var info = result.Value;
-            if (info != null)
+                if (!result.Success)
+                {
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
+
+                var info = result.Value;
+                if (info != null)
+                {
+                    ArtistName = info.Name;
+                    ImageUrl = info.PicUrl;
+                    if (info.Aliases.Count > 0)
+                    {
+                        AliasText = string.Join("、", info.Aliases);
+                        ShowAlias = true;
+                    }
+                    if (!string.IsNullOrEmpty(info.BriefDesc))
+                    {
+                        Description = info.BriefDesc;
+                        ShowDescription = true;
+                    }
+                }
+
+                ShowContent();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || IsDisposed)
             {
-                ArtistName = info.Name;
-                ImageUrl = info.PicUrl;
-                if (info.Aliases.Count > 0)
-                {
-                    AliasText = string.Join("、", info.Aliases);
-                    ShowAlias = true;
-                }
-                if (!string.IsNullOrEmpty(info.BriefDesc))
-                {
-                    Description = info.BriefDesc;
-                    ShowDescription = true;
-                }
             }
-
-            ShowContent();
         }
     }
 }

@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
-using music.Services;
+using music.Core.Results;
 
 namespace music.Core.Netease
 {
@@ -99,7 +99,7 @@ namespace music.Core.Netease
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] Error: {ex.Message}");
+                _log.Write($"{method} {url} 网络异常: {ex.Message}");
                 return new ApiResponse(ApiResult.NetworkError(), string.Empty);
             }
             finally

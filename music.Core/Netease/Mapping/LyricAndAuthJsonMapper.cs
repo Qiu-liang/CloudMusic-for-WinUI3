@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Models;
 
 namespace music.Core.Netease.Mapping
 {
     internal static class LyricJsonMapper
     {
-        public static LyricInfo? ParseLyricInfo(string json)
+        public static LyricInfo? ParseLyricInfo(string json, IApiLog? log = null)
         {
             try
             {
@@ -30,7 +31,7 @@ namespace music.Core.Netease.Mapping
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetLyrics Error: {ex.Message}");
+                log?.Write($"GetLyrics parse error: {ex.Message}");
                 return null;
             }
         }

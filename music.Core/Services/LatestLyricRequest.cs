@@ -1,6 +1,6 @@
 using System.Threading;
 
-namespace music.Services
+namespace music.Core.Services
 {
     public sealed class LatestLyricRequest
     {

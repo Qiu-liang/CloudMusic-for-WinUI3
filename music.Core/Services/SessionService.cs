@@ -3,10 +3,10 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Netease;
 using music.Core.Netease.Mapping;
 using music.Core.Results;
-using music.Services;
 
 namespace music.Core.Services
 {
@@ -19,16 +19,16 @@ namespace music.Core.Services
         event EventHandler? SessionCleared;
         event EventHandler? VipStatusRefreshed;
 
-        Task InitializeAsync();
-        Task<bool> LoginAnonymouslyAsync();
-        Task<(bool Success, string Message, int Code, string RawResponse)> LoginWithPhoneAsync(string phone, string password);
+        Task InitializeAsync(CancellationToken cancellationToken = default);
+        Task<bool> LoginAnonymouslyAsync(CancellationToken cancellationToken = default);
+        Task<(bool Success, string Message, int Code, string RawResponse)> LoginWithPhoneAsync(string phone, string password, CancellationToken cancellationToken = default);
         Task<QrCodePayload?> GenerateQrCodeAsync(CancellationToken cancellationToken = default);
         Task<ApiResult<QrLoginStatusResult>> CheckQrStatusAsync(string key, CancellationToken cancellationToken = default);
-        Task<bool> SetLoginCookieAsync(string cookie);
-        Task<ApiResult<UserInfo?>> GetUserInfoAsync();
+        Task<bool> SetLoginCookieAsync(string cookie, CancellationToken cancellationToken = default);
+        Task<ApiResult<UserInfo?>> GetUserInfoAsync(CancellationToken cancellationToken = default);
         UserInfo? GetCachedUserInfo();
         bool GetVipStatus();
-        Task<bool> CheckVipStatusAsync();
+        Task<bool> CheckVipStatusAsync(CancellationToken cancellationToken = default);
         void ResetLogin();
     }
 
@@ -63,9 +63,7 @@ namespace music.Core.Services
             _cookieJar.LoadFromStore();
             _userId = _settings.ContainsKey(UserIdKey) ? _settings.GetInt64(UserIdKey) : 0;
 
-            _log.Write($"ctor: cookieNames=[{string.Join(",", _cookieJar.GetCookieNamesSnapshot())}] userId={_userId} baseUrl={_endpoint.BaseUrl}");
-            System.Diagnostics.Debug.WriteLine($"[API] DeviceId: {_transport.DeviceId}");
-            System.Diagnostics.Debug.WriteLine($"[API] HasCookie: {_cookieJar.HasCookie}");
+            _log.Write($"ctor: cookieNames=[{string.Join(",", _cookieJar.GetCookieNamesSnapshot())}] userId={_userId} baseUrl={_endpoint.BaseUrl} deviceId={_transport.DeviceId} hasCookie={_cookieJar.HasCookie}");
         }
 
         public bool IsLoggedIn => _cookieJar.HasCookie && _userId > 0;
@@ -77,29 +75,29 @@ namespace music.Core.Services
         public event EventHandler? SessionCleared;
         public event EventHandler? VipStatusRefreshed;
 
-        public async Task InitializeAsync()
+        public async Task InitializeAsync(CancellationToken cancellationToken = default)
         {
             _cookieJar.LoadFromStore();
             if (_cookieJar.HasCookie)
             {
                 _userId = _settings.ContainsKey(UserIdKey) ? _settings.GetInt64(UserIdKey) : 0;
                 _log.Write($"InitializeAsync: 恢复登录 userId={_userId} cookieNames=[{string.Join(",", _cookieJar.GetCookieNamesSnapshot())}]");
-                if (_userId == 0) await GetUserInfoAsync().ConfigureAwait(false);
+                if (_userId == 0) await GetUserInfoAsync(cancellationToken).ConfigureAwait(false);
                 return;
             }
 
             _log.Write("InitializeAsync: 无 Cookie，走匿名登录");
-            await LoginAnonymouslyAsync().ConfigureAwait(false);
+            await LoginAnonymouslyAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<bool> LoginAnonymouslyAsync()
+        public async Task<bool> LoginAnonymouslyAsync(CancellationToken cancellationToken = default)
         {
             try
             {
-                var response = await _transport.GetAsync("/register/anonimous").ConfigureAwait(false);
+                var response = await _transport.GetAsync("/register/anonimous", cancellationToken).ConfigureAwait(false);
                 if (!response.Success)
                 {
-                    System.Diagnostics.Debug.WriteLine("[API] Anonymous login failed");
+                    _log.Write("Anonymous login failed");
                     return false;
                 }
 
@@ -110,21 +108,28 @@ namespace music.Core.Services
                         ? cookieElement.GetString() ?? string.Empty
                         : string.Empty;
                     _cookieJar.MergeAndSave(cookie);
-                    System.Diagnostics.Debug.WriteLine("[API] Anonymous login success");
+                    _log.Write("Anonymous login success");
                     return true;
                 }
 
-                System.Diagnostics.Debug.WriteLine("[API] Anonymous login failed");
+                _log.Write("Anonymous login failed");
                 return false;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] Anonymous Login Error: {ex.Message}");
+                _log.Write($"Anonymous Login Error: {ex}");
                 return false;
             }
         }
 
-        public async Task<(bool Success, string Message, int Code, string RawResponse)> LoginWithPhoneAsync(string phone, string password)
+        public async Task<(bool Success, string Message, int Code, string RawResponse)> LoginWithPhoneAsync(
+            string phone,
+            string password,
+            CancellationToken cancellationToken = default)
         {
             var allowInsecure = _settings.GetBoolean(AllowInsecureLoginKey);
             if (!_endpoint.IsSecureConnection && !_endpoint.IsLoopbackServer && !allowInsecure)
@@ -133,7 +138,7 @@ namespace music.Core.Services
             try
             {
                 var url = $"/login/cellphone?phone={Uri.EscapeDataString(phone)}&password={Uri.EscapeDataString(password)}";
-                var response = await _transport.GetWithoutCookieAsync(url).ConfigureAwait(false);
+                var response = await _transport.GetWithoutCookieAsync(url, cancellationToken).ConfigureAwait(false);
                 var json = string.IsNullOrEmpty(response.Body) ? "{}" : response.Body;
                 _log.Write("Phone login request completed without logging credentials.");
 
@@ -153,18 +158,22 @@ namespace music.Core.Services
                     _settings.SetInt64(UserIdKey, _userId);
                     SessionChanged?.Invoke(this, EventArgs.Empty);
 
-                    System.Diagnostics.Debug.WriteLine($"[API] Login success, UserId: {_userId}");
+                    _log.Write($"Login success, UserId: {_userId}");
                     return (true, "登录成功", 200, json);
                 }
 
                 var message = result.TryGetProperty("message", out var msg) ? msg.GetString() ?? "未知错误" : "未知错误";
                 var errorCode = result.TryGetProperty("code", out var errCode) ? errCode.GetInt32() : -1;
-                System.Diagnostics.Debug.WriteLine($"[API] Login failed: {message} (Code: {errorCode})");
+                _log.Write($"Login failed: {message} (Code: {errorCode})");
                 return (false, message, errorCode, json);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] Login Error: {ex.Message}");
+                _log.Write($"Login Error: {ex}");
                 return (false, ex.Message, -1, string.Empty);
             }
         }
@@ -215,7 +224,7 @@ namespace music.Core.Services
             }
         }
 
-        public async Task<bool> SetLoginCookieAsync(string cookie)
+        public async Task<bool> SetLoginCookieAsync(string cookie, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(cookie)) return false;
 
@@ -224,7 +233,7 @@ namespace music.Core.Services
 
             for (var attempt = 0; attempt < 3; attempt++)
             {
-                var infoResult = await GetUserInfoAsync().ConfigureAwait(false);
+                var infoResult = await GetUserInfoAsync(cancellationToken).ConfigureAwait(false);
                 if (infoResult.Value != null)
                 {
                     _userId = infoResult.Value.UserId;
@@ -241,18 +250,18 @@ namespace music.Core.Services
                     return true;
                 }
 
-                if (attempt < 2) await Task.Delay(500).ConfigureAwait(false);
+                if (attempt < 2) await Task.Delay(500, cancellationToken).ConfigureAwait(false);
             }
 
             if (IsLoggedIn) SessionChanged?.Invoke(this, EventArgs.Empty);
             return IsLoggedIn;
         }
 
-        public async Task<ApiResult<UserInfo?>> GetUserInfoAsync()
+        public async Task<ApiResult<UserInfo?>> GetUserInfoAsync(CancellationToken cancellationToken = default)
         {
             try
             {
-                var accountResp = await _transport.GetAsync("/user/account").ConfigureAwait(false);
+                var accountResp = await _transport.GetAsync("/user/account", cancellationToken).ConfigureAwait(false);
                 if (!accountResp.Success)
                 {
                     return ApiResult<UserInfo?>.Fail(accountResp.Result, null);
@@ -266,7 +275,7 @@ namespace music.Core.Services
                     _userId = uid;
                     _log.Write($"/user/account: 认证成功 uid={uid} cookieNames=[{string.Join(",", _cookieJar.GetCookieNamesSnapshot())}]");
 
-                    var detailResp = await _transport.GetAsync($"/user/detail?uid={uid}").ConfigureAwait(false);
+                    var detailResp = await _transport.GetAsync($"/user/detail?uid={uid}", cancellationToken).ConfigureAwait(false);
                     if (!detailResp.Success)
                     {
                         return ApiResult<UserInfo?>.Fail(detailResp.Result, null);
@@ -321,23 +330,27 @@ namespace music.Core.Services
 
         public bool GetVipStatus() => _settings.GetBoolean(IsVipKey);
 
-        public async Task<bool> CheckVipStatusAsync()
+        public async Task<bool> CheckVipStatusAsync(CancellationToken cancellationToken = default)
         {
             try
             {
-                var resp = await _transport.GetAsync("/vip/info").ConfigureAwait(false);
+                var resp = await _transport.GetAsync("/vip/info", cancellationToken).ConfigureAwait(false);
                 var json = resp.Success ? resp.Body : "{}";
                 var isVip = SongUrlPolicy.EvaluateVipStatus(json);
 
                 _settings.SetBoolean(IsVipKey, isVip);
                 VipStatusRefreshed?.Invoke(this, EventArgs.Empty);
 
-                System.Diagnostics.Debug.WriteLine($"[API] VIP Status: {isVip}");
+                _log.Write($"VIP Status: {isVip}");
                 return isVip;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] CheckVipStatus Error: {ex.Message}");
+                _log.Write($"CheckVipStatus Error: {ex}");
                 return false;
             }
         }

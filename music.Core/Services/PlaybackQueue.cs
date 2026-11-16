@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace music.Services
+namespace music.Core.Services
 {
     public sealed class PlaybackQueue<T>
     {

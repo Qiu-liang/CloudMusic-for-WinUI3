@@ -1,5 +1,5 @@
 using System.Linq;
-using music.Services;
+using music.Core.Netease;
 using Xunit;
 
 namespace music.Tests;

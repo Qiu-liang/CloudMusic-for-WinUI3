@@ -8,12 +8,12 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
+using music.Core.Netease;
 using music.Core.Results;
 using music.Core.Services;
 using music.Core.ViewModels;
-using music.Models;
-using music.Services;
 using Xunit;
 
 namespace music.Tests;
@@ -80,19 +80,19 @@ public class ViewModelsAndArchitectureTests
         public event EventHandler? SessionCleared { add { } remove { } }
         public event EventHandler? VipStatusRefreshed { add { } remove { } }
 
-        public Task InitializeAsync() => Task.CompletedTask;
-        public Task<bool> LoginAnonymouslyAsync() => Task.FromResult(true);
-        public Task<(bool Success, string Message, int Code, string RawResponse)> LoginWithPhoneAsync(string phone, string password) =>
+        public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task<bool> LoginAnonymouslyAsync(CancellationToken ct = default) => Task.FromResult(true);
+        public Task<(bool Success, string Message, int Code, string RawResponse)> LoginWithPhoneAsync(string phone, string password, CancellationToken ct = default) =>
             Task.FromResult(NextPhoneResult);
         public Task<QrCodePayload?> GenerateQrCodeAsync(CancellationToken ct = default) =>
             Task.FromResult(NextQrPayload);
         public Task<ApiResult<QrLoginStatusResult>> CheckQrStatusAsync(string key, CancellationToken ct = default) =>
             Task.FromResult(NextQrStatusResult);
-        public Task<bool> SetLoginCookieAsync(string cookie) => Task.FromResult(true);
-        public Task<ApiResult<UserInfo?>> GetUserInfoAsync() => Task.FromResult(NextUserInfoResult);
+        public Task<bool> SetLoginCookieAsync(string cookie, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<ApiResult<UserInfo?>> GetUserInfoAsync(CancellationToken ct = default) => Task.FromResult(NextUserInfoResult);
         public UserInfo? GetCachedUserInfo() => CachedUser;
         public bool GetVipStatus() => VipStatus;
-        public Task<bool> CheckVipStatusAsync() => Task.FromResult(VipStatus);
+        public Task<bool> CheckVipStatusAsync(CancellationToken ct = default) => Task.FromResult(VipStatus);
         public void ResetLogin()
         {
             IsLoggedIn = false;
@@ -110,12 +110,12 @@ public class ViewModelsAndArchitectureTests
         public event EventHandler<SongLikeChangedEventArgs>? SongLikeChanged;
 
         public bool IsSongLiked(string? songId) => songId != null && LikedIds.Contains(songId);
-        public Task EnsureLikedSongIdsLoadedAsync() => Task.CompletedTask;
-        public Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false) =>
+        public Task EnsureLikedSongIdsLoadedAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false, CancellationToken ct = default) =>
             Task.FromResult(ApiResult<List<string>>.Ok(LikedIds.ToList()));
-        public Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true) =>
+        public Task<ApiResult<List<Song>>> GetLikedSongsAsync(int limit = 0, bool bypassCache = true, CancellationToken ct = default) =>
             Task.FromResult(NextLikedSongsResult);
-        public Task<ApiResult> LikeSongAsync(string songId, bool like = true)
+        public Task<ApiResult> LikeSongAsync(string songId, bool like = true, CancellationToken ct = default)
         {
             if (NextLikeResult.Success)
             {
@@ -125,8 +125,10 @@ public class ViewModelsAndArchitectureTests
             }
             return Task.FromResult(NextLikeResult);
         }
-        public Task<bool> IsFavoritePlaylistAsync(string? playlistId) => Task.FromResult(false);
-        public Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false) => Task.FromResult(string.Empty);
+        public Task<bool> IsFavoritePlaylistAsync(string? playlistId, CancellationToken ct = default) => Task.FromResult(false);
+        public Task<string> GetFavoritePlaylistIdAsync(bool bypassCache = false, CancellationToken ct = default) => Task.FromResult(string.Empty);
+        public Task<ApiResult<List<Song>>> LoadPlaylistSongsAsync(string playlistId, bool bypassCache = true, CancellationToken ct = default) =>
+            Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
         public void ClearState() => LikedIds.Clear();
     }
 
@@ -207,17 +209,22 @@ public class ViewModelsAndArchitectureTests
     {
         public event EventHandler? UserPlaylistsChanged;
         public List<PlaylistInfo> UserPlaylists { get; set; } = new();
-        public Task<ApiResult<List<PlaylistInfo>>> GetUserPlaylistsAsync(long uid, bool bypassCache = false) =>
+        public Task<ApiResult<List<PlaylistInfo>>> GetUserPlaylistsAsync(long uid, bool bypassCache = false, CancellationToken ct = default) =>
             Task.FromResult(ApiResult<List<PlaylistInfo>>.Ok(UserPlaylists));
-        public Task<ApiResult<List<Song>>> GetPlaylistDetailAsync(string playlistId, bool bypassCache = true) =>
+        public Task<ApiResult<List<Song>>> GetPlaylistDetailAsync(string playlistId, bool bypassCache = true, CancellationToken ct = default) =>
             Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
-        public Task<PlaylistDetailInfo?> GetPlaylistInfoAsync(string playlistId, bool bypassCache = true) => Task.FromResult<PlaylistDetailInfo?>(null);
-        public Task<AlbumDetailInfo?> GetAlbumInfoAsync(string albumId) => Task.FromResult<AlbumDetailInfo?>(null);
-        public Task<ApiResult<List<Song>>> GetAlbumSongsAsync(string albumId) =>
+        public Task<PlaylistDetailInfo?> GetPlaylistInfoAsync(string playlistId, bool bypassCache = true, CancellationToken ct = default) =>
+            Task.FromResult<PlaylistDetailInfo?>(null);
+        public Task<AlbumDetailInfo?> GetAlbumInfoAsync(string albumId, CancellationToken ct = default) =>
+            Task.FromResult<AlbumDetailInfo?>(null);
+        public Task<ApiResult<List<Song>>> GetAlbumSongsAsync(string albumId, CancellationToken ct = default) =>
             Task.FromResult(ApiResult<List<Song>>.Ok(new List<Song>()));
-        public Task<ApiResult> CreatePlaylistAsync(string name) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, ""));
-        public Task<ApiResult> DeletePlaylistAsync(string playlistId) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, ""));
-        public Task<ApiResult> SetPlaylistSubscriptionAsync(string playlistId, bool subscribe) => Task.FromResult(new ApiResult(true, ApiErrorKind.None, ""));
+        public Task<ApiResult> CreatePlaylistAsync(string name, CancellationToken ct = default) =>
+            Task.FromResult(new ApiResult(true, ApiErrorKind.None, ""));
+        public Task<ApiResult> DeletePlaylistAsync(string playlistId, CancellationToken ct = default) =>
+            Task.FromResult(new ApiResult(true, ApiErrorKind.None, ""));
+        public Task<ApiResult> SetPlaylistSubscriptionAsync(string playlistId, bool subscribe, CancellationToken ct = default) =>
+            Task.FromResult(new ApiResult(true, ApiErrorKind.None, ""));
         public void NotifyUserPlaylistsChanged() => UserPlaylistsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -230,13 +237,13 @@ public class ViewModelsAndArchitectureTests
         public ApiResult? NextError { get; set; }
         public Task<List<SearchSuggestion>> GetSearchSuggestionsAsync(string keywords, CancellationToken ct = default) =>
             Task.FromResult(new List<SearchSuggestion> { new() { Name = keywords, Artist = "Art" } });
-        public Task<ApiResult<List<Song>>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0) =>
+        public Task<ApiResult<List<Song>>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0, CancellationToken ct = default) =>
             Task.FromResult(NextError != null ? ApiResult<List<Song>>.Fail(NextError, new List<Song>()) : ApiResult<List<Song>>.Ok(Songs));
-        public Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(string keywords, int limit = 10) =>
+        public Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(string keywords, int limit = 10, CancellationToken ct = default) =>
             Task.FromResult(NextError != null ? ApiResult<List<SearchArtistInfo>>.Fail(NextError, new List<SearchArtistInfo>()) : ApiResult<List<SearchArtistInfo>>.Ok(Artists));
-        public Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(string keywords, int limit = 10) =>
+        public Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(string keywords, int limit = 10, CancellationToken ct = default) =>
             Task.FromResult(NextError != null ? ApiResult<List<RecommendedPlaylist>>.Fail(NextError, new List<RecommendedPlaylist>()) : ApiResult<List<RecommendedPlaylist>>.Ok(Playlists));
-        public Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(string keywords, int limit = 10) =>
+        public Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(string keywords, int limit = 10, CancellationToken ct = default) =>
             Task.FromResult(NextError != null ? ApiResult<List<SearchAlbumInfo>>.Fail(NextError, new List<SearchAlbumInfo>()) : ApiResult<List<SearchAlbumInfo>>.Ok(Albums));
     }
 
@@ -244,35 +251,35 @@ public class ViewModelsAndArchitectureTests
     {
         public List<string> CallOrder { get; } = new();
         public ApiResult? NextError { get; set; }
-        public Task<ApiResult<List<Song>>> GetDailyRecommendSongsAsync(int limit = 30)
+        public Task<ApiResult<List<Song>>> GetDailyRecommendSongsAsync(int limit = 30, CancellationToken ct = default)
         {
             CallOrder.Add("daily");
             return Task.FromResult(NextError != null
                 ? ApiResult<List<Song>>.Fail(NextError, new List<Song>())
                 : ApiResult<List<Song>>.Ok(new List<Song> { new() { Id = "d1", Name = "Daily1" } }));
         }
-        public Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendedPlaylistsAsync(int limit = 10)
+        public Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendedPlaylistsAsync(int limit = 10, CancellationToken ct = default)
         {
             CallOrder.Add("playlists");
             return Task.FromResult(NextError != null
                 ? ApiResult<List<RecommendedPlaylist>>.Fail(NextError, new List<RecommendedPlaylist>())
                 : ApiResult<List<RecommendedPlaylist>>.Ok(new List<RecommendedPlaylist> { new() { Id = "p1", Name = "Play1" } }));
         }
-        public Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendResourceAsync()
+        public Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendResourceAsync(CancellationToken ct = default)
         {
             CallOrder.Add("radar");
             return Task.FromResult(NextError != null
                 ? ApiResult<List<RecommendedPlaylist>>.Fail(NextError, new List<RecommendedPlaylist>())
                 : ApiResult<List<RecommendedPlaylist>>.Ok(new List<RecommendedPlaylist> { new() { Id = "r1", Name = "Radar1" } }));
         }
-        public Task<ApiResult<List<Song>>> GetPersonalizedSongsAsync(int limit = 10)
+        public Task<ApiResult<List<Song>>> GetPersonalizedSongsAsync(int limit = 10, CancellationToken ct = default)
         {
             CallOrder.Add($"personalized:{limit}");
             return Task.FromResult(NextError != null
                 ? ApiResult<List<Song>>.Fail(NextError, new List<Song>())
                 : ApiResult<List<Song>>.Ok(new List<Song> { new() { Id = "s1", Name = "Per1" } }));
         }
-        public Task<ApiResult<List<Song>>> GetIntelligenceSongsAsync()
+        public Task<ApiResult<List<Song>>> GetIntelligenceSongsAsync(CancellationToken ct = default)
         {
             CallOrder.Add("intelligence");
             return Task.FromResult(NextError != null
@@ -712,6 +719,35 @@ public class ViewModelsAndArchitectureTests
         await searchAllSongsVm.LoadAsync("jay");
         Assert.Equal(LoadState.Error, searchAllSongsVm.State);
         Assert.Equal("坏 JSON", searchAllSongsVm.ErrorMessage);
+    }
+
+    [Fact]
+    public void ArchitectureGuard_CoreUsesConsistentNamespacesAndNoDebugWriteLine()
+    {
+        var repoRoot = FindRepoRoot();
+        var coreDir = Path.Combine(repoRoot, "music.Core");
+
+        var legacyNsRegex = new Regex(@"^namespace\s+music\.(Models|Services)\b", RegexOptions.Multiline | RegexOptions.Compiled);
+        var debugWriteRegex = new Regex(@"\bDebug\.WriteLine\b", RegexOptions.Compiled);
+
+        var violations = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(coreDir, "*.cs", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(coreDir, file).Replace('\\', '/');
+            if (rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) ||
+                rel.StartsWith("obj/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var content = File.ReadAllText(file);
+            if (legacyNsRegex.IsMatch(content))
+                violations.Add($"{rel}: legacy namespace");
+            if (debugWriteRegex.IsMatch(content))
+                violations.Add($"{rel}: Debug.WriteLine");
+        }
+
+        Assert.Empty(violations);
     }
 
     private sealed class TrackingDispatcher : IUiDispatcher

@@ -1,6 +1,7 @@
 using System.Text.Json;
+using music.Core.Netease;
 
-namespace music.Services
+namespace music.Core.Results
 {
     public enum ApiErrorKind
     {

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
+using music.Core.Models;
 using music.Core.Mvvm;
-using music.Models;
-using music.Services;
 
 namespace music.Core.ViewModels.Items
 {

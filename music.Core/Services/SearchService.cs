@@ -2,21 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Netease;
 using music.Core.Netease.Mapping;
 using music.Core.Results;
-using music.Models;
-using music.Services;
 
 namespace music.Core.Services
 {
     public interface ISearchService
     {
         Task<List<SearchSuggestion>> GetSearchSuggestionsAsync(string keywords, CancellationToken cancellationToken = default);
-        Task<ApiResult<List<Song>>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0);
-        Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(string keywords, int limit = 10);
-        Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(string keywords, int limit = 10);
-        Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(string keywords, int limit = 10);
+        Task<ApiResult<List<Song>>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0, CancellationToken cancellationToken = default);
+        Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(string keywords, int limit = 10, CancellationToken cancellationToken = default);
+        Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(string keywords, int limit = 10, CancellationToken cancellationToken = default);
+        Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(string keywords, int limit = 10, CancellationToken cancellationToken = default);
     }
 
     public sealed class SearchService : ISearchService
@@ -24,15 +24,18 @@ namespace music.Core.Services
         private readonly NeteaseHttpTransport _transport;
         private readonly ILibraryService _libraryService;
         private readonly IQualityService _qualityService;
+        private readonly IApiLog _log;
 
         public SearchService(
             NeteaseHttpTransport transport,
             ILibraryService libraryService,
-            IQualityService qualityService)
+            IQualityService qualityService,
+            IApiLog? log = null)
         {
             _transport = transport;
             _libraryService = libraryService;
             _qualityService = qualityService;
+            _log = log ?? NullApiLog.Instance;
         }
 
         public async Task<List<SearchSuggestion>> GetSearchSuggestionsAsync(string keywords, CancellationToken cancellationToken = default)
@@ -50,17 +53,22 @@ namespace music.Core.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] SearchSuggestions Error: {ex.Message}");
+                _log.Write($"SearchSuggestions Error: {ex}");
                 return new List<SearchSuggestion>();
             }
         }
 
-        public async Task<ApiResult<List<Song>>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0)
+        public async Task<ApiResult<List<Song>>> SearchSongsAsync(
+            string keywords,
+            int limit = 30,
+            int offset = 0,
+            CancellationToken cancellationToken = default)
         {
             try
             {
                 var resp = await _transport.GetAsync(
-                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&limit={limit}&offset={offset}").ConfigureAwait(false);
+                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&limit={limit}&offset={offset}",
+                    cancellationToken).ConfigureAwait(false);
                 if (!resp.Success)
                 {
                     return ApiResult<List<Song>>.Fail(resp.Result, new List<Song>());
@@ -72,72 +80,100 @@ namespace music.Core.Services
                     _qualityService.CachePrivilege);
                 return ApiResult<List<Song>>.Ok(songs);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] Search Error: {ex.Message}");
+                _log.Write($"SearchSongs Error: {ex}");
                 return ApiResult<List<Song>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<Song>());
             }
         }
 
-        public async Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(string keywords, int limit = 10)
+        public async Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(
+            string keywords,
+            int limit = 10,
+            CancellationToken cancellationToken = default)
         {
             try
             {
                 var resp = await _transport.GetAsync(
-                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=100&limit={limit}").ConfigureAwait(false);
+                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=100&limit={limit}",
+                    cancellationToken).ConfigureAwait(false);
                 if (!resp.Success)
                 {
                     return ApiResult<List<SearchArtistInfo>>.Fail(resp.Result, new List<SearchArtistInfo>());
                 }
                 return ApiResult<List<SearchArtistInfo>>.Ok(ArtistJsonMapper.ParseSearchArtists(resp.Body));
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] SearchArtists Error: {ex.Message}");
+                _log.Write($"SearchArtists Error: {ex}");
                 return ApiResult<List<SearchArtistInfo>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<SearchArtistInfo>());
             }
         }
 
-        public async Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(string keywords, int limit = 10)
+        public async Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(
+            string keywords,
+            int limit = 10,
+            CancellationToken cancellationToken = default)
         {
             try
             {
                 var resp = await _transport.GetAsync(
-                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=1000&limit={limit}").ConfigureAwait(false);
+                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=1000&limit={limit}",
+                    cancellationToken).ConfigureAwait(false);
                 if (!resp.Success)
                 {
                     return ApiResult<List<RecommendedPlaylist>>.Fail(resp.Result, new List<RecommendedPlaylist>());
                 }
                 return ApiResult<List<RecommendedPlaylist>>.Ok(PlaylistJsonMapper.ParseSearchPlaylists(resp.Body));
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] SearchPlaylists Error: {ex.Message}");
+                _log.Write($"SearchPlaylists Error: {ex}");
                 return ApiResult<List<RecommendedPlaylist>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<RecommendedPlaylist>());
             }
         }
 
-        public async Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(string keywords, int limit = 10)
+        public async Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(
+            string keywords,
+            int limit = 10,
+            CancellationToken cancellationToken = default)
         {
             try
             {
                 var resp = await _transport.GetAsync(
-                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=10&limit={limit}").ConfigureAwait(false);
+                    $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=10&limit={limit}",
+                    cancellationToken).ConfigureAwait(false);
                 if (!resp.Success)
                 {
                     return ApiResult<List<SearchAlbumInfo>>.Fail(resp.Result, new List<SearchAlbumInfo>());
                 }
                 return ApiResult<List<SearchAlbumInfo>>.Ok(AlbumJsonMapper.ParseSearchAlbums(resp.Body));
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[API] SearchAlbums Error: {ex.Message}");
+                _log.Write($"SearchAlbums Error: {ex}");
                 return ApiResult<List<SearchAlbumInfo>>.Fail(
                     new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
                     new List<SearchAlbumInfo>());

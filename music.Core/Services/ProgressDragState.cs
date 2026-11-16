@@ -1,6 +1,6 @@
 using System;
 
-namespace music.Services
+namespace music.Core.Services
 {
     public sealed class ProgressDragState
     {

@@ -4,11 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
+using music.Core.Models;
 using music.Core.Netease;
+using music.Core.Results;
 using music.Core.Services;
-using music.Models;
-using music.Services;
 using Xunit;
 
 namespace music.Tests;
@@ -47,9 +48,9 @@ public class CoreServicesTests
         session.SessionChanged += (_, _) => quality.ClearCache();
         session.VipStatusRefreshed += (_, _) => quality.ClearCache();
 
-        var library = new LibraryService(transport, quality, session);
-        var playlist = new PlaylistService(transport, library, quality);
-        var recommendation = new RecommendationService(transport, session, library, quality, jar);
+        var library = new LibraryService(transport, quality, session, log);
+        var playlist = new PlaylistService(transport, library, quality, log);
+        var recommendation = new RecommendationService(transport, session, library, quality, jar, log);
 
         return new TestHarness(settings, creds, log, endpoint, jar, transport, quality, songSource, library, session, playlist, recommendation);
     }
@@ -372,9 +373,71 @@ public class CoreServicesTests
             Assert.False(dailyRes.Success);
             Assert.Equal(ApiErrorKind.InvalidResponse, dailyRes.Status.Error);
 
-            var recPlaylistsRes = await badSchema.Recommendation.GetRecommendedPlaylistsAsync();
+            var recPlaylistsRes = await badSchema.Recommendation.GetRecommendedPlaylistsAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.False(recPlaylistsRes.Success);
             Assert.Equal(ApiErrorKind.InvalidResponse, recPlaylistsRes.Status.Error);
+        }
+    }
+
+    [Fact]
+    public async Task ServicesPropagateCancellationTokenToTransport()
+    {
+        var slowHandler = new FakeHttpMessageHandler(async (_, ct) =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            return FakeHttpMessageHandler.Json("{\"code\":200}");
+        });
+
+        using var h = CreateHarness(_ => FakeHttpMessageHandler.Json("{\"code\":200}"));
+        var settings = h.Settings;
+        var log = h.Log;
+        var endpoint = h.Endpoint;
+        var jar = h.CookieJar;
+        using var transport = new NeteaseHttpTransport(endpoint, jar, settings, log, slowHandler);
+        var quality = new QualityService(transport, settings, log);
+        var session = new SessionService(transport, endpoint, jar, settings, log);
+        var library = new LibraryService(transport, quality, session, log);
+        var playlist = new PlaylistService(transport, library, quality, log);
+        var search = new SearchService(transport, library, quality, log);
+        var cloud = new CloudService(transport, session, log);
+        var profile = new ProfileService(transport, log);
+        var rec = new RecommendationService(transport, session, library, quality, jar, log);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => playlist.GetUserPlaylistsAsync(1, cancellationToken: cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => playlist.GetPlaylistDetailAsync("1", cancellationToken: cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => search.SearchSongsAsync("q", cancellationToken: cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cloud.GetCloudSongsAsync(cancellationToken: cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => profile.GetRecentSongsAsync(cancellationToken: cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rec.GetRecommendedPlaylistsAsync(cancellationToken: cts.Token));
+    }
+
+    [Fact]
+    public void AsyncRotatingFileLog_WritesAsynchronouslyAndRotatesWhenExceedingLimit()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "CloudMusicLogTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            var logPath = Path.Combine(tempRoot, "api_debug.log");
+            using (var logger = new AsyncRotatingFileLog(logPath, maxFileBytes: 256))
+            {
+                for (var i = 0; i < 20; i++)
+                {
+                    logger.Write($"Entry-{i:D2}-" + new string('X', 32));
+                }
+            }
+
+            Assert.True(File.Exists(logPath));
+            Assert.True(File.Exists(logPath + ".1"));
+            var activeContent = File.ReadAllText(logPath);
+            Assert.Contains("Entry-19", activeContent);
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); } catch { }
         }
     }
 }

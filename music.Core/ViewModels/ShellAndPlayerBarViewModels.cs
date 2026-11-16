@@ -5,10 +5,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
+using music.Core.Models;
 using music.Core.Mvvm;
+using music.Core.Netease;
+using music.Core.Results;
 using music.Core.Services;
-using music.Models;
-using music.Services;
 
 namespace music.Core.ViewModels
 {

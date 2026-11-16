@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using music.Core.Netease;
 
-namespace music.Services
+namespace music.Core.Services
 {
     public sealed class SongLikeChangedEventArgs : EventArgs
     {
