@@ -1,341 +1,166 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
+using System.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
-using Windows.Storage;
-using Windows.Storage.Pickers;
-using Windows.System;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Mvvm;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
     public sealed partial class SettingsPage : Page
     {
-        private bool _isUpdatingQuality;
+        public SettingsViewModel? ViewModel { get; private set; }
+        private bool _isSyncingUi;
 
         public SettingsPage()
         {
-            this.InitializeComponent();
-            LoadSettings();
+            InitializeComponent();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            SyncDownloadFolderState();
-        }
 
-        private void LoadSettings()
-        {
-            var settings = ApplicationData.Current.LocalSettings;
-
-            // 加载主题设置
-            var theme = settings.Values["Theme"]?.ToString() ?? "System";
-            ThemeComboBox.SelectedIndex = theme switch
+            if (e.Parameter is NavigationRequest request)
             {
-                "Light" => 1,
-                "Dark" => 2,
-                _ => 0
-            };
-
-            // 加载服务器地址
-            var serverAddress = settings.Values["ServerAddress"]?.ToString() ?? Services.MusicApiService.DefaultServerAddress;
-            ServerAddressBox.Text = serverAddress;
-            AllowInsecureLoginCheckBox.IsChecked = settings.Values["AllowInsecureLogin"] as bool? ?? false;
-
-            // 加载音质设置
-            var storedQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-            var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
-            var privilege = MainWindow.PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
-            var quality = privilege != null
-                ? privilege.ResolveFallbackQuality(storedQuality, isVip)
-                : SongUrlPolicy.NormalizeQuality(storedQuality);
-            if (!string.Equals(storedQuality, quality, StringComparison.Ordinal))
-            {
-                settings.Values["AudioQuality"] = quality;
+                DetachViewModel();
+                ViewModel = (SettingsViewModel)request.CreateViewModel();
+                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+                ViewModel.Load();
+                SyncAllFromViewModel();
             }
-            SyncQualitySelection(quality);
-
-            // 加载下载目录设置
-            SyncDownloadFolderState();
-
-            // 加载实验性功能设置
-            var fancyLyrics = settings.Values["FancyLyrics"] as bool? ?? false;
-            FancyLyricsComboBox.SelectedIndex = fancyLyrics ? 1 : 0;
+            else
+            {
+                ViewModel?.SyncDownloadFolderState();
+            }
         }
 
-        private void SyncDownloadFolderState()
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            if (DownloadFolderBox == null || ResetDownloadFolderButton == null) return;
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
+        }
 
-            var currentFolder = DownloadFolderStore.GetCurrentFolder();
-            var defaultFolder = DownloadFolderStore.GetDefaultFolder();
-            DownloadFolderBox.Text = currentFolder;
-            ResetDownloadFolderButton.IsEnabled = !DownloadFolderPolicy.IsDefaultDownloadFolder(currentFolder, defaultFolder);
+        private void DetachViewModel()
+        {
+            if (ViewModel != null)
+            {
+                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+                ViewModel.Dispose();
+                ViewModel = null;
+            }
+        }
+
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            SyncAllFromViewModel();
+        }
+
+        private void SyncAllFromViewModel()
+        {
+            if (ViewModel == null) return;
+            _isSyncingUi = true;
+            try
+            {
+                ThemeComboBox.SelectedIndex = ViewModel.ThemeIndex;
+                if (ServerAddressBox.Text != ViewModel.ServerAddress)
+                    ServerAddressBox.Text = ViewModel.ServerAddress;
+                AllowInsecureLoginCheckBox.IsChecked = ViewModel.AllowInsecureLogin;
+
+                ServerStatusText.Text = ViewModel.ServerStatusText;
+                ServerStatusText.Foreground = GetToneBrush(ViewModel.ServerStatusTone);
+                TestConnectionButton.IsEnabled = ViewModel.CanTestConnection;
+
+                for (int i = 0; i < ViewModel.QualityOptions.Count && i < QualityComboBox.Items.Count; i++)
+                {
+                    if (QualityComboBox.Items[i] is ComboBoxItem item)
+                    {
+                        item.Content = ViewModel.QualityOptions[i].Text;
+                        item.Opacity = ViewModel.QualityOptions[i].Opacity;
+                    }
+                }
+                QualityComboBox.SelectedIndex = ViewModel.QualityIndex;
+
+                DownloadFolderBox.Text = ViewModel.DownloadFolder;
+                ResetDownloadFolderButton.IsEnabled = ViewModel.CanResetDownloadFolder;
+                DownloadFolderStatusText.Text = ViewModel.DownloadFolderStatusText;
+                DownloadFolderStatusText.Foreground = GetToneBrush(ViewModel.DownloadFolderStatusTone);
+                DownloadFolderStatusText.Visibility = ViewModel.ShowDownloadFolderStatus ? Visibility.Visible : Visibility.Collapsed;
+
+                ClearLoginStatusText.Text = ViewModel.ClearLoginStatusText;
+                ClearLoginStatusText.Visibility = ViewModel.ShowClearLoginStatus ? Visibility.Visible : Visibility.Collapsed;
+
+                FancyLyricsComboBox.SelectedIndex = ViewModel.FancyLyricsIndex;
+            }
+            finally
+            {
+                _isSyncingUi = false;
+            }
+        }
+
+        private static Brush GetToneBrush(StatusTone tone)
+        {
+            var key = tone switch
+            {
+                StatusTone.Success => "SystemFillColorSuccessBrush",
+                StatusTone.Caution => "SystemFillColorCautionBrush",
+                StatusTone.Critical => "SystemFillColorCriticalBrush",
+                _ => "TextFillColorSecondaryBrush"
+            };
+            return (Brush)Application.Current.Resources[key];
         }
 
         private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (ThemeComboBox.SelectedIndex < 0) return;
-
-            var settings = ApplicationData.Current.LocalSettings;
-            var theme = ThemeComboBox.SelectedIndex switch
-            {
-                1 => "Light",
-                2 => "Dark",
-                _ => "System"
-            };
-            settings.Values["Theme"] = theme;
-
-            if (App.m_window is MainWindow mainWindow)
-                mainWindow.ApplyTheme(theme);
+            if (_isSyncingUi || ViewModel == null || ThemeComboBox.SelectedIndex < 0) return;
+            ViewModel.SelectTheme(ThemeComboBox.SelectedIndex);
         }
 
         private void SaveServerButton_Click(object sender, RoutedEventArgs e)
         {
-            var address = ServerAddressBox.Text.Trim();
-            
-            if (string.IsNullOrEmpty(address))
-            {
-                ServerStatusText.Text = "请输入服务器地址";
-                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-                return;
-            }
-
-            if (!Uri.TryCreate(address.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? address : "http://" + address, UriKind.Absolute, out var uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-            {
-                ServerStatusText.Text = "请输入有效的 HTTP 或 HTTPS 地址";
-                return;
-            }
-
-            address = uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
-            ServerAddressBox.Text = address;
-
-            try
-            {
-                App.ApiService.UpdateBaseUrl(address);
-            }
-            catch (Exception ex)
-            {
-                // 保存失败只提示，不让异常冒到 UI 线程把进程带走
-                ServerStatusText.Text = $"保存失败：{ex.Message}";
-                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-                return;
-            }
-
-            ServerStatusText.Text = uri.Scheme == Uri.UriSchemeHttps
-                ? "已保存并立即生效，登录凭据将通过 HTTPS 传输。"
-                : "已保存并立即生效。警告：HTTP 为明文传输，请勿用于不可信网络；手机号密码登录仅允许本机 HTTP。";
-            ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[
-                uri.Scheme == Uri.UriSchemeHttps ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush"];
+            if (ViewModel == null) return;
+            ViewModel.ServerAddress = ServerAddressBox.Text;
+            ViewModel.SaveServerAddress();
         }
 
-        private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
+        private void TestConnectionButton_Click(object sender, RoutedEventArgs e)
         {
-            var address = ServerAddressBox.Text.Trim();
-            
-            if (string.IsNullOrEmpty(address))
-            {
-                ServerStatusText.Text = "请先输入服务器地址";
-                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-                return;
-            }
-
-            TestConnectionButton.IsEnabled = false;
-            ServerStatusText.Text = "正在测试连接...";
-            ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
-
-            try
-            {
-                using var client = new System.Net.Http.HttpClient();
-                client.Timeout = TimeSpan.FromSeconds(5);
-                var response = await client.GetAsync(address);
-                
-                ServerStatusText.Text = $"连接成功 (状态码: {response.StatusCode})";
-                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-            }
-            catch (Exception ex)
-            {
-                ServerStatusText.Text = $"连接失败: {ex.Message}";
-                ServerStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-            }
-            finally
-            {
-                TestConnectionButton.IsEnabled = true;
-            }
+            if (ViewModel == null) return;
+            ViewModel.ServerAddress = ServerAddressBox.Text;
+            ViewModel.TestConnectionAsync().Forget();
         }
+
         public void SyncQualitySelection(string quality)
         {
-            _isUpdatingQuality = true;
-            try
-            {
-                var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
-                var privilege = MainWindow.PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
-                foreach (var element in QualityComboBox.Items)
-                {
-                    if (element is ComboBoxItem item && item.Tag is string tag)
-                    {
-                        var baseName = SongUrlPolicy.GetQualityDisplayName(tag);
-                        var requiresVip = privilege?.RequiresVip(tag) ?? false;
-                        var canPlay = privilege?.CanUserPlay(tag, isVip) ?? true;
-                        item.Content = requiresVip ? $"{baseName} (VIP)" : baseName;
-                        item.Opacity = canPlay ? 1.0 : 0.55;
-                    }
-                }
-
-                QualityComboBox.SelectedIndex = quality switch
-                {
-                    "standard" => 0,
-                    "higher" => 1,
-                    "exhigh" => 2,
-                    "lossless" => 3,
-                    "hires" => 4,
-                    "jyeffect" => 5,
-                    "sky" => 6,
-                    "dolby" => 7,
-                    "jymaster" => 8,
-                    _ => 0
-                };
-            }
-            finally
-            {
-                _isUpdatingQuality = false;
-            }
+            ViewModel?.SyncQualitySelection(quality);
         }
 
-        private async void QualityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void QualityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isUpdatingQuality) return;
-            if (QualityComboBox.SelectedItem is ComboBoxItem item && item.Tag is string quality)
-            {
-                var settings = ApplicationData.Current.LocalSettings;
-                var previousQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-                var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
-                var privilege = App.m_window is MainWindow mw
-                    ? await mw.EnsureCurrentSongPrivilegeAsync()
-                    : (MainWindow.PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege);
-
-                if (privilege != null && !privilege.CanUserPlay(quality, isVip))
-                {
-                    var fallback = privilege.ResolveFallbackQuality(quality, isVip, previousQuality);
-                    settings.Values["AudioQuality"] = fallback;
-                    SyncQualitySelection(fallback);
-                    if (App.m_window is MainWindow mainWindow)
-                    {
-                        mainWindow.LoadQualitySetting();
-                    }
-
-                    var dialog = new ContentDialog
-                    {
-                        Title = "VIP 专属音质",
-                        Content = $"当前歌曲的“{SongUrlPolicy.GetQualityDisplayName(quality)}”音质需要 VIP 会员权限，已为您退回“{SongUrlPolicy.GetQualityDisplayName(fallback)}”音质。",
-                        CloseButtonText = "确定",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await dialog.ShowAsync();
-                    return;
-                }
-
-                // 播放时 GetSongUrlAsync 会读取该值并传给 /song/url/v1 的 level 参数
-                settings.Values["AudioQuality"] = quality;
-                SyncQualitySelection(quality);
-                if (App.m_window is MainWindow window)
-                {
-                    window.LoadQualitySetting();
-                }
-            }
+            if (_isSyncingUi || ViewModel == null || QualityComboBox.SelectedIndex < 0) return;
+            ViewModel.SelectQualityByIndexAsync(QualityComboBox.SelectedIndex).Forget();
         }
 
-        private void ClearLoginButton_Click(object sender, RoutedEventArgs e)
-        {
-            // 走主窗口的统一退出入口：清除 Cookie/UserId、侧边栏恢复未登录、
-            // 清空歌单导航项；若正停留在失效的个人中心页会自动跳回首页
-            if (App.m_window is MainWindow mainWindow)
-            {
-                mainWindow.PerformLogout();
-            }
-            else
-            {
-                App.ApiService.ResetLogin();
-            }
+        private void ClearLoginButton_Click(object sender, RoutedEventArgs e) => ViewModel?.ClearLogin();
 
-            ClearLoginStatusText.Text = "已清除本地登录状态";
-            ClearLoginStatusText.Visibility = Visibility.Visible;
-        }
-
-        private void AllowInsecureLoginCheckBox_Click(object sender, RoutedEventArgs e)
-        {
-            ApplicationData.Current.LocalSettings.Values["AllowInsecureLogin"] =
-                AllowInsecureLoginCheckBox.IsChecked == true;
-        }
+        private void AllowInsecureLoginCheckBox_Click(object sender, RoutedEventArgs e) =>
+            ViewModel?.SetAllowInsecureLogin(AllowInsecureLoginCheckBox.IsChecked == true);
 
         private void FancyLyricsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (FancyLyricsComboBox == null) return;
-            var settings = ApplicationData.Current.LocalSettings;
-            settings.Values["FancyLyrics"] = FancyLyricsComboBox.SelectedIndex == 1;
+            if (_isSyncingUi || ViewModel == null || FancyLyricsComboBox == null) return;
+            ViewModel.SetFancyLyrics(FancyLyricsComboBox.SelectedIndex);
         }
 
-        private async void SelectDownloadFolderButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                var folderPicker = new FolderPicker();
-                folderPicker.SuggestedStartLocation = PickerLocationId.MusicLibrary;
-                folderPicker.FileTypeFilter.Add("*");
+        private void SelectDownloadFolderButton_Click(object sender, RoutedEventArgs e) =>
+            ViewModel?.SelectDownloadFolderAsync().Forget();
 
-                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.m_window);
-                WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, hwnd);
+        private void OpenDownloadFolderButton_Click(object sender, RoutedEventArgs e) =>
+            ViewModel?.OpenDownloadFolderAsync().Forget();
 
-                var folder = await folderPicker.PickSingleFolderAsync();
-                if (folder == null) return;
-
-                var saved = DownloadFolderStore.SaveFolder(folder.Path);
-                SyncDownloadFolderState();
-                DownloadFolderStatusText.Text = $"下载目录已更新为：{saved}";
-                DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-                DownloadFolderStatusText.Visibility = Visibility.Visible;
-            }
-            catch (Exception ex)
-            {
-                DownloadFolderStatusText.Text = $"更改目录失败：{ex.Message}";
-                DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-                DownloadFolderStatusText.Visibility = Visibility.Visible;
-            }
-        }
-
-        private async void OpenDownloadFolderButton_Click(object sender, RoutedEventArgs e)
-        {
-            var folder = DownloadFolderStore.GetCurrentFolder();
-            try
-            {
-                Directory.CreateDirectory(folder);
-                var launched = await Launcher.LaunchFolderPathAsync(folder);
-                if (!launched)
-                {
-                    DownloadFolderStatusText.Text = $"无法打开目录：{folder}";
-                    DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-                    DownloadFolderStatusText.Visibility = Visibility.Visible;
-                }
-            }
-            catch (Exception ex)
-            {
-                DownloadFolderStatusText.Text = $"打开目录失败：{ex.Message}";
-                DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-                DownloadFolderStatusText.Visibility = Visibility.Visible;
-            }
-        }
-
-        private void ResetDownloadFolderButton_Click(object sender, RoutedEventArgs e)
-        {
-            var defaultFolder = DownloadFolderStore.ResetFolder();
-            SyncDownloadFolderState();
-            DownloadFolderStatusText.Text = $"已恢复默认下载目录：{defaultFolder}";
-            DownloadFolderStatusText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
-            DownloadFolderStatusText.Visibility = Visibility.Visible;
-        }
+        private void ResetDownloadFolderButton_Click(object sender, RoutedEventArgs e) =>
+            ViewModel?.ResetDownloadFolder();
     }
 }

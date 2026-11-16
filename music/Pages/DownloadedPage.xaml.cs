@@ -1,38 +1,55 @@
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
+using music.Core.Abstractions;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
     public sealed partial class DownloadedPage : Page
     {
+        public DownloadedViewModel? ViewModel { get; private set; }
+
         public DownloadedPage()
         {
-            this.InitializeComponent();
-            this.Loaded += DownloadedPage_Loaded;
+            InitializeComponent();
         }
 
-        private void DownloadedPage_Loaded(object sender, RoutedEventArgs e)
+        protected override void OnNavigatedTo(NavigationEventArgs e)
         {
-            if (ContentFrame.Content == null)
+            base.OnNavigatedTo(e);
+
+            if (e.Parameter is NavigationRequest request)
             {
-                ContentFrame.Navigate(typeof(DownloadPage));
+                ViewModel?.Dispose();
+                ViewModel = (DownloadedViewModel)request.CreateViewModel();
+
+                if (ContentFrame.Content == null)
+                {
+                    ContentFrame.Navigate(typeof(DownloadPage), ViewModel.CreateChildRequest(PageKey.Download));
+                }
             }
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            ViewModel?.Dispose();
+            ViewModel = null;
         }
 
         private void DownloadedNavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
         {
-            if (args.SelectedItemContainer != null)
+            if (ViewModel == null || args.SelectedItemContainer == null) return;
+
+            var tag = args.SelectedItemContainer.Tag?.ToString();
+            switch (tag)
             {
-                var tag = args.SelectedItemContainer.Tag.ToString();
-                switch (tag)
-                {
-                    case "download":
-                        ContentFrame.Navigate(typeof(DownloadPage));
-                        break;
-                    case "local":
-                        ContentFrame.Navigate(typeof(LocalPage));
-                        break;
-                }
+                case "download":
+                    ContentFrame.Navigate(typeof(DownloadPage), ViewModel.CreateChildRequest(PageKey.Download));
+                    break;
+                case "local":
+                    ContentFrame.Navigate(typeof(LocalPage), ViewModel.CreateChildRequest(PageKey.Local));
+                    break;
             }
         }
     }

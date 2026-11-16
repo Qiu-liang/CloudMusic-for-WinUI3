@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Brushes;
@@ -27,6 +25,8 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics;
 using Windows.Graphics.Display;
 using Windows.UI;
+using music.Core.Mvvm;
+using music.Core.ViewModels;
 using music.Models;
 using music.Services;
 
@@ -34,12 +34,11 @@ namespace music
 {
     public sealed partial class LyricsWindow : Window
     {
-        private Song? _currentSong;
-        private List<LyricLine> _lyrics = new();
-        private int _currentLyricIndex = -1;
+        private readonly LyricsWindowViewModel _viewModel;
+        private IReadOnlyList<LyricLine> _lyrics => _viewModel.Lyrics;
+        private int _currentLyricIndex => _viewModel.CurrentLyricIndex;
         private bool _isProgressDragging;
-        private CancellationTokenSource? _lyricsCancellation;
-        private readonly LatestLyricRequest _latestLyrics = new();
+        private bool _syncingVolume;
 
         private float _scrollOffset;
         private float _targetScrollOffset;
@@ -117,10 +116,8 @@ namespace music
         private const float MaxNonCurrentBlur = 2.2f;
         private float _cachedLayoutWidth = -1f;
 
-        // 模糊专辑封面背景缓存与复用 HttpClient
+        // 模糊专辑封面背景缓存
         private CanvasRenderTarget? _blurredBg;
-        private string? _loadedCoverUrl;
-        private static readonly HttpClient SharedHttpClient = new();
         private bool _isClosed = false;
 
         // VSync 对齐的按需动画循环（替代固定 16ms DispatcherTimer）
@@ -154,18 +151,15 @@ namespace music
         private float _currentLineScale = 1f;
         private float _currentLineScaleVel;
         private long _lineSwitchAt = -10000;   // 切行时刻（TickCount ms），用于浮现渐变
-        private double _lastRawMs = -1;        // 上一帧的原始播放位置（ms），用于单调过滤
 
         private AppWindow? _appWindow;                 // 窗口 presenter，用于全屏切换
 
         // 从专辑封面提取的主色，用于背景染色
         private Color _dominantColor = Color.FromArgb(255, 96, 96, 118);
 
-        // LRC 解析正则：支持 [mm:ss.xx] / [mm:ss.xxx] / 多时间戳
-        private static readonly Regex LrcTimeRegex = new(@"\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]", RegexOptions.Compiled);
-
-        public LyricsWindow()
+        internal LyricsWindow(LyricsWindowViewModel viewModel)
         {
+            _viewModel = viewModel;
             InitializeComponent();
 
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -194,9 +188,12 @@ namespace music
                 _activeFont = FallbackFont;
             }
 
-            SetupPlaybackEvents();
-            LoadCurrentSong();
-            _ = LoadLyricsAsync();
+            _viewModel.SongReset += ViewModel_SongReset;
+            _viewModel.LyricsLoaded += ViewModel_LyricsLoaded;
+            _viewModel.ActiveLineChanged += ViewModel_ActiveLineChanged;
+            _viewModel.CoverBytesLoaded += ViewModel_CoverBytesLoaded;
+            _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            _viewModel.Initialize();
 
             // Slider 内部会把指针按下/抬起标记为已处理，XAML 直接订阅不生效，
             // 必须 AddHandler(handledEventsToo: true) 才能收到，否则拖动状态永远无法建立
@@ -211,10 +208,14 @@ namespace music
         {
             _isClosed = true;
             StopAnimationLoop();
-            DetachPlaybackEvents();
-            _lyricsCancellation?.Cancel();
-            _lyricsCancellation?.Dispose();
-            _lyricsCancellation = null;
+
+            _viewModel.SongReset -= ViewModel_SongReset;
+            _viewModel.LyricsLoaded -= ViewModel_LyricsLoaded;
+            _viewModel.ActiveLineChanged -= ViewModel_ActiveLineChanged;
+            _viewModel.CoverBytesLoaded -= ViewModel_CoverBytesLoaded;
+            _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            _viewModel.Dispose();
+
             _userScrollIdleTimer?.Stop();
             _userScrollIdleTimer = null;
             _longPressTimer?.Stop();
@@ -402,93 +403,72 @@ namespace music
                 StopAnimationLoop();
         }
 
-        private async void LoadBlurredBackgroundAsync()
+        private async Task BuildBlurredBackgroundAsync(byte[] bytes, string songId)
         {
-            if (_isClosed || _currentSong == null || string.IsNullOrEmpty(_currentSong.CoverImgUrl)) return;
-
-            var songId = _currentSong.Id;
-            var coverUrl = _currentSong.CoverImgUrl;
-            if (coverUrl == _loadedCoverUrl && _blurredBg != null) return;
+            if (_isClosed || _viewModel.CurrentSong?.Id != songId || BackgroundCanvas?.Device == null)
+                return;
 
             try
             {
-                var bytes = await SharedHttpClient.GetByteArrayAsync(coverUrl);
+                using var stream = new MemoryStream(bytes).AsRandomAccessStream();
+                var bitmap = await CanvasBitmap.LoadAsync(BackgroundCanvas.Device, stream);
 
-                if (_isClosed || _currentSong?.Id != songId) return;
+                if (_isClosed || _viewModel.CurrentSong?.Id != songId) { bitmap.Dispose(); return; }
 
-                DispatcherQueue.TryEnqueue(async () =>
+                var device = BackgroundCanvas.Device;
+
+                // 256×256 足以呈现极柔和的渐变氛围，比 512×512 减少 75% 切歌瞬间像素计算量
+                const int BgSize = 256;
+
+                var oldBg = _blurredBg;
+                _blurredBg = new CanvasRenderTarget(device, BgSize, BgSize, 96);
+
+                using (var tempTarget = new CanvasRenderTarget(device, BgSize, BgSize, 96))
                 {
-                    if (_isClosed || _currentSong?.Id != songId) return;
-
-                    try
+                    using (var tempDs = tempTarget.CreateDrawingSession())
                     {
-                        using var stream = new MemoryStream(bytes).AsRandomAccessStream();
-                        var bitmap = await CanvasBitmap.LoadAsync(BackgroundCanvas.Device, stream);
-
-                        if (_isClosed || _currentSong?.Id != songId) { bitmap.Dispose(); return; }
-
-                        var device = BackgroundCanvas.Device;
-
-                        // 256×256 足以呈现极柔和的渐变氛围，比 512×512 减少 75% 切歌瞬间像素计算量
-                        const int BgSize = 256;
-
-                        var oldBg = _blurredBg;
-                        _blurredBg = new CanvasRenderTarget(device, BgSize, BgSize, 96);
-
-                        using (var tempTarget = new CanvasRenderTarget(device, BgSize, BgSize, 96))
-                        {
-                            using (var tempDs = tempTarget.CreateDrawingSession())
-                            {
-                                var destRect = new Windows.Foundation.Rect(0, 0, BgSize, BgSize);
-                                var srcRect = new Windows.Foundation.Rect(0, 0, bitmap.Size.Width, bitmap.Size.Height);
-                                tempDs.DrawImage(bitmap, destRect, srcRect);
-                            }
-
-                            using var blurEffect = new GaussianBlurEffect
-                            {
-                                Source = tempTarget,
-                                BlurAmount = 24f,
-                                BorderMode = EffectBorderMode.Soft,
-                                Optimization = EffectOptimization.Speed
-                            };
-
-                            // 提升饱和度，让模糊背景像 Apple Music 一样鲜艳
-                            using var saturateEffect = new SaturationEffect
-                            {
-                                Source = blurEffect,
-                                Saturation = 1.65f
-                            };
-
-                            using (var ds = _blurredBg.CreateDrawingSession())
-                            {
-                                var drawRect = new Windows.Foundation.Rect(-15, -15, BgSize + 30, BgSize + 30);
-                                var srcRect = new Windows.Foundation.Rect(0, 0, BgSize, BgSize);
-                                ds.DrawImage(saturateEffect, drawRect, srcRect);
-                            }
-                        }
-
-                        // 提取封面主色：缩小到 4x4 求平均，用于背景染色
-                        ExtractDominantColor(bitmap);
-                        _loadedCoverUrl = coverUrl;
-
-                        bitmap.Dispose();
-
-                        // 延迟释放旧背景，避免 Draw 回调中使用
-                        oldBg?.Dispose();
-
-                        if (!_isClosed)
-                            BackgroundCanvas?.Invalidate();
+                        var destRect = new Windows.Foundation.Rect(0, 0, BgSize, BgSize);
+                        var srcRect = new Windows.Foundation.Rect(0, 0, bitmap.Size.Width, bitmap.Size.Height);
+                        tempDs.DrawImage(bitmap, destRect, srcRect);
                     }
-                    catch (ObjectDisposedException) { /* 窗口已关闭 */ }
-                    catch (Exception ex)
+
+                    using var blurEffect = new GaussianBlurEffect
                     {
-                        Debug.WriteLine($"[LyricsWindow] Blur bg error: {ex.Message}");
+                        Source = tempTarget,
+                        BlurAmount = 24f,
+                        BorderMode = EffectBorderMode.Soft,
+                        Optimization = EffectOptimization.Speed
+                    };
+
+                    // 提升饱和度，让模糊背景像 Apple Music 一样鲜艳
+                    using var saturateEffect = new SaturationEffect
+                    {
+                        Source = blurEffect,
+                        Saturation = 1.65f
+                    };
+
+                    using (var ds = _blurredBg.CreateDrawingSession())
+                    {
+                        var drawRect = new Windows.Foundation.Rect(-15, -15, BgSize + 30, BgSize + 30);
+                        var srcRect = new Windows.Foundation.Rect(0, 0, BgSize, BgSize);
+                        ds.DrawImage(saturateEffect, drawRect, srcRect);
                     }
-                });
+                }
+
+                // 提取封面主色：缩小到 4x4 求平均，用于背景染色
+                ExtractDominantColor(bitmap);
+                bitmap.Dispose();
+
+                // 延迟释放旧背景，避免 Draw 回调中使用
+                oldBg?.Dispose();
+
+                if (!_isClosed)
+                    BackgroundCanvas?.Invalidate();
             }
+            catch (ObjectDisposedException) { /* 窗口已关闭 */ }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[LyricsWindow] Load cover error: {ex.Message}");
+                Debug.WriteLine($"[LyricsWindow] Blur bg error: {ex.Message}");
             }
         }
 
@@ -1078,8 +1058,7 @@ namespace music
 
             // 命中行仍以当前指针位置为准，避免滚动后错位
             int idx = HitTestLine((float)pos.Y);
-            if (idx >= 0 && idx < _lyrics.Count)
-                MainWindow.PlaybackService?.Seek(_lyrics[idx].Time);
+            _viewModel.SeekToLine(idx);
             _pointerDownLineIndex = -1;
         }
 
@@ -1215,294 +1194,127 @@ namespace music
 
         #endregion
 
-        #region Song & Lyrics Loading
+        #region ViewModel Event Sync
 
-        private void LoadCurrentSong()
+        private void ViewModel_SongReset(object? sender, Song? song)
         {
-            var ps = MainWindow.PlaybackService;
-            if (ps == null) return;
+            if (_isClosed) return;
 
-            _currentSong = ps.CurrentSong;
-            if (_currentSong == null) return;
+            _scrollOffset = 0;
+            _targetScrollOffset = 0;
+            _scrollVelocity = 0;
+            _lastDurationSeconds = -1;
+            _lastPosSeconds = -1;
+            _lastRemainingSeconds = -1;
+            _lineHeights.Clear();
+            _lineOffsets.Clear();
+            _lineMainHeights.Clear();
+            ClearLineCache();
+            StopAnimationLoop();
 
-            SongTitleText.Text = _currentSong.Name;
-            ArtistAlbumText.Text = string.IsNullOrEmpty(_currentSong.Album.Name)
-                ? _currentSong.ArtistNames
-                : $"{_currentSong.ArtistNames} — {_currentSong.Album.Name}";
+            SongTitleText.Text = _viewModel.SongTitle;
+            ArtistAlbumText.Text = _viewModel.ArtistAlbumText;
+            AlbumCoverImage.Source = !string.IsNullOrEmpty(_viewModel.CoverUrl)
+                ? new BitmapImage(new Uri(_viewModel.CoverUrl))
+                : null;
 
-            if (!string.IsNullOrEmpty(_currentSong.CoverImgUrl))
-            {
-                AlbumCoverImage.Source = new BitmapImage(new Uri(_currentSong.CoverImgUrl));
-                LoadBlurredBackgroundAsync();
-            }
-
-            PlayPauseIcon.Glyph = ps.IsPlaying ? "\uE769" : "\uE768";
-            ShuffleIcon.Opacity = ps.IsShuffleEnabled ? 1.0 : 0.4;
-            var mode = ps.GetRepeatMode();
-            RepeatIcon.Glyph = mode == RepeatMode.One ? "\uE8ED" : "\uE8EE";
-            RepeatIcon.Opacity = mode == RepeatMode.None ? 0.4 : 1.0;
-
-            VolumeSlider.ValueChanged -= VolumeSlider_ValueChanged;
-            VolumeSlider.Value = ps.Volume * 100;
-            VolumeSlider.ValueChanged += VolumeSlider_ValueChanged;
-
-            UpdateProgress(ps.GetCurrentPosition());
+            SyncPlaybackControlsFromVm();
+            UpdateProgress(_viewModel.Position);
+            LyricsCanvas?.Invalidate();
         }
 
-
-
-        private async Task LoadLyricsAsync()
+        private void ViewModel_LyricsLoaded(object? sender, EventArgs e)
         {
-            if (_currentSong == null || _isClosed) return;
-            if (!string.IsNullOrEmpty(_currentSong.LocalFilePath))
-            {
-                _lyrics = new List<LyricLine>();
-                RecalculateLayout();
-                LyricsCanvas?.Invalidate();
-                return;
-            }
-
-            _lyricsCancellation?.Cancel();
-            _lyricsCancellation?.Dispose();
-            _lyricsCancellation = new CancellationTokenSource();
-            var cancellation = _lyricsCancellation;
-            var songId = _currentSong.Id;
-            var request = _latestLyrics.Next(songId);
-
-            try
-            {
-                var lyricInfo = await App.ApiService.GetLyricsAsync(songId, cancellation.Token);
-                if (_isClosed || cancellation.IsCancellationRequested ||
-                    !_latestLyrics.IsCurrent(request, songId, _currentSong?.Id ?? string.Empty)) return;
-
-                var parsed = lyricInfo == null || string.IsNullOrEmpty(lyricInfo.LrcLyric)
-                    ? new List<LyricLine>()
-                    : ParseLyrics(lyricInfo.LrcLyric, lyricInfo.TranslatedLyric);
-
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (_isClosed || !_latestLyrics.IsCurrent(request, songId, _currentSong?.Id ?? string.Empty)) return;
-                    _lyrics = parsed;
-                    _currentLyricIndex = -1;
-                    _scrollOffset = 0;
-                    _targetScrollOffset = 0;
-                    RecalculateLayout();
-                    LyricsCanvas?.Invalidate();
-                });
-            }
-            catch (OperationCanceledException) { }
+            if (_isClosed) return;
+            _scrollOffset = 0;
+            _targetScrollOffset = 0;
+            RecalculateLayout();
+            LyricsCanvas?.Invalidate();
         }
 
-        private static List<LyricLine> ParseLyrics(string lrcContent, string? tlyricContent = null)
+        private void ViewModel_ActiveLineChanged(object? sender, int newIndex)
         {
-            var lines = new List<LyricLine>();
-            if (string.IsNullOrEmpty(lrcContent)) return lines;
+            if (_isClosed) return;
+            UpdateScrollPosition();
 
-            // 先解析译文，建立时间戳→译文映射
-            var translations = new Dictionary<TimeSpan, string>();
-            if (!string.IsNullOrEmpty(tlyricContent))
+            // 浮现动画节流：密集歌词（时间戳相邻很近）时不逐行重新触发，
+            // 否则当前行会连续收缩弹跳（抽搐）。索引与滚动目标始终即时更新
+            long now = Environment.TickCount64;
+            if (now - _lineSwitchAt >= 300)
             {
-                foreach (var rawLine in tlyricContent.Split('\n'))
-                {
-                    var trimmed = rawLine.Trim();
-                    if (string.IsNullOrEmpty(trimmed)) continue;
-                    var matches = LrcTimeRegex.Matches(trimmed);
-                    if (matches.Count == 0) continue;
-                    var lastMatch = matches[^1];
-                    var text = trimmed.Substring(lastMatch.Index + lastMatch.Length).Trim();
-                    if (string.IsNullOrEmpty(text)) continue;
-                    if (TryParseLrcTime(lastMatch, out var time))
-                        translations[time] = text;
-                }
+                _currentLineScale = 0.96f;
+                _currentLineScaleVel = 0f;
+                _lineSwitchAt = now;
             }
+            EnsureAnimationLoop();
+        }
 
-            foreach (var rawLine in lrcContent.Split('\n'))
+        private void ViewModel_CoverBytesLoaded(object? sender, CoverLoadedEventArgs e)
+        {
+            if (_isClosed) return;
+            BuildBlurredBackgroundAsync(e.Bytes, e.SongId).Forget();
+        }
+
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (_isClosed) return;
+            switch (e.PropertyName)
             {
-                var trimmed = rawLine.Trim();
-                if (string.IsNullOrEmpty(trimmed)) continue;
-
-                // 跳过元数据标签 [ti:] [ar:] [al:] [by:] [offset:] 等
-                if (trimmed.StartsWith("[") && !char.IsDigit(trimmed.Length > 1 ? trimmed[1] : ' '))
-                    continue;
-
-                var matches = LrcTimeRegex.Matches(trimmed);
-                if (matches.Count == 0) continue;
-
-                // 提取最后一个时间戳之后的文本
-                var lastMatch = matches[^1];
-                var text = trimmed.Substring(lastMatch.Index + lastMatch.Length).Trim();
-                if (string.IsNullOrEmpty(text)) continue;
-
-                // 支持同一行多个时间戳
-                foreach (Match match in matches)
-                {
-                    if (TryParseLrcTime(match, out var time))
+                case nameof(LyricsWindowViewModel.Position):
+                    UpdateProgress(_viewModel.Position);
+                    break;
+                case nameof(LyricsWindowViewModel.Duration):
+                    double totalSeconds = _viewModel.Duration.TotalSeconds;
+                    if (Math.Abs(totalSeconds - _lastDurationSeconds) >= 0.5)
+                        UpdateProgress(_viewModel.Position);
+                    break;
+                case nameof(LyricsWindowViewModel.IsPlaying):
+                    PlayPauseIcon.Glyph = _viewModel.IsPlaying ? "\uE769" : "\uE768";
+                    break;
+                case nameof(LyricsWindowViewModel.IsShuffleEnabled):
+                    ShuffleIcon.Opacity = _viewModel.IsShuffleEnabled ? 1.0 : 0.4;
+                    break;
+                case nameof(LyricsWindowViewModel.RepeatMode):
+                    RepeatIcon.Glyph = _viewModel.RepeatMode == RepeatMode.One ? "\uE8ED" : "\uE8EE";
+                    RepeatIcon.Opacity = _viewModel.RepeatMode == RepeatMode.None ? 0.4 : 1.0;
+                    break;
+                case nameof(LyricsWindowViewModel.VolumePercent):
+                    _syncingVolume = true;
+                    try
                     {
-                        translations.TryGetValue(time, out var translation);
-                        lines.Add(new LyricLine { Time = time, Text = text, Translation = translation });
+                        VolumeSlider.Value = _viewModel.VolumePercent;
                     }
-                }
+                    finally
+                    {
+                        _syncingVolume = false;
+                    }
+                    break;
             }
-
-            return lines.OrderBy(l => l.Time).ToList();
         }
 
-        private static bool TryParseLrcTime(Match match, out TimeSpan time)
+        private void SyncPlaybackControlsFromVm()
         {
-            time = TimeSpan.Zero;
-            if (!match.Success) return false;
+            PlayPauseIcon.Glyph = _viewModel.IsPlaying ? "\uE769" : "\uE768";
+            ShuffleIcon.Opacity = _viewModel.IsShuffleEnabled ? 1.0 : 0.4;
+            RepeatIcon.Glyph = _viewModel.RepeatMode == RepeatMode.One ? "\uE8ED" : "\uE8EE";
+            RepeatIcon.Opacity = _viewModel.RepeatMode == RepeatMode.None ? 0.4 : 1.0;
 
+            _syncingVolume = true;
             try
             {
-                int minutes = int.Parse(match.Groups[1].Value);
-                int seconds = int.Parse(match.Groups[2].Value);
-                int ms = 0;
-                if (match.Groups[3].Success)
-                {
-                    var msStr = match.Groups[3].Value.PadRight(3, '0')[..3];
-                    ms = int.Parse(msStr);
-                }
-                time = new TimeSpan(0, 0, minutes, seconds, ms);
-                return true;
+                VolumeSlider.Value = _viewModel.VolumePercent;
             }
-            catch { return false; }
-        }
-
-        private void UpdateLyricsHighlight(TimeSpan position)
-        {
-            // 位置单调过滤：播放器逐帧报告的位置可能存在小幅回退抖动，
-            // 回退量小于 800ms 时按上次位置处理，保证行索引单调、不会在行边界来回翻转；
-            // 大幅回退视为用户 seek，直接采用新位置
-            double raw = position.TotalMilliseconds;
-            double ms;
-            if (_lastRawMs >= 0 && raw < _lastRawMs - 800)
+            finally
             {
-                ms = raw;
-                _lastRawMs = raw;
+                _syncingVolume = false;
             }
-            else
-            {
-                ms = Math.Max(raw, _lastRawMs);
-                _lastRawMs = ms;
-            }
-
-            int newIndex = LyricWindowHelpers.FindActiveLyricIndex(_lyrics, ms, _currentLyricIndex);
-
-            if (newIndex != _currentLyricIndex)
-            {
-                _currentLyricIndex = newIndex;
-                UpdateScrollPosition();
-
-                // 浮现动画节流：密集歌词（时间戳相邻很近）时不逐行重新触发，
-                // 否则当前行会连续收缩弹跳（抽搐）。索引与滚动目标始终即时更新
-                long now = Environment.TickCount64;
-                if (now - _lineSwitchAt >= 300)
-                {
-                    _currentLineScale = 0.96f;
-                    _currentLineScaleVel = 0f;
-                    _lineSwitchAt = now;
-                }
-                EnsureAnimationLoop();
-            }
-        }
-
-        #endregion
-
-        #region Playback Events
-
-        private void SetupPlaybackEvents()
-        {
-            var ps = MainWindow.PlaybackService;
-            if (ps == null) return;
-            ps.CurrentSongChanged += PlaybackService_CurrentSongChanged;
-            ps.PositionChanged += PlaybackService_PositionChanged;
-            ps.DurationChanged += PlaybackService_DurationChanged;
-            ps.PlaybackStateChanged += PlaybackService_StateChanged;
-        }
-
-        private void DetachPlaybackEvents()
-        {
-            var ps = MainWindow.PlaybackService;
-            if (ps == null) return;
-            ps.CurrentSongChanged -= PlaybackService_CurrentSongChanged;
-            ps.PositionChanged -= PlaybackService_PositionChanged;
-            ps.DurationChanged -= PlaybackService_DurationChanged;
-            ps.PlaybackStateChanged -= PlaybackService_StateChanged;
-        }
-
-        private void RunOnUiThread(Action action)
-        {
-            if (DispatcherQueue.HasThreadAccess)
-            {
-                if (!_isClosed) action();
-                return;
-            }
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (!_isClosed) action();
-            });
-        }
-
-        private void PlaybackService_CurrentSongChanged(object? sender, Song song)
-        {
-            if (_isClosed) return;
-            RunOnUiThread(() =>
-            {
-                _currentSong = song;
-                _lyrics.Clear();
-                _currentLyricIndex = -1;
-                _lastRawMs = -1;
-                _scrollOffset = 0;
-                _targetScrollOffset = 0;
-                _scrollVelocity = 0;
-                _lastDurationSeconds = -1;
-                _lastPosSeconds = -1;
-                _lastRemainingSeconds = -1;
-                SongTitleText.Text = "";
-                ArtistAlbumText.Text = "";
-                _lineHeights.Clear();
-                _lineOffsets.Clear();
-                _lineMainHeights.Clear();
-                ClearLineCache();
-                StopAnimationLoop();
-                LoadCurrentSong();
-                LyricsCanvas?.Invalidate();
-                _ = LoadLyricsAsync();
-            });
-        }
-
-        private void PlaybackService_PositionChanged(object? sender, TimeSpan position)
-        {
-            if (_isClosed) return;
-            RunOnUiThread(() =>
-            {
-                UpdateProgress(position);
-                UpdateLyricsHighlight(position);
-            });
-        }
-
-        private void PlaybackService_DurationChanged(object? sender, TimeSpan duration)
-        {
-            if (_isClosed) return;
-            RunOnUiThread(() =>
-            {
-                double totalSeconds = duration.TotalSeconds;
-                if (Math.Abs(totalSeconds - _lastDurationSeconds) < 0.5) return;
-                UpdateProgress(MainWindow.PlaybackService?.GetCurrentPosition() ?? TimeSpan.Zero);
-            });
-        }
-
-        private void PlaybackService_StateChanged(object? sender, bool isPlaying)
-        {
-            if (_isClosed) return;
-            RunOnUiThread(() => PlayPauseIcon.Glyph = isPlaying ? "\uE769" : "\uE768");
         }
 
         private void UpdateProgress(TimeSpan position)
         {
             // 拖拽期间不更新进度条，避免跳动
             if (_isProgressDragging) return;
-            var duration = MainWindow.PlaybackService?.GetDuration() ?? TimeSpan.Zero;
+            var duration = _viewModel.Duration;
             double durationSeconds = duration.TotalSeconds;
             _lastDurationSeconds = durationSeconds;
 
@@ -1567,44 +1379,31 @@ namespace music
 
         private void SeekFromSlider()
         {
-            if (MainWindow.PlaybackService == null) return;
-            var duration = MainWindow.PlaybackService.GetDuration();
+            var duration = _viewModel.Duration;
             if (duration.TotalSeconds > 0)
-                MainWindow.PlaybackService.Seek(TimeSpan.FromSeconds(ProgressSlider.Value / 100 * duration.TotalSeconds));
+                _viewModel.Seek(TimeSpan.FromSeconds(ProgressSlider.Value / 100 * duration.TotalSeconds));
         }
 
         private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
-            if (MainWindow.PlaybackService != null)
-                MainWindow.PlaybackService.Volume = e.NewValue / 100;
+            if (_syncingVolume) return;
+            _viewModel.SetVolumePercent(e.NewValue);
         }
 
-        private void ShuffleButton_Click(object sender, RoutedEventArgs e)
-        {
-            MainWindow.PlaybackService?.ToggleShuffle();
-            ShuffleIcon.Opacity = MainWindow.PlaybackService?.IsShuffleEnabled == true ? 1.0 : 0.4;
-        }
+        private void ShuffleButton_Click(object sender, RoutedEventArgs e) =>
+            _viewModel.ToggleShuffle();
 
-        private async void PrevButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (MainWindow.PlaybackService != null) await MainWindow.PlaybackService.PreviousAsync();
-        }
+        private void PrevButton_Click(object sender, RoutedEventArgs e) =>
+            _viewModel.PreviousAsync().Forget();
 
-        private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
-            => MainWindow.PlaybackService?.TogglePlayPause();
+        private void PlayPauseButton_Click(object sender, RoutedEventArgs e) =>
+            _viewModel.TogglePlayPause();
 
-        private async void NextButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (MainWindow.PlaybackService != null) await MainWindow.PlaybackService.NextAsync();
-        }
+        private void NextButton_Click(object sender, RoutedEventArgs e) =>
+            _viewModel.NextAsync().Forget();
 
-        private void RepeatButton_Click(object sender, RoutedEventArgs e)
-        {
-            MainWindow.PlaybackService?.ToggleRepeat();
-            var mode = MainWindow.PlaybackService?.GetRepeatMode();
-            RepeatIcon.Glyph = mode == RepeatMode.One ? "\uE8ED" : "\uE8EE";
-            RepeatIcon.Opacity = mode == RepeatMode.None ? 0.4 : 1.0;
-        }
+        private void RepeatButton_Click(object sender, RoutedEventArgs e) =>
+            _viewModel.ToggleRepeat();
 
         private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 

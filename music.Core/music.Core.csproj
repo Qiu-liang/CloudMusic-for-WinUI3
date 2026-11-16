@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>music.Core</RootNamespace>
+    <NoWarn>IL2026;IL2059</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="music" />
+    <InternalsVisibleTo Include="music.Tests" />
+  </ItemGroup>
+</Project>

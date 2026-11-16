@@ -2,28 +2,24 @@
     x:Class="music.Pages.ArtistInfoPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:music.Pages"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
     <Grid>
-        <!-- 加载中 -->
-        <Grid x:Name="LoadingPanel">
+        <Grid x:Name="LoadingPanel" Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                 <ProgressRing IsActive="True" Width="32" Height="32"/>
-                <TextBlock Text="加载中..." 
+                <TextBlock Text="加载中..."
                            HorizontalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
         </Grid>
 
-        <!-- 歌手详情 -->
-        <ScrollViewer x:Name="ContentPanel" Visibility="Collapsed"
+        <ScrollViewer x:Name="ContentPanel" Visibility="{x:Bind ViewModel.IsContent, Mode=OneWay}"
                       VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="16" Margin="24,16,24,16">
 
-                <!-- 歌手头像和名字 -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -41,25 +37,27 @@
                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             <Image x:Name="ArtistImage"
                                    Stretch="UniformToFill"
-                                   Visibility="Collapsed"/>
+                                   Visibility="{x:Bind ViewModel.HasImage, Mode=OneWay}"/>
                         </Grid>
                     </Border>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8">
                         <TextBlock x:Name="ArtistNameText"
+                                   Text="{x:Bind ViewModel.ArtistName, Mode=OneWay}"
                                    FontSize="24"
                                    FontWeight="Bold"/>
                         <TextBlock x:Name="AliasText"
+                                   Text="{x:Bind ViewModel.AliasText, Mode=OneWay}"
                                    FontSize="14"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   Visibility="Collapsed"/>
+                                   Visibility="{x:Bind ViewModel.ShowAlias, Mode=OneWay}"/>
                     </StackPanel>
                 </Grid>
 
-                <!-- 简介 -->
-                <StackPanel x:Name="DescriptionSection" Visibility="Collapsed" Spacing="8">
+                <StackPanel x:Name="DescriptionSection" Visibility="{x:Bind ViewModel.ShowDescription, Mode=OneWay}" Spacing="8">
                     <TextBlock Text="简介" FontSize="16" FontWeight="SemiBold"/>
                     <TextBlock x:Name="DescriptionText"
+                               Text="{x:Bind ViewModel.Description, Mode=OneWay}"
                                FontSize="14"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap"/>

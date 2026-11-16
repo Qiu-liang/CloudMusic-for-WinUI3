@@ -1,78 +1,53 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Text.Json;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
     public sealed partial class ArtistAlbumsPage : Page
     {
-        private readonly ObservableCollection<AlbumItem> _albums = new();
-        private string _artistId = string.Empty;
+        public ArtistAlbumsViewModel? ViewModel { get; private set; }
 
         public ArtistAlbumsPage()
         {
-            this.InitializeComponent();
-            AlbumsGridView.ItemsSource = _albums;
+            InitializeComponent();
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
 
-            if (e.Parameter is string artistId)
+            if (e.Parameter is NavigationRequest request)
             {
-                _artistId = artistId;
-                await LoadArtistAlbumsAsync(artistId);
+                DetachViewModel();
+                ViewModel = (ArtistAlbumsViewModel)request.CreateViewModel();
+                Bindings.Update();
+
+                if (request.Parameter is string artistId)
+                {
+                    await ViewModel.LoadAsync(artistId);
+                }
             }
         }
 
-        private async System.Threading.Tasks.Task LoadArtistAlbumsAsync(string artistId)
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            LoadingPanel.Visibility = Visibility.Visible;
-            AlbumsGridView.Visibility = Visibility.Collapsed;
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
+        }
 
-            try
-            {
-                var json = await App.ApiService.GetAsync($"/artist/album?id={artistId}&limit=50");
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-
-                _albums.Clear();
-                if (result.TryGetProperty("hotAlbums", out var items))
-                {
-                    foreach (var item in items.EnumerateArray())
-                    {
-                        var album = new AlbumItem
-                        {
-                            Id = item.GetProperty("id").GetInt64().ToString(),
-                            Name = item.GetProperty("name").GetString() ?? string.Empty,
-                            PicUrl = item.TryGetProperty("picUrl", out var picUrl) ? picUrl.GetString() ?? string.Empty : string.Empty,
-                            Size = item.TryGetProperty("size", out var size) ? size.GetInt32() : 0
-                        };
-
-                        _albums.Add(album);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ArtistAlbums] Error: {ex.Message}");
-            }
-
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            AlbumsGridView.Visibility = Visibility.Visible;
+        private void DetachViewModel()
+        {
+            ViewModel?.Dispose();
+            ViewModel = null;
         }
 
         private void AlbumsGridView_ItemClick(object sender, ItemClickEventArgs e)
         {
-            if (e.ClickedItem is AlbumItem album)
+            if (e.ClickedItem is music.Core.ViewModels.Items.AlbumItem album && ViewModel != null)
             {
-                var mainWindow = App.m_window as MainWindow;
-                mainWindow?.MainContentFrame.Navigate(typeof(PlaylistDetailPage), $"album_{album.Id}");
+                ViewModel.OpenAlbum(album);
             }
         }
     }

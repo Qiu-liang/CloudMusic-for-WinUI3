@@ -2,15 +2,14 @@
     x:Class="music.Pages.RecentPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:music.Pages"
+    xmlns:items="using:music.Core.ViewModels.Items"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     NavigationCacheMode="Disabled">
 
     <Grid>
-        <!-- 加载中 -->
-        <Grid x:Name="LoadingPanel">
+        <Grid x:Name="LoadingPanel" Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                 <ProgressRing IsActive="True" Width="32" Height="32"/>
                 <TextBlock Text="加载中..."
@@ -20,8 +19,7 @@
             </StackPanel>
         </Grid>
 
-        <!-- 空状态 -->
-        <Grid x:Name="EmptyState" Visibility="Collapsed">
+        <Grid x:Name="EmptyState" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
                 <FontIcon Glyph="&#xE81C;"
                           FontSize="48"
@@ -37,24 +35,23 @@
             </StackPanel>
         </Grid>
 
-        <!-- 错误状态 -->
-        <Grid x:Name="ErrorPanel" Visibility="Collapsed">
+        <Grid x:Name="ErrorPanel" Visibility="{x:Bind ViewModel.IsError, Mode=OneWay}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                 <FontIcon Glyph="&#xE783;" FontSize="48"
                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                           HorizontalAlignment="Center"/>
                 <TextBlock x:Name="ErrorText"
-                           Text="加载失败"
+                           Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
                            Style="{StaticResource BodyTextBlockStyle}"
                            HorizontalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                <Button Content="重试" Click="RefreshButton_Click"/>
+                <Button Content="重试" Command="{x:Bind ViewModel.RefreshCommand, Mode=OneWay}"/>
             </StackPanel>
         </Grid>
 
-        <!-- 歌曲列表 -->
         <ListView x:Name="SongsListView"
-                  Visibility="Collapsed"
+                  ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}"
+                  Visibility="{x:Bind ViewModel.IsContent, Mode=OneWay}"
                   IsItemClickEnabled="True"
                   ItemClick="SongsListView_ItemClick"
                   SelectionMode="None"
@@ -84,7 +81,7 @@
                 </Grid>
             </ListView.Header>
             <ListView.ItemTemplate>
-                <DataTemplate x:DataType="local:RecentSongItem">
+                <DataTemplate x:DataType="items:RecentSongItem">
                     <Grid Height="56" Padding="0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="40"/>
@@ -112,7 +109,7 @@
                                            FontWeight="SemiBold"
                                            MaxLines="1"
                                            TextTrimming="CharacterEllipsis"/>
-                                <Border Visibility="{x:Bind VipVisibility}"
+                                <Border Visibility="{x:Bind IsVip}"
                                         Background="{ThemeResource AccentFillColorDefaultBrush}"
                                         CornerRadius="4"
                                         Padding="6,2"

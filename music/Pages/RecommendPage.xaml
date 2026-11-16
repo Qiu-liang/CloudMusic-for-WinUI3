@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:music.Pages"
+    xmlns:items="using:music.Core.ViewModels.Items"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -111,7 +112,7 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="local:PlaylistItem">
+                                    <DataTemplate x:DataType="items:PlaylistItem">
                                         <Border Width="160" 
                                                 CornerRadius="12"
                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -215,7 +216,7 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="local:SongItem">
+                                    <DataTemplate x:DataType="items:SongItem">
                                         <Border Width="160" 
                                                 CornerRadius="12"
                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -420,7 +421,7 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="local:PlaylistItem">
+                                    <DataTemplate x:DataType="items:PlaylistItem">
                                         <Border Width="160" 
                                                 CornerRadius="12"
                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"

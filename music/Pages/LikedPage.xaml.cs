@@ -1,154 +1,50 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using music.Models;
-using music.Services;
+using Microsoft.UI.Xaml.Navigation;
+using music.Core.Abstractions;
+using music.Core.Mvvm;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
     public sealed partial class LikedPage : Page
     {
-        private readonly ObservableCollection<SongItem> _songs = new();
-        private List<Song> _songModels = new();
-        private long _loadVersion;
+        public LikedViewModel? ViewModel { get; private set; }
 
         public LikedPage()
         {
-            this.InitializeComponent();
-            SongsListView.ItemsSource = _songs;
-            Loaded += LikedPage_Loaded;
-            Unloaded += LikedPage_Unloaded;
+            InitializeComponent();
         }
 
-        private async void LikedPage_Loaded(object sender, RoutedEventArgs e)
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
-            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
-            App.ApiService.SongLikeChanged += ApiService_SongLikeChanged;
-            await LoadLikedSongsAsync();
-        }
+            base.OnNavigatedTo(e);
 
-        private void LikedPage_Unloaded(object sender, RoutedEventArgs e)
-        {
-            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
-        }
-
-        private void ApiService_SongLikeChanged(object? sender, SongLikeChangedEventArgs e)
-        {
-            DispatcherQueue.TryEnqueue(async () =>
+            if (e.Parameter is NavigationRequest request)
             {
-                if (!IsLoaded) return;
-                await LoadLikedSongsAsync();
-            });
-        }
-
-        private async System.Threading.Tasks.Task LoadLikedSongsAsync()
-        {
-            var version = ++_loadVersion;
-
-            if (!App.ApiService.IsLoggedIn)
-            {
-                ShowError("请先登录");
-                return;
+                DetachViewModel();
+                ViewModel = (LikedViewModel)request.CreateViewModel();
+                Bindings.Update();
+                await ViewModel.LoadAsync();
             }
+        }
 
-            ShowLoading();
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
+        }
 
-            var songs = await App.ApiService.GetLikedSongsAsync(limit: 0, bypassCache: true);
-            if (version != _loadVersion) return;
+        private void DetachViewModel()
+        {
+            ViewModel?.Dispose();
+            ViewModel = null;
+        }
 
-            if (songs == null || songs.Count == 0)
+        private void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is music.Core.ViewModels.Items.SongItem songItem && ViewModel != null)
             {
-                if (App.ApiService.LastError != Services.ApiErrorKind.None)
-                    ShowError(App.ApiService.LastErrorMessage);
-                else
-                    ShowEmptyState();
-                return;
-            }
-
-            _songModels = songs;
-            _songs.Clear();
-            foreach (var song in songs)
-            {
-                _songs.Add(new SongItem
-                {
-                    Id = song.Id,
-                    Name = song.Name,
-                    ArtistNames = song.ArtistNames,
-                    AlbumName = song.Album.Name,
-                    CoverUrl = song.CoverImgUrl,
-                    DurationFormatted = song.DurationFormatted,
-                    IsLiked = true,
-                    CanPlay = song.CanPlay,
-                    Fee = song.Fee,
-                    IsVip = song.IsVip,
-                    IsPaid = song.IsPaid,
-                    FeeText = song.FeeText
-                });
-            }
-
-            SongsCountText.Text = $"共 {_songs.Count} 首";
-            ShowContent();
-        }
-
-        private void ShowLoading()
-        {
-            LoadingPanel.Visibility = Visibility.Visible;
-            EmptyState.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            SongsListView.Visibility = Visibility.Collapsed;
-        }
-
-        private void ShowEmptyState()
-        {
-            _songModels.Clear();
-            _songs.Clear();
-            SongsCountText.Text = "共 0 首";
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            EmptyState.Visibility = Visibility.Visible;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            SongsListView.Visibility = Visibility.Collapsed;
-        }
-
-        private void ShowError(string message)
-        {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            EmptyState.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Visible;
-            SongsListView.Visibility = Visibility.Collapsed;
-            ErrorText.Text = message;
-        }
-
-        private void ShowContent()
-        {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            EmptyState.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            SongsListView.Visibility = Visibility.Visible;
-        }
-
-        private async void RetryButton_Click(object sender, RoutedEventArgs e)
-        {
-            await LoadLikedSongsAsync();
-        }
-
-        private async void LoginButton_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new Dialogs.LoginDialog { XamlRoot = XamlRoot };
-            await dialog.ShowAsync();
-            if (App.ApiService.IsLoggedIn) await LoadLikedSongsAsync();
-        }
-
-        private async void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
-        {
-            if (e.ClickedItem is SongItem songItem)
-            {
-                var index = _songs.IndexOf(songItem);
-                if (index >= 0 && index < _songModels.Count)
-                {
-                    await MainWindow.PlaybackService.PlayAsync(_songModels, index);
-                }
+                ViewModel.PlaySongAsync(songItem).Forget();
             }
         }
     }

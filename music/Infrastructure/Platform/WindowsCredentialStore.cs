@@ -7,63 +7,80 @@ using Windows.Security.Credentials;
 using Windows.Security.Cryptography;
 using Windows.Security.Cryptography.DataProtection;
 using Windows.Storage;
+using music.Core.Abstractions;
 
-namespace music.Services
+namespace music.Infrastructure.Platform
 {
-    public static class CredentialStorage
+    public sealed class WindowsCredentialStore : ICredentialStore
     {
         private const string Resource = "CloudMusic.ApiSession";
         private const string UserName = "SessionCookie";
         private const string ProtectedCookieKey = "ProtectedCookie";
 
-        public static string Load()
+        private readonly ApplicationDataContainer _settings;
+
+        public WindowsCredentialStore() : this(ApplicationData.Current.LocalSettings)
         {
-            var settings = ApplicationData.Current.LocalSettings;
+        }
+
+        public WindowsCredentialStore(ApplicationDataContainer settings)
+        {
+            _settings = settings;
+        }
+
+        public string Load()
+        {
             try
             {
                 var credential = new PasswordVault().Retrieve(Resource, UserName);
                 credential.RetrievePassword();
-                if (!string.IsNullOrEmpty(credential.Password)) return credential.Password;
+                if (!string.IsNullOrEmpty(credential.Password))
+                {
+                    return credential.Password;
+                }
             }
             catch { }
 
-            if (settings.Values[ProtectedCookieKey] is string protectedValue)
+            if (_settings.Values[ProtectedCookieKey] is string protectedValue)
             {
                 try
                 {
                     return RunProtectedAsync(async () =>
                     {
-                        var buffer = await new DataProtectionProvider().UnprotectAsync(CryptographicBuffer.DecodeFromBase64String(protectedValue));
+                        var buffer = await new DataProtectionProvider().UnprotectAsync(
+                            CryptographicBuffer.DecodeFromBase64String(protectedValue));
                         return Encoding.UTF8.GetString(buffer.ToArray());
                     });
                 }
                 catch { }
             }
 
-            var legacyCookie = settings.Values["Cookie"]?.ToString() ?? string.Empty;
-            if (!string.IsNullOrEmpty(legacyCookie)) Save(legacyCookie);
-            RemovePlaintextCookies(settings);
+            var legacyCookie = _settings.Values["Cookie"]?.ToString() ?? string.Empty;
+            if (!string.IsNullOrEmpty(legacyCookie))
+            {
+                Save(legacyCookie);
+            }
+            RemovePlaintextCookies(_settings);
             return legacyCookie;
         }
 
-        public static void Save(string cookie)
+        public void Save(string cookie)
         {
-            var settings = ApplicationData.Current.LocalSettings;
-            RemovePlaintextCookies(settings);
+            RemovePlaintextCookies(_settings);
             if (string.IsNullOrEmpty(cookie)) return;
 
             try
             {
                 ClearVault();
                 new PasswordVault().Add(new PasswordCredential(Resource, UserName, cookie));
-                settings.Values.Remove(ProtectedCookieKey);
+                _settings.Values.Remove(ProtectedCookieKey);
                 return;
             }
             catch { }
 
             try
             {
-                settings.Values[ProtectedCookieKey] = RunProtectedAsync(async () =>
+                _settings.Values[ProtectedCookieKey] = RunProtectedAsync(async () =>
                 {
                     var provider = new DataProtectionProvider("LOCAL=user");
                     var buffer = await provider.ProtectAsync(Encoding.UTF8.GetBytes(cookie).AsBuffer());
@@ -73,20 +90,19 @@ namespace music.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Security] Unable to protect session cookie: {ex.Message}");
-                settings.Values.Remove(ProtectedCookieKey);
+                _settings.Values.Remove(ProtectedCookieKey);
             }
+        }
+
+        public void Clear()
+        {
+            ClearVault();
+            RemovePlaintextCookies(_settings);
+            _settings.Values.Remove(ProtectedCookieKey);
         }
 
         private static T RunProtectedAsync<T>(Func<Task<T>> action) =>
             Task.Run(action).GetAwaiter().GetResult();
-
-        public static void Clear()
-        {
-            ClearVault();
-            var settings = ApplicationData.Current.LocalSettings;
-            RemovePlaintextCookies(settings);
-            settings.Values.Remove(ProtectedCookieKey);
-        }
 
         private static void ClearVault()
         {
@@ -94,7 +110,10 @@ namespace music.Services
             {
                 var vault = new PasswordVault();
                 var credentials = vault.FindAllByResource(Resource);
-                foreach (var credential in credentials) vault.Remove(credential);
+                foreach (var credential in credentials)
+                {
+                    vault.Remove(credential);
+                }
             }
             catch { }
         }
@@ -103,7 +122,9 @@ namespace music.Services
         {
             settings.Values.Remove("Cookie");
             foreach (var key in settings.Values.Keys.Where(key => key.StartsWith("Cookie_", StringComparison.Ordinal)).ToList())
+            {
                 settings.Values.Remove(key);
+            }
         }
     }
 }

@@ -1,207 +1,59 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using music.Services;
-using Windows.System;
+using Microsoft.UI.Xaml.Navigation;
+using music.Core.Abstractions;
+using music.Core.Mvvm;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
-    public class DownloadedSongItem
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Artist { get; set; } = string.Empty;
-        public string FilePath { get; set; } = string.Empty;
-        public long FileSize { get; set; }
-
-        public string FileSizeFormatted
-        {
-            get
-            {
-                if (FileSize >= 1073741824)
-                    return $"{FileSize / 1073741824.0:F2} GB";
-                if (FileSize >= 1048576)
-                    return $"{FileSize / 1048576.0:F2} MB";
-                if (FileSize >= 1024)
-                    return $"{FileSize / 1024.0:F2} KB";
-                return $"{FileSize} B";
-            }
-        }
-    }
-
     public sealed partial class DownloadPage : Page
     {
-        private readonly ObservableCollection<DownloadedSongItem> _songs = new();
+        public DownloadViewModel? ViewModel { get; private set; }
 
         public DownloadPage()
         {
             InitializeComponent();
-            SongsListView.ItemsSource = _songs;
-            Loaded += DownloadPage_Loaded;
         }
 
-        private async void DownloadPage_Loaded(object sender, RoutedEventArgs e)
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
-            await LoadDownloadedSongsAsync();
-        }
+            base.OnNavigatedTo(e);
 
-        private async System.Threading.Tasks.Task LoadDownloadedSongsAsync()
-        {
-            ShowLoading();
-
-            try
+            if (e.Parameter is NavigationRequest request)
             {
-                var downloadFolder = DownloadFolderStore.GetCurrentFolder();
-                DownloadFolderPathText.Text = $"保存位置：{downloadFolder}";
-
-                if (!Directory.Exists(downloadFolder))
-                {
-                    Directory.CreateDirectory(downloadFolder);
-                    ShowEmpty();
-                    return;
-                }
-
-                var files = Directory.GetFiles(downloadFolder, "*.*", SearchOption.TopDirectoryOnly)
-                    .Where(f => f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
-                               f.EndsWith(".flac", StringComparison.OrdinalIgnoreCase) ||
-                               f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ||
-                               f.EndsWith(".aac", StringComparison.OrdinalIgnoreCase) ||
-                               f.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) ||
-                               f.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-
-                if (files.Count == 0)
-                {
-                    ShowEmpty();
-                    return;
-                }
-
-                _songs.Clear();
-                foreach (var file in files)
-                {
-                    var fileInfo = new FileInfo(file);
-                    var fileName = Path.GetFileNameWithoutExtension(file);
-                    
-                    // 尝试解析文件名格式: 歌手 - 歌名
-                    var parts = fileName.Split(" - ", 2);
-                    var artist = parts.Length > 1 ? parts[0].Trim() : "未知艺术家";
-                    var name = parts.Length > 1 ? parts[1].Trim() : fileName;
-
-                    _songs.Add(new DownloadedSongItem
-                    {
-                        Id = fileInfo.Name,
-                        Name = name,
-                        Artist = artist,
-                        FilePath = file,
-                        FileSize = fileInfo.Length
-                    });
-                }
-
-                CountText.Text = $"共 {_songs.Count} 首";
-                ShowContent();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Download] Load Error: {ex.Message}");
-                ShowEmpty();
+                DetachViewModel();
+                ViewModel = (DownloadViewModel)request.CreateViewModel();
+                Bindings.Update();
+                await ViewModel.LoadAsync();
             }
         }
 
-        private void ShowLoading()
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            LoadingPanel.Visibility = Visibility.Visible;
-            EmptyState.Visibility = Visibility.Collapsed;
-            SongsListView.Visibility = Visibility.Collapsed;
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
         }
 
-        private void ShowEmpty()
+        private void DetachViewModel()
         {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            EmptyState.Visibility = Visibility.Visible;
-            SongsListView.Visibility = Visibility.Collapsed;
-            CountText.Text = "共 0 首";
+            ViewModel?.Dispose();
+            ViewModel = null;
         }
 
-        private void ShowContent()
+        private void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
         {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            EmptyState.Visibility = Visibility.Collapsed;
-            SongsListView.Visibility = Visibility.Visible;
-        }
-
-        private static Models.Song CreateSongModel(DownloadedSongItem song) =>
-            Models.LocalSongFactory.Create(song.Name, song.Artist, song.FilePath);
-
-        private async void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
-        {
-            if (e.ClickedItem is DownloadedSongItem song)
+            if (e.ClickedItem is music.Core.ViewModels.Items.AudioFileItem song && ViewModel != null)
             {
-                // 播放本地文件
-                try
-                {
-                    var mediaPlayer = MainWindow.PlaybackService;
-                    var songModels = _songs.Select(CreateSongModel).ToList();
-                    var filePaths = _songs.Select(item => item.FilePath).ToList();
-                    await mediaPlayer.PlayLocalFilesAsync(filePaths, songModels, _songs.IndexOf(song));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[Download] Play Error: {ex.Message}");
-                }
+                ViewModel.PlaySongAsync(song).Forget();
             }
         }
 
-        private async void DeleteButton_Click(object sender, RoutedEventArgs e)
+        private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.Tag is string fileName)
+            if (sender is Button button && button.Tag is string fileName && ViewModel != null)
             {
-                var downloadFolder = DownloadFolderStore.GetCurrentFolder();
-                var filePath = Path.Combine(downloadFolder, fileName);
-                
-                var dialog = new ContentDialog
-                {
-                    Title = "删除确认",
-                    Content = $"确定要删除 {fileName} 吗？",
-                    PrimaryButtonText = "删除",
-                    SecondaryButtonText = "取消",
-                    XamlRoot = this.XamlRoot
-                };
-
-                var result = await dialog.ShowAsync();
-                if (result == ContentDialogResult.Primary)
-                {
-                    try
-                    {
-                        if (File.Exists(filePath))
-                        {
-                            File.Delete(filePath);
-                            await LoadDownloadedSongsAsync();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[Download] Delete Error: {ex.Message}");
-                    }
-                }
-            }
-        }
-
-        private async void OpenDownloadFolderButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                var downloadFolder = DownloadFolderStore.GetCurrentFolder();
-                Directory.CreateDirectory(downloadFolder);
-                await Launcher.LaunchFolderPathAsync(downloadFolder);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Download] Open Folder Error: {ex.Message}");
+                ViewModel.DeleteSongAsync(fileName).Forget();
             }
         }
     }

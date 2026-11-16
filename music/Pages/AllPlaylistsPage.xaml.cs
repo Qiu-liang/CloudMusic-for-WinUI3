@@ -1,103 +1,49 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using music.Services;
+using Microsoft.UI.Xaml.Navigation;
+using music.Core.Abstractions;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
     public sealed partial class AllPlaylistsPage : Page
     {
-        private readonly ObservableCollection<PlaylistItem> _playlists = new();
-        private List<RecommendedPlaylist> _playlistModels = new();
+        public AllPlaylistsViewModel? ViewModel { get; private set; }
 
         public AllPlaylistsPage()
         {
             InitializeComponent();
-            PlaylistsGridView.ItemsSource = _playlists;
-            Loaded += AllPlaylistsPage_Loaded;
         }
 
-        private async void AllPlaylistsPage_Loaded(object sender, RoutedEventArgs e)
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
-            await LoadPlaylistsAsync();
-        }
+            base.OnNavigatedTo(e);
 
-        private async System.Threading.Tasks.Task LoadPlaylistsAsync()
-        {
-            ShowLoading();
-
-            try
+            if (e.Parameter is NavigationRequest request)
             {
-                var playlists = await App.ApiService.GetRecommendedPlaylistsAsync(50);
-
-                if (playlists == null || playlists.Count == 0)
-                {
-                    ShowError("暂无推荐歌单");
-                    return;
-                }
-
-                _playlistModels = playlists;
-                _playlists.Clear();
-                foreach (var playlist in playlists)
-                {
-                    _playlists.Add(new PlaylistItem
-                    {
-                        Id = playlist.Id,
-                        Name = playlist.Name,
-                        PicUrl = playlist.PicUrl,
-                        PlayCount = playlist.PlayCount,
-                        TrackCount = playlist.TrackCount,
-                        PlayCountFormatted = playlist.PlayCountFormatted
-                    });
-                }
-
-                ShowContent();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[AllPlaylists] Load Error: {ex.Message}");
-                ShowError("加载失败，请稍后重试");
+                DetachViewModel();
+                ViewModel = (AllPlaylistsViewModel)request.CreateViewModel();
+                Bindings.Update();
+                await ViewModel.LoadAsync();
             }
         }
 
-        private void ShowLoading()
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            LoadingPanel.Visibility = Visibility.Visible;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            PlaylistsGridView.Visibility = Visibility.Collapsed;
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
         }
 
-        private void ShowError(string message)
+        private void DetachViewModel()
         {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Visible;
-            PlaylistsGridView.Visibility = Visibility.Collapsed;
-            ErrorText.Text = message;
-        }
-
-        private void ShowContent()
-        {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            PlaylistsGridView.Visibility = Visibility.Visible;
-        }
-
-        private async void RetryButton_Click(object sender, RoutedEventArgs e)
-        {
-            await LoadPlaylistsAsync();
+            ViewModel?.Dispose();
+            ViewModel = null;
         }
 
         private void PlaylistsGridView_ItemClick(object sender, ItemClickEventArgs e)
         {
-            if (e.ClickedItem is PlaylistItem playlist)
+            if (e.ClickedItem is music.Core.ViewModels.Items.PlaylistItem playlist && ViewModel != null)
             {
-                var mainWindow = App.m_window as MainWindow;
-                if (mainWindow != null)
-                {
-                    mainWindow.MainContentFrame.Navigate(typeof(PlaylistDetailPage), playlist.Id);
-                }
+                ViewModel.OpenPlaylist(playlist);
             }
         }
     }
