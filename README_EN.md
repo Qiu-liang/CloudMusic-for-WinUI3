@@ -85,8 +85,8 @@ The service runs on `http://localhost:3000` by default. For more deployment opti
 git clone <your-repo-url>
 cd CloudMusic-for-WinUI3
 
-# Build (x64)
-dotnet build music/music.csproj -p:Platform=x64
+# Build solution (x64)
+dotnet build music.slnx -p:Platform=x64
 
 # Run
 dotnet run --project music/music.csproj -p:Platform=x64
@@ -102,52 +102,49 @@ The app defaults to `http://localhost:3000`. Use the **Settings** page to change
 
 ```
 CloudMusic-for-WinUI3/
-├── music.slnx                      # Solution file
-├── tests/music.Tests.csproj        # Minimal regression test project
-├── LICENSE                          # MIT License
-├── README.md                        # Chinese documentation
-├── README_EN.md                     # English documentation
+├── music.slnx                          # Solution file
+├── global.json                         # Microsoft.Testing.Platform runner config
+├── .github/workflows/ci.yml            # GitHub Actions CI (x64 build & tests)
+├── tests/music.Tests.csproj            # xUnit v3 unit & architecture guard tests
+├── LICENSE                             # MIT License
+├── README.md                           # Chinese documentation
+├── README_EN.md                        # English documentation
 │
-└── music/
-    ├── App.xaml / .cs               # Application entry point
-    ├── MainWindow.xaml / .cs        # Main window (navigation, search bar, player bar, playlist)
-    ├── music.csproj                 # Project file
-    ├── Package.appxmanifest         # Application manifest
+├── music.Core/                         # Pure .NET 8 business core (WinUI-free)
+│   ├── music.Core.csproj               # Core library project file
+│   ├── Abstractions/                   # Platform & UI ports (IApiLog/IUiDispatcher/IMediaPlayer/INavigationService, etc.)
+│   ├── Models/                         # Domain models & DTOs (Song/Artist/Album/PlaybackTypes/ApiDtos)
+│   ├── Mvvm/                           # MVVM infrastructure (ObservableObject/PageViewModelBase/AsyncRelayCommand)
+│   ├── Netease/                        # HTTP transport, endpoints, cookie jar, URL policy & JSON mappers
+│   ├── Results/                        # Unified result types (ApiResult / ApiResult<T>)
+│   ├── Services/                       # Domain services (Session/Library/Playlist/Artist/Recommendation/Search/Cloud/Profile/Playback/Download/Lyrics, etc.)
+│   └── ViewModels/                     # Page & window ViewModels (Shell/PlayerBar/Recommend/Search/PlaylistDetail/LyricsWindow/Settings, etc.)
+│
+└── music/                              # WinUI 3 client application layer
+    ├── App.xaml / .cs                  # Application entry point
+    ├── MainWindow.xaml / .cs           # Main window (navigation, search bar, player bar, play queue)
+    ├── LyricsWindow.xaml / .cs         # Standalone desktop lyrics window (split into .Rendering.cs & .Interop.cs)
+    ├── music.csproj                    # Application project file
+    ├── Package.appxmanifest            # Application manifest
     │
-    ├── Pages/                       # Pages
-    │   ├── RecommendPage            # Recommendations (default home page)
-    │   ├── RecommendDailySongsPage  # Full daily recommendation list
-    │   ├── RecommendRadarPage       # Radar playlists
-    │   ├── AllPlaylistsPage         # All recommended playlists
-    │   ├── LikedPage                # Liked songs
-    │   ├── RecentPage               # Recently played
-    │   ├── DownloadedPage           # Download management (container)
-    │   ├── DownloadPage             # Downloaded songs
-    │   ├── LocalPage                # Local music
-    │   ├── CloudPage                # Cloud drive
-    │   ├── SearchPage               # Search results
-    │   ├── SearchAllSongsPage       # Search results - songs
-    │   ├── SearchAllResultsPage     # Search results - playlists/albums
-    │   ├── PlaylistDetailPage       # Playlist/album details
-    │   ├── ArtistDetailPage         # Artist details
-    │   ├── ArtistAlbumsPage         # Artist album list
-    │   ├── ArtistInfoPage           # Artist biography
-    │   ├── ArtistTopSongsPage       # Artist top songs
-    │   ├── LyricsPage               # Full-screen lyrics
-    │   ├── SettingsPage             # Settings
-    │   └── ViewModels.cs            # View model classes (SongItem/PlaylistItem, etc.)
+    ├── Composition/                    # Composition root
+    │   └── AppCompositionRoot.cs       # Manual DI wiring, route registration, and window/service creation
     │
-    ├── Services/
-    │   ├── MusicApiService.cs       # NetEase Cloud Music API client (login, search, recommendations, playlists, etc.)
-    │   └── PlaybackService.cs       # Playback service (media player wrapper, playlist management)
+    ├── Infrastructure/Platform/        # Windows / WinUI 3 platform adapters
+    │   ├── DialogService.cs            # Content dialogs & login dialog service
+    │   ├── FileApiLog.cs               # Async bounded-channel & size-rotating file logger
+    │   ├── LocalSettingsStore.cs       # LocalSettings adapter
+    │   ├── MediaPlayerAdapter.cs       # Windows MediaPlayer adapter
+    │   ├── NavigationService.cs        # Frame navigation & route request resolution
+    │   ├── PickerThemeAndLauncherServices.cs # File/folder pickers, theme service, and lyrics window launcher
+    │   ├── WindowHost.cs               # Main window host reference
+    │   ├── WindowsCredentialStore.cs   # Windows Credential Locker / DPAPI cookie storage
+    │   └── WinUiDispatcher.cs          # DispatcherQueue adapter
     │
-    ├── Models/
-    │   └── RecommendModels.cs       # Data models (Song/Artist/Album)
-    │
-    ├── Dialogs/
-    │   └── LoginDialog.xaml / .cs   # Login dialog (phone login/QR code login)
-    │
-    └── Assets/                      # App icons and resources
+    ├── Controls/                       # Custom controls (MarqueeText, etc.)
+    ├── Dialogs/                        # Dialogs (LoginDialog.xaml / .cs)
+    ├── Pages/                          # XAML pages & lightweight UI code-behind
+    └── Assets/                         # App icons and resources
 ```
 
 ## Tech Stack
@@ -159,24 +156,26 @@ CloudMusic-for-WinUI3/
 | UI Framework | WinUI 3 (Windows App SDK 2.1.3) |
 | Design Language | Fluent Design System |
 | Media Playback | Windows.Media.Playback.MediaPlayer |
+| Lyrics Rendering | Win2D (Microsoft.Graphics.Win2D) |
 | Networking | System.Net.Http |
 | JSON Serialization | System.Text.Json |
-| Data Persistence | ApplicationData.LocalSettings |
+| Data Persistence | ApplicationData.LocalSettings / PasswordVault + DPAPI |
 | Build Tools | Microsoft.Windows.SDK.BuildTools |
 
 ## Architecture Overview
 
-The project follows a **Code-Behind** pattern, with page logic written directly in the `.cs` code-behind files.
+The project uses an **MVVM + Clean Core** architecture that decouples business logic from WinUI 3 views and platform APIs:
 
-### Core Components
+### Core Layers
 
-- **MusicApiService** — Wraps all NetEase Cloud Music API calls, manages login state and cookies, and handles the request queue (rate limited via SemaphoreSlim)
-- **PlaybackService** — Wraps MediaPlayer and manages the playlist, playback modes (sequential/loop/shuffle), and volume control
-- **ViewModels** — Lightweight view models (SongItem/PlaylistItem) implementing INotifyPropertyChanged
+- **music.Core** — Pure .NET 8 library (standardized on `music.Core.*` namespaces without exposing `InternalsVisibleTo` to the app layer) containing HTTP transport (`NeteaseHttpTransport` with `SemaphoreSlim` throttling), JSON mappers, unified `ApiResult` error semantics, end-to-end `CancellationToken` propagation, `IApiLog` logging, domain services (`SessionService`, `LibraryService`, `PlaylistService`, `PlaybackCoordinator`, etc.), and `ViewModels`.
+- **music/Composition** — `AppCompositionRoot` wires services, platform adapters, and route factories without global static service access from Views.
+- **music/Infrastructure/Platform** — Implements the ports defined in `music.Core.Abstractions` (`IUiDispatcher`, `IMediaPlayer`, `INavigationService`, `IDialogService`, `ICredentialStore`, `ISettingsStore`, `IApiLog`, etc.).
+- **music/Pages & Windows (Code-Behind Boundary)** — Business state, data loading, and commands belong in Core `ViewModels`; Views keep only XAML `{x:Bind}` bindings, page navigation lifecycle, and UI-specific concerns such as Win2D lyrics rendering, Win32 window interop, and horizontal scroll animations.
 
 ### Page Navigation
 
-- **NavigationView** — Left navigation pane containing Recommendations, Following, My Music, and playlist list
+- **NavigationView** — Left navigation pane containing Recommendations, Liked Songs, Downloads, Cloud Drive, and user playlists
 - **Frame** — Content area navigation with forward/backward page support
 - **Player Bar** — Floating playback control at the bottom with a translucent background
 
@@ -193,21 +192,26 @@ All user configuration is stored in `ApplicationData.Current.LocalSettings`:
 | `AudioQuality` | Audio quality setting |
 | `SidebarWidth` | Sidebar width |
 | `LocalMusicFolders` | List of local music folders |
+| `DownloadFolder` | Custom download folder |
+| `FancyLyrics` | Desktop lyrics window toggle |
 | `DeviceId` | Device identifier |
 
-The login cookie is stored in Windows Credential Locker (falling back to current-user DPAPI encryption) and never as plaintext in `LocalSettings`. Downloaded audio files are saved to `LocalFolder/Downloads/`.
+The login cookie is stored in Windows Credential Locker (falling back to current-user DPAPI encryption) and never as plaintext in `LocalSettings`. By default, downloaded audio files are saved to `CloudMusic for WinUI` inside the user's Music folder (falling back to `LocalFolder/Downloads/`).
 
 ## Tests
 
 ```bash
-# xUnit in-process runner (no external test host)
-dotnet run --project tests/music.Tests.csproj
+# Run all unit and architecture guard tests (via Microsoft.Testing.Platform configured in global.json)
+dotnet test
 
-# Hosts that support Microsoft.Testing.Platform can also use
+# Or target the test project explicitly
 dotnet test tests/music.Tests.csproj
+
+# Alternatively run via the xUnit in-process runner
+dotnet run --project tests/music.Tests.csproj
 ```
 
-Regression tests cover queue replacement/navigation, local file paths, out-of-order lyrics, liked-list batching, upload business status parsing, theme restoration, and progress-drag state.
+Tests cover queue navigation, local file paths, out-of-order lyrics, liked-list batching, error semantics, command UI-thread dispatching, theme restoration, ViewModel state machines, and layer architecture guards.
 
 ## Development Guide
 

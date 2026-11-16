@@ -1,201 +1,54 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
-using music.Models;
+using music.Core.Abstractions;
+using music.Core.Mvvm;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
     public sealed partial class RecommendDailySongsPage : Page
     {
-        private readonly ObservableCollection<SongItem> _songs = new();
-        private List<Song> _songModels = new();
-        private string _pageType = "daily";
+        public RecommendDailySongsViewModel? ViewModel { get; private set; }
 
         public RecommendDailySongsPage()
         {
             InitializeComponent();
-            SongsListView.ItemsSource = _songs;
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
 
-            if (e.Parameter is string pageType)
+            if (e.Parameter is NavigationRequest request)
             {
-                _pageType = pageType;
+                DetachViewModel();
+                ViewModel = (RecommendDailySongsViewModel)request.CreateViewModel();
+                Bindings.Update();
 
-                switch (pageType)
+                if (request.Parameter is string pageType)
                 {
-                    case "daily":
-                        TitleText.Text = "推荐歌曲";
-                        await LoadDailySongsAsync();
-                        break;
-                    case "intelligence":
-                        TitleText.Text = "你的红心歌曲和相似推荐";
-                        await LoadLikedSongsAsync();
-                        break;
-                    case "guess":
-                        TitleText.Text = "猜你喜欢的歌";
-                        await LoadGuessSongsAsync();
-                        break;
+                    await ViewModel.LoadAsync(pageType);
                 }
             }
         }
 
-        private async System.Threading.Tasks.Task LoadDailySongsAsync()
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            ShowLoading();
-            try
-            {
-                var songs = await App.ApiService.GetDailyRecommendSongsAsync(100);
-                LoadSongs(songs, "每日推荐为空");
-            }
-            catch (System.Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[RecommendAll] Load Error: {ex.Message}");
-                ShowError("加载失败");
-            }
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
         }
 
-        private async System.Threading.Tasks.Task LoadLikedSongsAsync()
+        private void DetachViewModel()
         {
-            ShowLoading();
-            try
+            ViewModel?.Dispose();
+            ViewModel = null;
+        }
+
+        private void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is music.Core.ViewModels.Items.SongItem songItem && ViewModel != null)
             {
-                var songs = await App.ApiService.GetIntelligenceSongsAsync();
-                LoadSongs(songs, "暂无智能推荐");
-            }
-            catch (System.Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[RecommendAll] Load Error: {ex.Message}");
-                ShowError("加载失败");
-            }
-        }
-
-        private async System.Threading.Tasks.Task LoadGuessSongsAsync()
-        {
-            ShowLoading();
-            try
-            {
-                var songs = await App.ApiService.GetPersonalizedSongsAsync(100);
-                LoadSongs(songs, "暂无推荐歌曲");
-            }
-            catch (System.Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[RecommendAll] Load Error: {ex.Message}");
-                ShowError("加载失败");
-            }
-        }
-
-        private void LoadSongs(List<Song> songs, string emptyMessage)
-        {
-            if (songs == null || songs.Count == 0)
-            {
-                var message = App.ApiService.LastError != Services.ApiErrorKind.None
-                    ? App.ApiService.LastErrorMessage
-                    : emptyMessage;
-                ShowError(message);
-                return;
-            }
-
-            _songModels = songs;
-            _songs.Clear();
-            for (int i = 0; i < songs.Count; i++)
-            {
-                var song = songs[i];
-                _songs.Add(new SongItem
-                {
-                    Id = song.Id,
-                    Name = song.Name,
-                    ArtistNames = song.ArtistNames,
-                    AlbumName = song.Album.Name,
-                    CoverUrl = song.CoverImgUrl,
-                    DurationFormatted = song.DurationFormatted,
-                    Index = i + 1,
-                    IsLiked = song.Liked,
-                    CanPlay = song.CanPlay,
-                    Fee = song.Fee,
-                    IsVip = song.IsVip,
-                    IsPaid = song.IsPaid,
-                    FeeText = song.FeeText
-                });
-            }
-
-            SongsCountText.Text = $"共 {_songs.Count} 首";
-            ShowContent();
-        }
-
-        private void ShowLoading()
-        {
-            LoadingPanel.Visibility = Visibility.Visible;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            SongsListView.Visibility = Visibility.Collapsed;
-        }
-
-        private void ShowError(string message)
-        {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Visible;
-            SongsListView.Visibility = Visibility.Collapsed;
-            ErrorText.Text = message;
-        }
-
-        private void ShowContent()
-        {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            SongsListView.Visibility = Visibility.Visible;
-        }
-
-        private async void LoginButton_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new Dialogs.LoginDialog { XamlRoot = XamlRoot };
-            await dialog.ShowAsync();
-            if (App.ApiService.IsLoggedIn) await RetryCurrentPageAsync();
-        }
-
-        private async void RetryButton_Click(object sender, RoutedEventArgs e)
-        {
-            await RetryCurrentPageAsync();
-        }
-
-        private async System.Threading.Tasks.Task RetryCurrentPageAsync()
-        {
-            switch (_pageType)
-            {
-                case "daily":
-                    await LoadDailySongsAsync();
-                    break;
-                case "intelligence":
-                    await LoadLikedSongsAsync();
-                    break;
-                case "guess":
-                    await LoadGuessSongsAsync();
-                    break;
-            }
-        }
-
-        private async void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
-        {
-            if (e.ClickedItem is SongItem songItem)
-            {
-                var index = _songs.IndexOf(songItem);
-                if (index >= 0 && index < _songModels.Count)
-                {
-                    await MainWindow.PlaybackService.PlayAsync(_songModels, index);
-                }
-            }
-        }
-
-        private async void PlayAllButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_songModels.Count > 0)
-            {
-                await MainWindow.PlaybackService.PlayAsync(_songModels, 0);
+                ViewModel.PlaySongAsync(songItem).Forget();
             }
         }
     }

@@ -1,43 +1,37 @@
+using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
-using music.Models;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Mvvm;
+using music.Core.ViewModels;
+using music.Core.ViewModels.Items;
 
 namespace music.Pages
 {
     public sealed partial class SearchPage : Page
     {
-        private readonly ObservableCollection<SongItem> _songs = new();
-        private readonly ObservableCollection<ArtistItem> _artists = new();
-        private readonly ObservableCollection<PlaylistItem> _playlists = new();
-        private readonly ObservableCollection<AlbumItem> _albums = new();
-        private List<Song> _songModels = new();
-        private string _currentQuery = string.Empty;
+        public SearchViewModel? ViewModel { get; private set; }
         private readonly List<Border> _songCardBorders = new();
         private readonly List<TextBlock> _songNameTexts = new();
         private readonly List<TextBlock> _songArtistTexts = new();
         private readonly List<TextBlock> _songDurationTexts = new();
+        private double _wheelTargetOffset = double.NaN;
 
         public SearchPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
             RegisterWheelForwarding();
-            this.ActualThemeChanged += SearchPage_ActualThemeChanged;
-        }
-
-        private void SearchPage_ActualThemeChanged(FrameworkElement sender, object args)
-        {
-            RefreshSongCardBackgrounds();
+            ActualThemeChanged += (_, _) => RefreshSongCardBackgrounds();
         }
 
         private void RefreshSongCardBackgrounds()
         {
-            var isDark = this.ActualTheme == ElementTheme.Dark;
+            var isDark = ActualTheme == ElementTheme.Dark;
             var primaryBrush = isDark
                 ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
@@ -56,160 +50,120 @@ namespace music.Pages
 
         private void ApplyCardBackground(Border border)
         {
-            if (this.ActualTheme == ElementTheme.Dark)
-            {
-                border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 39, 39, 39));
-            }
-            else
-            {
-                border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 249, 249, 249));
-            }
+            border.Background = ActualTheme == ElementTheme.Dark
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 39, 39, 39))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 249, 249, 249));
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
 
-            if (e.Parameter is string query && !string.IsNullOrWhiteSpace(query))
+            if (e.Parameter is NavigationRequest request)
             {
-                _currentQuery = query;
-                TitleText.Text = $"搜索: {query}";
-                await SearchAllAsync(query);
-            }
-            else
-            {
-                ShowEmptyState();
+                DetachViewModel();
+                ViewModel = (SearchViewModel)request.CreateViewModel();
+                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+
+                var query = request.Parameter as string;
+                await ViewModel.LoadAsync(query);
+                SyncViewFromViewModel();
             }
         }
 
-        private async System.Threading.Tasks.Task SearchAllAsync(string keywords)
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            ShowLoading();
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
+        }
 
-            try
+        private void DetachViewModel()
+        {
+            if (ViewModel != null)
             {
-                var artists = await App.ApiService.SearchArtistsAsync(keywords, 10);
-                var songs = await App.ApiService.SearchSongsAsync(keywords, 39);
-                var playlists = await App.ApiService.SearchPlaylistsAsync(keywords, 20);
-                var albums = await App.ApiService.SearchAlbumsAsync(keywords, 20);
-
-                // 更新歌手
-                _artists.Clear();
-                foreach (var artist in artists)
-                {
-                    _artists.Add(new ArtistItem
-                    {
-                        Id = artist.Id,
-                        Name = artist.Name,
-                        PicUrl = artist.PicUrl,
-                        SongCount = artist.SongCount
-                    });
-                }
-                ArtistsItems.ItemsSource = _artists;
-                ArtistsSection.Visibility = _artists.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-                // 更新单曲 (每列3首，横向排列)
-                _songModels = songs;
-                _songs.Clear();
-                SongsContainer.Children.Clear();
-                _songCardBorders.Clear();
-                _songNameTexts.Clear();
-                _songArtistTexts.Clear();
-                _songDurationTexts.Clear();
-
-                for (int i = 0; i < songs.Count && i < 39; i++)
-                {
-                    var song = songs[i];
-                    var songItem = new SongItem
-                    {
-                        Id = song.Id,
-                        Name = song.Name,
-                        ArtistNames = song.ArtistNames,
-                        AlbumName = song.Album.Name,
-                        CoverUrl = song.CoverImgUrl,
-                        DurationFormatted = song.DurationFormatted,
-                        IsLiked = song.Liked,
-                        CanPlay = song.CanPlay,
-                        Fee = song.Fee,
-                        IsVip = song.IsVip,
-                        IsPaid = song.IsPaid,
-                        FeeText = song.FeeText
-                    };
-                    _songs.Add(songItem);
-                }
-
-                // 每3首歌一组，创建列
-                for (int col = 0; col < (_songs.Count + 2) / 3; col++)
-                {
-                    var column = new StackPanel { Spacing = 8, Width = 300 };
-                    for (int row = 0; row < 3; row++)
-                    {
-                        int index = col * 3 + row;
-                        if (index < _songs.Count)
-                        {
-                            var card = CreateSongCard(_songs[index], index);
-                            _songCardBorders.Add(card);
-                            column.Children.Add(card);
-                        }
-                    }
-                    SongsContainer.Children.Add(column);
-                }
-                SongsSection.Visibility = songs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-                RefreshSongCardBackgrounds();
-
-                // 更新歌单
-                _playlists.Clear();
-                foreach (var playlist in playlists)
-                {
-                    _playlists.Add(new PlaylistItem
-                    {
-                        Id = playlist.Id,
-                        Name = playlist.Name,
-                        PicUrl = playlist.PicUrl,
-                        PlayCount = playlist.PlayCount,
-                        TrackCount = playlist.TrackCount,
-                        PlayCountFormatted = playlist.PlayCountFormatted
-                    });
-                }
-                PlaylistsItems.ItemsSource = _playlists;
-                PlaylistsSection.Visibility = _playlists.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-                // 更新专辑
-                _albums.Clear();
-                foreach (var album in albums)
-                {
-                    _albums.Add(new AlbumItem
-                    {
-                        Id = album.Id,
-                        Name = album.Name,
-                        PicUrl = album.PicUrl,
-                        ArtistName = album.ArtistName,
-                        PublishTime = album.PublishTime,
-                        Size = album.Size
-                    });
-                }
-                AlbumsItems.ItemsSource = _albums;
-                AlbumsSection.Visibility = _albums.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-                if (_artists.Count == 0 && _songs.Count == 0 && _playlists.Count == 0 && _albums.Count == 0)
-                {
-                    ShowEmptyState();
-                    TitleText.Text = $"未找到 \"{keywords}\" 的结果";
-                }
-                else
-                {
-                    ShowResults();
-                }
-            }
-            catch (System.Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Search] Error: {ex.Message}");
-                ShowEmptyState();
-                TitleText.Text = $"搜索 \"{keywords}\" 失败";
+                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+                ViewModel.Dispose();
+                ViewModel = null;
             }
         }
 
-        private Border CreateSongCard(SongItem song, int index)
+        private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(SearchViewModel.State) or nameof(SearchViewModel.Title) or nameof(SearchViewModel.ErrorMessage))
+            {
+                SyncViewFromViewModel();
+            }
+        }
+
+        private void SyncViewFromViewModel()
+        {
+            if (ViewModel == null) return;
+
+            TitleText.Text = ViewModel.Title;
+
+            if (ViewModel.IsLoading)
+            {
+                ShowLoading();
+                return;
+            }
+
+            if (ViewModel.IsError)
+            {
+                ShowError(ViewModel.ErrorMessage);
+                return;
+            }
+
+            if (ViewModel.IsEmpty)
+            {
+                ShowEmptyState();
+                return;
+            }
+
+            ArtistsItems.ItemsSource = ViewModel.Artists;
+            ArtistsSection.Visibility = ViewModel.HasArtists ? Visibility.Visible : Visibility.Collapsed;
+
+            RebuildSongCards();
+            SongsSection.Visibility = ViewModel.HasSongs ? Visibility.Visible : Visibility.Collapsed;
+
+            PlaylistsItems.ItemsSource = ViewModel.Playlists;
+            PlaylistsSection.Visibility = ViewModel.HasPlaylists ? Visibility.Visible : Visibility.Collapsed;
+
+            AlbumsItems.ItemsSource = ViewModel.Albums;
+            AlbumsSection.Visibility = ViewModel.HasAlbums ? Visibility.Visible : Visibility.Collapsed;
+
+            ShowResults();
+        }
+
+        private void RebuildSongCards()
+        {
+            if (ViewModel == null) return;
+
+            SongsContainer.Children.Clear();
+            _songCardBorders.Clear();
+            _songNameTexts.Clear();
+            _songArtistTexts.Clear();
+            _songDurationTexts.Clear();
+
+            for (int col = 0; col < (ViewModel.Songs.Count + 2) / 3; col++)
+            {
+                var column = new StackPanel { Spacing = 8, Width = 300 };
+                for (int row = 0; row < 3; row++)
+                {
+                    int index = col * 3 + row;
+                    if (index < ViewModel.Songs.Count)
+                    {
+                        var card = CreateSongCard(ViewModel.Songs[index], index);
+                        _songCardBorders.Add(card);
+                        column.Children.Add(card);
+                    }
+                }
+                SongsContainer.Children.Add(column);
+            }
+
+            RefreshSongCardBackgrounds();
+        }
+
+        private Border CreateSongCard(music.Core.ViewModels.Items.SongItem song, int index)
         {
             var border = new Border
             {
@@ -227,7 +181,6 @@ namespace music.Pages
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
 
-            // 封面
             var coverBorder = new Border
             {
                 Width = 56,
@@ -237,30 +190,27 @@ namespace music.Pages
             };
 
             var coverGrid = new Grid();
-            var coverIcon = new FontIcon
+            coverGrid.Children.Add(new FontIcon
             {
                 Glyph = "\uE8D6",
                 FontSize = 24,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
-            };
-            coverGrid.Children.Add(coverIcon);
+            });
 
             if (!string.IsNullOrEmpty(song.CoverUrl))
             {
-                var coverImage = new Image
+                coverGrid.Children.Add(new Image
                 {
-                    Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill,
-                    Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new System.Uri(song.CoverUrl))
-                };
-                coverGrid.Children.Add(coverImage);
+                    Stretch = Stretch.UniformToFill,
+                    Source = new BitmapImage(new Uri(song.CoverUrl))
+                });
             }
 
             coverBorder.Child = coverGrid;
             Grid.SetColumn(coverBorder, 0);
             grid.Children.Add(coverBorder);
 
-            // 歌曲信息
             var infoPanel = new StackPanel
             {
                 VerticalAlignment = VerticalAlignment.Center,
@@ -269,7 +219,6 @@ namespace music.Pages
             };
 
             var namePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-
             var nameText = new TextBlock
             {
                 Text = song.Name,
@@ -285,19 +234,18 @@ namespace music.Pages
             {
                 var vipBadge = new Border
                 {
-                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(4, 1, 4, 1),
                     VerticalAlignment = VerticalAlignment.Center
                 };
-                var vipText = new TextBlock
+                vipBadge.Child = new TextBlock
                 {
                     Text = "VIP",
                     FontSize = 9,
                     FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
+                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.White)
                 };
-                vipBadge.Child = vipText;
                 namePanel.Children.Add(vipBadge);
             }
 
@@ -316,7 +264,6 @@ namespace music.Pages
             Grid.SetColumn(infoPanel, 1);
             grid.Children.Add(infoPanel);
 
-            // 时长
             var durationText = new TextBlock
             {
                 Text = song.DurationFormatted,
@@ -336,6 +283,7 @@ namespace music.Pages
         {
             EmptyState.Visibility = Visibility.Visible;
             LoadingPanel.Visibility = Visibility.Collapsed;
+            ErrorPanel.Visibility = Visibility.Collapsed;
             ResultsPanel.Visibility = Visibility.Collapsed;
         }
 
@@ -343,82 +291,60 @@ namespace music.Pages
         {
             EmptyState.Visibility = Visibility.Collapsed;
             LoadingPanel.Visibility = Visibility.Visible;
+            ErrorPanel.Visibility = Visibility.Collapsed;
             ResultsPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void ShowError(string message)
+        {
+            EmptyState.Visibility = Visibility.Collapsed;
+            LoadingPanel.Visibility = Visibility.Collapsed;
+            ErrorPanel.Visibility = Visibility.Visible;
+            ResultsPanel.Visibility = Visibility.Collapsed;
+            ErrorText.Text = message;
         }
 
         private void ShowResults()
         {
             EmptyState.Visibility = Visibility.Collapsed;
             LoadingPanel.Visibility = Visibility.Collapsed;
+            ErrorPanel.Visibility = Visibility.Collapsed;
             ResultsPanel.Visibility = Visibility.Visible;
         }
 
-        private async void SongCard_PointerPressed(object sender, PointerRoutedEventArgs e)
+        private void SongCard_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            if (sender is Border border && border.Tag is int index)
+            if (sender is Border border && border.Tag is int index && ViewModel != null)
             {
-                if (index >= 0 && index < _songModels.Count)
-                {
-                    await MainWindow.PlaybackService.PlayAsync(_songModels[index]);
-                }
+                ViewModel.PlaySongAtAsync(index).Forget();
             }
         }
 
-        private void ViewAllSongsButton_Click(object sender, RoutedEventArgs e)
-        {
-            var mainWindow = App.m_window as MainWindow;
-            if (mainWindow != null)
-            {
-                mainWindow.MainContentFrame.Navigate(typeof(SearchAllSongsPage), _currentQuery);
-            }
-        }
+        private void ViewAllSongsButton_Click(object sender, RoutedEventArgs e) => ViewModel?.OpenAllSongs();
 
         private void ArtistItem_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is ArtistItem artist)
-            {
-                var mainWindow = App.m_window as MainWindow;
-                if (mainWindow != null)
-                {
-                    mainWindow.MainContentFrame.Navigate(typeof(ArtistDetailPage), artist.Id);
-                }
-            }
+            if (sender is FrameworkElement element && element.DataContext is music.Core.ViewModels.Items.ArtistItem artist)
+                ViewModel?.OpenArtist(artist);
         }
 
         private void PlaylistItem_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is PlaylistItem playlist)
-            {
-                var mainWindow = App.m_window as MainWindow;
-                if (mainWindow != null)
-                {
-                    mainWindow.MainContentFrame.Navigate(typeof(PlaylistDetailPage), playlist.Id);
-                }
-            }
+            if (sender is FrameworkElement element && element.DataContext is music.Core.ViewModels.Items.PlaylistItem playlist)
+                ViewModel?.OpenPlaylist(playlist);
         }
 
         private void AlbumItem_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is AlbumItem album)
-            {
-                var mainWindow = App.m_window as MainWindow;
-                if (mainWindow != null)
-                {
-                    mainWindow.MainContentFrame.Navigate(typeof(PlaylistDetailPage), $"album_{album.Id}");
-                }
-            }
+            if (sender is FrameworkElement element && element.DataContext is music.Core.ViewModels.Items.AlbumItem album)
+                ViewModel?.OpenAlbum(album);
         }
 
-        // 相关歌手左右箭头
-        private void ArtistsLeftButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void ArtistsLeftButton_Click(object sender, RoutedEventArgs e) =>
             ArtistsScroller.ChangeView(ArtistsScroller.HorizontalOffset - 300, null, null);
-        }
 
-        private void ArtistsRightButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void ArtistsRightButton_Click(object sender, RoutedEventArgs e) =>
             ArtistsScroller.ChangeView(ArtistsScroller.HorizontalOffset + 300, null, null);
-        }
 
         private void ArtistsScroller_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
@@ -426,26 +352,14 @@ namespace music.Pages
             ArtistsRightButton.Visibility = ArtistsScroller.HorizontalOffset < ArtistsScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // 累积的目标垂直偏移：连续滚动时以"上一次的目标位置"为基准继续累加，
-        // 而不是以动画进行中的当前位置为基准，从而获得接近原生的平滑/惯性手感。
-        private double _wheelTargetOffset = double.NaN;
-
-        // 内层横向 ScrollViewer 会在其内部类处理器中"吞掉"垂直滚轮事件且不会冒泡到父级
-        // （WinUI 已知行为），因此以 handledEventsToo=true 强制接收垂直滚轮并平滑转发给外层
-        // 页面滚动容器 ResultsPanel。注意：内层保持垂直滚动为默认 Enabled，避免 Disabled 时
-        // WinUI 把普通垂直滚轮重定向为横向滚动而造成"竖向滚动同时横向滚动"。
         private void RegisterWheelForwarding()
         {
-            var inners = new[]
-            {
-                ArtistsScroller, SongsScroller, PlaylistsScroller, AlbumsScroller
-            };
+            var inners = new[] { ArtistsScroller, SongsScroller, PlaylistsScroller, AlbumsScroller };
             foreach (var sv in inners)
             {
                 sv.AddHandler(UIElement.PointerWheelChangedEvent,
                     new PointerEventHandler(InnerScroller_ForwardVerticalWheel), true);
             }
-            // 滚动动画结束后重置基准，下次从真实位置重新累加
             ResultsPanel.ViewChanged += (s, e) =>
             {
                 if (!e.IsIntermediate) _wheelTargetOffset = double.NaN;
@@ -456,13 +370,11 @@ namespace music.Pages
         {
             if (sender is not ScrollViewer inner) return;
             var props = e.GetCurrentPoint(inner).Properties;
-            if (props.IsHorizontalMouseWheel) return; // 横向（Shift+滚轮）交给 HandleNestedWheel
+            if (props.IsHorizontalMouseWheel) return;
 
             int delta = props.MouseWheelDelta;
             double current = ResultsPanel.VerticalOffset;
 
-            // 同方向连续滚动时以上一次目标为基准累加（平滑）；方向反转或尚无累加目标时，
-            // 回到当前真实位置作为基准，避免反复换向时朝旧目标"跳动"。
             double baseOffset;
             if (double.IsNaN(_wheelTargetOffset))
             {
@@ -470,19 +382,17 @@ namespace music.Pages
             }
             else
             {
-                bool goingDown = delta < 0;            // delta<0 表示向下滚动（偏移增大）
+                bool goingDown = delta < 0;
                 bool pendingDown = _wheelTargetOffset > current;
                 baseOffset = (goingDown == pendingDown) ? _wheelTargetOffset : current;
             }
 
-            double target = baseOffset - delta;
-            target = System.Math.Max(0, System.Math.Min(ResultsPanel.ScrollableHeight, target));
+            double target = Math.Max(0, Math.Min(ResultsPanel.ScrollableHeight, baseOffset - delta));
             _wheelTargetOffset = target;
             ResultsPanel.ChangeView(null, target, null);
             e.Handled = true;
         }
 
-        // Shift + 滚轮：内层横向滚动（垂直滚动统一由 InnerScroller_ForwardVerticalWheel 处理）
         private void HandleNestedWheel(ScrollViewer inner, ScrollViewer outer, PointerRoutedEventArgs e)
         {
             var props = e.GetCurrentPoint(inner).Properties;
@@ -493,21 +403,14 @@ namespace music.Pages
             }
         }
 
-        private void ArtistsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
-        {
+        private void ArtistsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e) =>
             HandleNestedWheel(ArtistsScroller, ResultsPanel, e);
-        }
 
-        // 相关单曲左右箭头
-        private void SongsLeftButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void SongsLeftButton_Click(object sender, RoutedEventArgs e) =>
             SongsScroller.ChangeView(SongsScroller.HorizontalOffset - 300, null, null);
-        }
 
-        private void SongsRightButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void SongsRightButton_Click(object sender, RoutedEventArgs e) =>
             SongsScroller.ChangeView(SongsScroller.HorizontalOffset + 300, null, null);
-        }
 
         private void SongsScroller_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
@@ -515,21 +418,14 @@ namespace music.Pages
             SongsRightButton.Visibility = SongsScroller.HorizontalOffset < SongsScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void SongsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
-        {
+        private void SongsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e) =>
             HandleNestedWheel(SongsScroller, ResultsPanel, e);
-        }
 
-        // 相关歌单左右箭头
-        private void PlaylistsLeftButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void PlaylistsLeftButton_Click(object sender, RoutedEventArgs e) =>
             PlaylistsScroller.ChangeView(PlaylistsScroller.HorizontalOffset - 300, null, null);
-        }
 
-        private void PlaylistsRightButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void PlaylistsRightButton_Click(object sender, RoutedEventArgs e) =>
             PlaylistsScroller.ChangeView(PlaylistsScroller.HorizontalOffset + 300, null, null);
-        }
 
         private void PlaylistsScroller_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
@@ -537,21 +433,14 @@ namespace music.Pages
             PlaylistsRightButton.Visibility = PlaylistsScroller.HorizontalOffset < PlaylistsScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void PlaylistsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
-        {
+        private void PlaylistsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e) =>
             HandleNestedWheel(PlaylistsScroller, ResultsPanel, e);
-        }
 
-        // 相关专辑左右箭头
-        private void AlbumsLeftButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void AlbumsLeftButton_Click(object sender, RoutedEventArgs e) =>
             AlbumsScroller.ChangeView(AlbumsScroller.HorizontalOffset - 300, null, null);
-        }
 
-        private void AlbumsRightButton_Click(object sender, RoutedEventArgs e)
-        {
+        private void AlbumsRightButton_Click(object sender, RoutedEventArgs e) =>
             AlbumsScroller.ChangeView(AlbumsScroller.HorizontalOffset + 300, null, null);
-        }
 
         private void AlbumsScroller_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
@@ -559,35 +448,11 @@ namespace music.Pages
             AlbumsRightButton.Visibility = AlbumsScroller.HorizontalOffset < AlbumsScroller.ScrollableWidth ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void AlbumsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
-        {
+        private void AlbumsScroller_PointerWheelChanged(object sender, PointerRoutedEventArgs e) =>
             HandleNestedWheel(AlbumsScroller, ResultsPanel, e);
-        }
 
-        private void ViewAllPlaylistsButton_Click(object sender, RoutedEventArgs e)
-        {
-            var mainWindow = App.m_window as MainWindow;
-            if (mainWindow != null)
-            {
-                mainWindow.MainContentFrame.Navigate(typeof(SearchAllResultsPage), new SearchAllResultsParams
-                {
-                    Type = "playlist",
-                    Keywords = _currentQuery
-                });
-            }
-        }
+        private void ViewAllPlaylistsButton_Click(object sender, RoutedEventArgs e) => ViewModel?.OpenAllPlaylists();
 
-        private void ViewAllAlbumsButton_Click(object sender, RoutedEventArgs e)
-        {
-            var mainWindow = App.m_window as MainWindow;
-            if (mainWindow != null)
-            {
-                mainWindow.MainContentFrame.Navigate(typeof(SearchAllResultsPage), new SearchAllResultsParams
-                {
-                    Type = "album",
-                    Keywords = _currentQuery
-                });
-            }
-        }
+        private void ViewAllAlbumsButton_Click(object sender, RoutedEventArgs e) => ViewModel?.OpenAllAlbums();
     }
 }

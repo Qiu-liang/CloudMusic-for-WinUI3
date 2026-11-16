@@ -1,355 +1,83 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using Microsoft.UI.Xaml;
+using System.ComponentModel;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
-using music.Models;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Mvvm;
+using music.Core.ViewModels;
+using music.Core.ViewModels.Items;
 
 namespace music.Pages
 {
     public sealed partial class PlaylistDetailPage : Page
     {
-        private readonly ObservableCollection<SongItem> _songs = new();
-        private List<Song> _songModels = new();
-        private string _playlistId = string.Empty;
-        private bool _isSubscribed;
-        private bool _canSubscribe;
-        private bool _isFavoritePlaylist;
-        private long _loadVersion;
+        public PlaylistDetailViewModel? ViewModel { get; private set; }
 
         public PlaylistDetailPage()
         {
-            this.InitializeComponent();
-            SongsListView.ItemsSource = _songs;
-            Loaded += PlaylistDetailPage_Loaded;
-            Unloaded += PlaylistDetailPage_Unloaded;
-        }
-
-        private void PlaylistDetailPage_Loaded(object sender, RoutedEventArgs e)
-        {
-            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
-            App.ApiService.SongLikeChanged += ApiService_SongLikeChanged;
-        }
-
-        private void PlaylistDetailPage_Unloaded(object sender, RoutedEventArgs e)
-        {
-            App.ApiService.SongLikeChanged -= ApiService_SongLikeChanged;
-        }
-
-        private void ApiService_SongLikeChanged(object? sender, SongLikeChangedEventArgs e)
-        {
-            DispatcherQueue.TryEnqueue(async () =>
-            {
-                if (!IsLoaded) return;
-
-                foreach (var song in _songModels)
-                {
-                    if (string.Equals(song.Id, e.SongId, StringComparison.Ordinal))
-                        song.Liked = e.IsLiked;
-                }
-                foreach (var item in _songs)
-                {
-                    if (string.Equals(item.Id, e.SongId, StringComparison.Ordinal))
-                        item.IsLiked = e.IsLiked;
-                }
-
-                if (_isFavoritePlaylist && !string.IsNullOrEmpty(_playlistId))
-                {
-                    await LoadPlaylistAsync(_playlistId);
-                }
-            });
+            InitializeComponent();
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
 
-            if (e.Parameter is string playlistId)
+            if (e.Parameter is NavigationRequest request)
             {
-                _playlistId = playlistId;
-                await LoadPlaylistAsync(playlistId);
-            }
-        }
+                DetachViewModel();
+                ViewModel = (PlaylistDetailViewModel)request.CreateViewModel();
+                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+                Bindings.Update();
 
-        private async System.Threading.Tasks.Task LoadPlaylistAsync(string playlistId)
-        {
-            var version = ++_loadVersion;
-            _isFavoritePlaylist = false;
-            ShowLoading();
-
-            List<Song> songs;
-            string title = "歌单详情";
-
-            if (playlistId.StartsWith("artist_"))
-            {
-                var artistId = playlistId.Substring("artist_".Length);
-                songs = await App.ApiService.GetArtistSongsAsync(artistId);
-                title = "歌手热门歌曲";
-            }
-            else if (playlistId.StartsWith("album_"))
-            {
-                var albumId = playlistId.Substring("album_".Length);
-                songs = await App.ApiService.GetAlbumSongsAsync(albumId);
-                title = "专辑歌曲";
-
-                var albumInfo = await App.ApiService.GetAlbumInfoAsync(albumId);
-                if (version != _loadVersion) return;
-                if (albumInfo != null)
+                if (request.Parameter is string playlistId)
                 {
-                    title = albumInfo.Name;
-                    ShowAlbumInfo(albumInfo);
-                }
-            }
-            else
-            {
-                songs = await App.ApiService.GetPlaylistDetailAsync(playlistId, bypassCache: true);
-                if (version != _loadVersion) return;
-                title = "歌单详情";
-
-                var playlistInfo = await App.ApiService.GetPlaylistInfoAsync(playlistId, bypassCache: true);
-                if (version != _loadVersion) return;
-                if (playlistInfo != null)
-                {
-                    title = playlistInfo.Name;
-                    ShowPlaylistInfo(playlistInfo);
-                }
-
-                _isFavoritePlaylist = await App.ApiService.IsFavoritePlaylistAsync(playlistId);
-                if (version != _loadVersion) return;
-            }
-
-            if (songs == null || songs.Count == 0)
-            {
-                TitleText.Text = title;
-                _songModels.Clear();
-                _songs.Clear();
-                SongsCountText.Text = App.ApiService.LastError == ApiErrorKind.None ? "共 0 首" : string.Empty;
-                PlayAllButton.Visibility = Visibility.Collapsed;
-                ShowError(App.ApiService.LastError != ApiErrorKind.None
-                    ? App.ApiService.LastErrorMessage
-                    : "歌单为空或加载失败");
-                return;
-            }
-
-            _songModels = songs;
-            _songs.Clear();
-            for (int i = 0; i < songs.Count; i++)
-            {
-                var song = songs[i];
-                _songs.Add(new SongItem
-                {
-                    Id = song.Id,
-                    Name = song.Name,
-                    ArtistNames = song.ArtistNames,
-                    AlbumName = song.Album.Name,
-                    CoverUrl = song.CoverImgUrl,
-                    DurationFormatted = song.DurationFormatted,
-                    Index = i + 1,
-                    IsLiked = song.Liked,
-                    CanPlay = song.CanPlay,
-                    Fee = song.Fee,
-                    IsVip = song.IsVip,
-                    IsPaid = song.IsPaid,
-                    FeeText = song.FeeText
-                });
-            }
-
-            TitleText.Text = title;
-            SongsCountText.Text = $"共 {_songs.Count} 首";
-            PlayAllButton.Visibility = Visibility.Visible;
-            ShowContent();
-        }
-
-        private void ShowPlaylistInfo(PlaylistDetailInfo info)
-        {
-            InfoSection.Visibility = Visibility.Visible;
-
-            // 封面
-            if (!string.IsNullOrEmpty(info.CoverImgUrl))
-            {
-                CoverImage.Source = new BitmapImage(new System.Uri(info.CoverImgUrl));
-                CoverImage.Visibility = Visibility.Visible;
-            }
-
-            // 私密歌单锁头图标
-            if (info.Privacy == 10)
-            {
-                PrivateOverlay.Visibility = Visibility.Visible;
-            }
-
-            // 标题
-            InfoTitle.Text = info.Name;
-            _canSubscribe = info.CreatorId > 0 && info.CreatorId != App.ApiService.UserId;
-            _isSubscribed = info.Subscribed;
-            SubscribeButton.Visibility = _canSubscribe ? Visibility.Visible : Visibility.Collapsed;
-            SubscribeButton.Content = _isSubscribed ? "取消收藏" : "收藏歌单";
-
-            // 创建者
-            if (!string.IsNullOrEmpty(info.CreatorName))
-            {
-                CreatorPanel.Visibility = Visibility.Visible;
-                CreatorNameText.Text = info.CreatorName;
-                if (!string.IsNullOrEmpty(info.CreatorAvatarUrl))
-                {
-                    CreatorAvatarBrush.ImageSource = new BitmapImage(new System.Uri(info.CreatorAvatarUrl));
-                }
-            }
-
-            // 标签
-            if (info.Tags.Count > 0)
-            {
-                TagsPanel.Visibility = Visibility.Visible;
-                TagsText.Text = info.TagsText;
-            }
-
-            // 统计信息
-            PlayCountText.Text = $"播放 {info.PlayCountFormatted}";
-            if (info.SubscribedCount > 0)
-            {
-                SubscribedPanel.Visibility = Visibility.Visible;
-                SubscribedCountText.Text = $"收藏 {info.SubscribedCountFormatted}";
-            }
-
-            // 描述
-            if (!string.IsNullOrEmpty(info.Description))
-            {
-                DescriptionText.Visibility = Visibility.Visible;
-                DescriptionText.Text = info.Description;
-            }
-        }
-
-        private void ShowAlbumInfo(AlbumDetailInfo info)
-        {
-            InfoSection.Visibility = Visibility.Visible;
-
-            // 封面
-            if (!string.IsNullOrEmpty(info.PicUrl))
-            {
-                CoverImage.Source = new BitmapImage(new System.Uri(info.PicUrl));
-                CoverImage.Visibility = Visibility.Visible;
-            }
-
-            // 标题
-            InfoTitle.Text = info.Name;
-
-            // 艺术家
-            if (!string.IsNullOrEmpty(info.ArtistName))
-            {
-                CreatorPanel.Visibility = Visibility.Visible;
-                CreatorNameText.Text = info.ArtistName;
-            }
-
-            // 发布时间和类型
-            var metaText = new List<string>();
-            if (!string.IsNullOrEmpty(info.PublishTime))
-                metaText.Add(info.PublishTime);
-            if (!string.IsNullOrEmpty(info.SubType))
-                metaText.Add(info.SubType);
-            if (metaText.Count > 0)
-            {
-                TagsPanel.Visibility = Visibility.Visible;
-                TagsText.Text = string.Join(" · ", metaText);
-            }
-
-            // 歌曲数量
-            PlayCountText.Text = $"{info.Size} 首歌曲";
-
-            // 公司
-            if (!string.IsNullOrEmpty(info.Company))
-            {
-                CompanyPanel.Visibility = Visibility.Visible;
-                CompanyText.Text = info.Company;
-            }
-
-            // 描述
-            if (!string.IsNullOrEmpty(info.Description))
-            {
-                DescriptionText.Visibility = Visibility.Visible;
-                DescriptionText.Text = info.Description;
-            }
-        }
-
-        private void ShowLoading()
-        {
-            LoadingPanel.Visibility = Visibility.Visible;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            ContentPanel.Visibility = Visibility.Collapsed;
-        }
-
-        private void ShowError(string message)
-        {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Visible;
-            ContentPanel.Visibility = Visibility.Collapsed;
-            ErrorText.Text = message;
-        }
-
-        private void ShowContent()
-        {
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            ContentPanel.Visibility = Visibility.Visible;
-        }
-
-        private async void RetryButton_Click(object sender, RoutedEventArgs e)
-        {
-            await LoadPlaylistAsync(_playlistId);
-        }
-
-        private async void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
-        {
-            if (e.ClickedItem is SongItem songItem)
-            {
-                var index = _songs.IndexOf(songItem);
-                if (index >= 0 && index < _songModels.Count)
-                {
-                    await MainWindow.PlaybackService.PlayAsync(_songModels, index);
+                    await ViewModel.LoadAsync(playlistId);
                 }
             }
         }
 
-        private async void PlayAllButton_Click(object sender, RoutedEventArgs e)
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            if (_songModels.Count > 0)
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
+        }
+
+        private void DetachViewModel()
+        {
+            if (ViewModel != null)
             {
-                await MainWindow.PlaybackService.PlayAsync(_songModels, 0);
+                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+                ViewModel.Dispose();
+                ViewModel = null;
+            }
+            CoverImage.Source = null;
+            CreatorAvatarBrush.ImageSource = null;
+        }
+
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (ViewModel == null) return;
+
+            if (e.PropertyName == nameof(PlaylistDetailViewModel.CoverImageUrl))
+            {
+                CoverImage.Source = string.IsNullOrEmpty(ViewModel.CoverImageUrl)
+                    ? null
+                    : new BitmapImage(new Uri(ViewModel.CoverImageUrl));
+            }
+            else if (e.PropertyName == nameof(PlaylistDetailViewModel.CreatorAvatarUrl))
+            {
+                CreatorAvatarBrush.ImageSource = string.IsNullOrEmpty(ViewModel.CreatorAvatarUrl)
+                    ? null
+                    : new BitmapImage(new Uri(ViewModel.CreatorAvatarUrl));
             }
         }
 
-        private async void SubscribeButton_Click(object sender, RoutedEventArgs e)
+        private void SongsListView_ItemClick(object sender, ItemClickEventArgs e)
         {
-            if (!_canSubscribe) return;
-            if (!App.ApiService.IsLoggedIn)
+            if (e.ClickedItem is music.Core.ViewModels.Items.SongItem songItem && ViewModel != null)
             {
-                var login = new Dialogs.LoginDialog { XamlRoot = XamlRoot };
-                await login.ShowAsync();
-                if (!App.ApiService.IsLoggedIn) return;
-            }
-
-            SubscribeButton.IsEnabled = false;
-            var subscribe = !_isSubscribed;
-            var success = await App.ApiService.SetPlaylistSubscriptionAsync(_playlistId, subscribe);
-            SubscribeButton.IsEnabled = true;
-            if (success)
-            {
-                _isSubscribed = subscribe;
-                SubscribeButton.Content = subscribe ? "取消收藏" : "收藏歌单";
-                if (App.m_window is MainWindow window) await window.RefreshPlaylistsAsync();
-            }
-            else
-            {
-                var dialog = new ContentDialog
-                {
-                    Title = "操作失败",
-                    Content = App.ApiService.LastErrorMessage,
-                    CloseButtonText = "确定",
-                    XamlRoot = XamlRoot
-                };
-                await dialog.ShowAsync();
+                ViewModel.PlaySongAsync(songItem).Forget();
             }
         }
     }

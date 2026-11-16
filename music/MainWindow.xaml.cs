@@ -1,187 +1,331 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using music.Dialogs;
-using music.Models;
-using music.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using Windows.Storage;
+using Microsoft.UI.Xaml.Media.Imaging;
+using music.Composition;
+using music.Core.Models;
+using music.Core.Mvvm;
+using music.Core.Services;
+using music.Core.ViewModels;
 
 namespace music
 {
     public sealed partial class MainWindow : Window
     {
-        public static PlaybackService PlaybackService { get; private set; } = null!;
-        public Frame MainContentFrame => ContentFrame;
-        private readonly ProgressDragState _progressDrag = new();
-        private bool _isPlaylistPanelOpen = false;
-        private bool _currentSongLiked;
-        private CancellationTokenSource? _searchSuggestionCancellation;
-        private long _playbackErrorVersion;
+        private readonly AppCompositionRoot _root;
+        private readonly ShellViewModel _shellVm;
+        private readonly PlayerBarViewModel _playerBarVm;
+        private readonly SearchSuggestionsViewModel _searchSuggestionsVm;
+        private readonly List<NavigationViewItem> _createdPlaylistItems = new();
+        private readonly List<NavigationViewItem> _collectedPlaylistItems = new();
 
-        public MainWindow()
+        private bool _isPlaylistPanelOpen;
+        private bool _syncingVolume;
+        private double _paneStartWidth;
+        private double _startX;
+        private bool _isPaneResizing;
+
+        internal MainWindow(AppCompositionRoot root)
         {
+            _root = root;
             InitializeComponent();
 
-            // 设置窗口默认大小
+            root.InitializeUi(this.DispatcherQueue);
+            root.AttachMainWindow(this, ContentFrame, ApplyTheme);
+
+            _shellVm = root.CreateShellViewModel();
+            _playerBarVm = root.CreatePlayerBarViewModel();
+            _searchSuggestionsVm = root.CreateSearchSuggestionsViewModel();
+
+            SearchBox.ItemsSource = _searchSuggestionsVm.Suggestions;
+
+            _shellVm.PropertyChanged += ShellVm_PropertyChanged;
+            _shellVm.PlaylistsMenuUpdated += ShellVm_PlaylistsMenuUpdated;
+            _playerBarVm.PropertyChanged += PlayerBarVm_PropertyChanged;
+            _playerBarVm.PlaylistUpdated += PlayerBarVm_PlaylistUpdated;
+            Closed += MainWindow_Closed;
+
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
             appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 1460, Height = 1064 });
 
-            // 通过SizeChanged事件强制最小尺寸
-            this.SizeChanged += MainWindow_SizeChanged;
-
+            SizeChanged += MainWindow_SizeChanged;
             NavView.SelectedItem = NavView.MenuItems[0];
-
-            // 设置窗口图标
             SetWindowIcon();
 
             ProgressSlider.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(ProgressSlider_PointerPressed), true);
             ProgressSlider.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(ProgressSlider_PointerReleased), true);
             ProgressSlider.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(ProgressSlider_PointerCaptureLost), true);
 
-            PlaybackService = new PlaybackService();
-            SetupPlaybackEvents();
-            SetupLoginEvents();
-            UpdateLoginStatus();
-            LoadQualitySetting();
+            LoginItem.Tapped += (_, _) =>
+                _shellVm.HandleLoginItemTappedAsync().Forget(_root.ApiLog, "MainWindow.LoginItem");
 
-            // 启动时若恢复了登录态，先验证会话再补齐用户信息、VIP 标识与歌单加载。
-            // 这些原本只在弹窗登录成功后触发，重启恢复的登录从不执行
-            if (App.ApiService.IsLoggedIn)
-            {
-                _ = ValidateAndRestoreLoginAsync();
-            }
-
-            // 初始化随机播放和循环播放按钮状态（默认关闭）
-            ShuffleButton.Opacity = 0.5;
-            RepeatIcon.Glyph = "\uE8EE";
-            RepeatButton.Opacity = 0.5;
-
-            // 监听Frame导航事件，更新返回按钮
-            ContentFrame.Navigated += ContentFrame_Navigated;
+            SyncShellToUi();
+            SyncPlayerBarToUi();
+            Bindings?.Update();
+            _shellVm.InitializeSessionRestore();
         }
 
-        public SongQualityPrivilege? GetCurrentSongPrivilege() =>
-            PlaybackService?.CurrentSong?.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
+        public ShellViewModel ShellVm => _shellVm;
+        public PlayerBarViewModel PlayerBarVm => _playerBarVm;
 
-        public async System.Threading.Tasks.Task<SongQualityPrivilege?> EnsureCurrentSongPrivilegeAsync(bool forceRefresh = false)
+        private void MainWindow_Closed(object sender, WindowEventArgs args)
         {
-            var song = PlaybackService?.CurrentSong;
-            if (song != null && string.IsNullOrEmpty(song.LocalFilePath) && !string.IsNullOrWhiteSpace(song.Id))
-            {
-                if (forceRefresh || song.QualityPrivilege == null)
-                {
-                    song.QualityPrivilege = await App.ApiService.GetSongQualityPrivilegeAsync(song.Id, forceRefresh);
-                }
-                return song.QualityPrivilege ?? App.ApiService.LastKnownPrivilege;
-            }
+            _shellVm.PropertyChanged -= ShellVm_PropertyChanged;
+            _shellVm.PlaylistsMenuUpdated -= ShellVm_PlaylistsMenuUpdated;
+            _playerBarVm.PropertyChanged -= PlayerBarVm_PropertyChanged;
+            _playerBarVm.PlaylistUpdated -= PlayerBarVm_PlaylistUpdated;
 
-            return App.ApiService.LastKnownPrivilege;
+            _shellVm.Dispose();
+            _playerBarVm.Dispose();
+            _searchSuggestionsVm.Dispose();
         }
 
-        public void LoadQualitySetting()
+        private void ShellVm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            var settings = ApplicationData.Current.LocalSettings;
-            var storedQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-            var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
-            var privilege = GetCurrentSongPrivilege();
-            var effectiveQuality = privilege != null
-                ? privilege.ResolveFallbackQuality(storedQuality, isVip)
-                : SongUrlPolicy.NormalizeQuality(storedQuality);
-
-            if (!string.Equals(storedQuality, effectiveQuality, StringComparison.Ordinal))
+            if (e.PropertyName == nameof(ShellViewModel.ShowBackBar))
             {
-                settings.Values["AudioQuality"] = effectiveQuality;
+                SyncBackBarToUi();
             }
-
-            QualityText.Text = SongUrlPolicy.GetQualityDisplayName(effectiveQuality);
-            UpdateQualityMenuAvailability(isVip, privilege);
         }
 
-        private void UpdateQualityMenuAvailability(bool isVip, SongQualityPrivilege? privilege)
+        private void ShellVm_PlaylistsMenuUpdated(object? sender, EventArgs e)
+        {
+            SyncPlaylistsMenu();
+        }
+
+        private void PlayerBarVm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(PlayerBarViewModel.CoverUrl):
+                case nameof(PlayerBarViewModel.HasCover):
+                    SyncCoverToUi();
+                    break;
+                case nameof(PlayerBarViewModel.IsPlaying):
+                    PlayPauseIcon.Glyph = _playerBarVm.IsPlaying ? "\uE769" : "\uE768";
+                    break;
+                case nameof(PlayerBarViewModel.CurrentSongLiked):
+                    LikeIcon.Glyph = _playerBarVm.CurrentSongLiked ? "\uE735" : "\uE734";
+                    break;
+                case nameof(PlayerBarViewModel.VolumePercent):
+                    _syncingVolume = true;
+                    try
+                    {
+                        VolumeSlider.Value = _playerBarVm.VolumePercent;
+                        UpdateVolumeIcon(_playerBarVm.VolumePercent);
+                    }
+                    finally
+                    {
+                        _syncingVolume = false;
+                    }
+                    break;
+                case nameof(PlayerBarViewModel.IsShuffleEnabled):
+                    ShuffleButton.Opacity = _playerBarVm.IsShuffleEnabled ? 1.0 : 0.5;
+                    break;
+                case nameof(PlayerBarViewModel.RepeatMode):
+                    SyncRepeatToUi();
+                    break;
+                case nameof(PlayerBarViewModel.QualityOptions):
+                    SyncQualityOptionsToUi();
+                    break;
+            }
+        }
+
+        private void PlayerBarVm_PlaylistUpdated(object? sender, EventArgs e)
+        {
+            if (_isPlaylistPanelOpen)
+            {
+                UpdatePlaylistPanel();
+            }
+        }
+
+        private void SyncShellToUi()
+        {
+            LoginIcon.Symbol = Symbol.Contact;
+            SyncBackBarToUi();
+        }
+
+        private void SyncPlayerBarToUi()
+        {
+            PlayPauseIcon.Glyph = _playerBarVm.IsPlaying ? "\uE769" : "\uE768";
+            LikeIcon.Glyph = _playerBarVm.CurrentSongLiked ? "\uE735" : "\uE734";
+            ShuffleButton.Opacity = _playerBarVm.IsShuffleEnabled ? 1.0 : 0.5;
+            SyncRepeatToUi();
+            SyncQualityOptionsToUi();
+            if (_playerBarVm.CurrentSong != null)
+            {
+                SyncCoverToUi();
+            }
+        }
+
+        private void SyncCoverToUi()
+        {
+            if (!string.IsNullOrEmpty(_playerBarVm.CoverUrl))
+            {
+                AlbumImage.Source = new BitmapImage(new Uri(_playerBarVm.CoverUrl));
+                AlbumImage.Visibility = Visibility.Visible;
+                AlbumCoverIcon.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                AlbumImage.Source = null;
+                AlbumImage.Visibility = Visibility.Collapsed;
+                AlbumCoverIcon.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void SyncRepeatToUi()
+        {
+            switch (_playerBarVm.RepeatMode)
+            {
+                case RepeatMode.None:
+                    RepeatIcon.Glyph = "\uE8EE";
+                    RepeatButton.Opacity = 0.5;
+                    break;
+                case RepeatMode.All:
+                    RepeatIcon.Glyph = "\uE8EE";
+                    RepeatButton.Opacity = 1.0;
+                    break;
+                case RepeatMode.One:
+                    RepeatIcon.Glyph = "\uE8ED";
+                    RepeatButton.Opacity = 1.0;
+                    break;
+            }
+        }
+
+        private void SyncQualityOptionsToUi()
         {
             if (QualityMenuFlyout?.Items == null) return;
+            var map = new Dictionary<string, QualityOptionDisplay>(StringComparer.OrdinalIgnoreCase);
+            foreach (var option in _playerBarVm.QualityOptions)
+            {
+                map[option.Tag] = option;
+            }
 
             foreach (var element in QualityMenuFlyout.Items)
             {
-                if (element is MenuFlyoutItem item && item.Tag is string tag)
+                if (element is MenuFlyoutItem item &&
+                    item.Tag is string tag &&
+                    map.TryGetValue(tag, out var option))
                 {
-                    var baseName = SongUrlPolicy.GetQualityDisplayName(tag);
-                    var requiresVip = privilege?.RequiresVip(tag) ?? false;
-                    var canPlay = privilege?.CanUserPlay(tag, isVip) ?? true;
-                    item.Text = requiresVip ? $"{baseName} (VIP)" : baseName;
-                    item.Opacity = canPlay ? 1.0 : 0.55;
+                    item.Text = option.Text;
+                    item.Opacity = option.Opacity;
                 }
             }
         }
 
-        private async void QualityMenuFlyout_Opening(object sender, object e)
+        private void SyncBackBarToUi()
         {
-            var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
-            UpdateQualityMenuAvailability(isVip, GetCurrentSongPrivilege());
-
-            var privilege = await EnsureCurrentSongPrivilegeAsync();
-            if (privilege != null)
+            if (_shellVm.ShowBackBar)
             {
-                DispatcherQueue.TryEnqueue(() => UpdateQualityMenuAvailability(isVip, privilege));
+                BackBar.Visibility = Visibility.Visible;
+                BackBar.Opacity = 1;
+                BackBar.Translation = new System.Numerics.Vector3(0, 0, 0);
+            }
+            else
+            {
+                BackBar.Opacity = 0;
+                BackBar.Translation = new System.Numerics.Vector3(0, -48, 0);
+                BackBar.Visibility = Visibility.Collapsed;
             }
         }
 
-        private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
+        private void SyncPlaylistsMenu()
         {
-            UpdateBackButtonVisibility();
-        }
-
-        private void UpdateBackButtonVisibility()
-        {
-            DispatcherQueue.TryEnqueue(() =>
+            foreach (var item in _createdPlaylistItems)
             {
-                // 在歌单详情、歌手详情、全部歌单、搜索页面、搜索结果页面显示返回按钮（歌词页面不显示）
-                var currentPage = ContentFrame.CurrentSourcePageType;
-                var showBack = currentPage == typeof(Pages.PlaylistDetailPage) ||
-                               currentPage == typeof(Pages.ArtistDetailPage) ||
-                               currentPage == typeof(Pages.AllPlaylistsPage) ||
-                               currentPage == typeof(Pages.SearchPage) ||
-                               currentPage == typeof(Pages.SearchAllResultsPage) ||
-                               currentPage == typeof(Pages.SearchAllSongsPage) ||
-                               currentPage == typeof(Pages.RecommendDailySongsPage) ||
-                               currentPage == typeof(Pages.RecommendRadarPage) ||
-                               currentPage == typeof(Pages.ProfilePage);
-
-                if (showBack)
-                {
-                    BackBar.Visibility = Visibility.Visible;
-                    BackBar.Opacity = 1;
-                    BackBar.Translation = new System.Numerics.Vector3(0, 0, 0);
-                }
-                else
-                {
-                    BackBar.Opacity = 0;
-                    BackBar.Translation = new System.Numerics.Vector3(0, -48, 0);
-                    BackBar.Visibility = Visibility.Collapsed;
-                }
-            });
-        }
-
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ContentFrame.CanGoBack)
+                NavView.MenuItems.Remove(item);
+            }
+            foreach (var item in _collectedPlaylistItems)
             {
-                ContentFrame.GoBack();
+                NavView.MenuItems.Remove(item);
+            }
+            _createdPlaylistItems.Clear();
+            _collectedPlaylistItems.Clear();
+
+            if (_shellVm.CreatedPlaylists.Count == 0 && _shellVm.CollectedPlaylists.Count == 0)
+            {
+                CollectedPlaylistHeader.Visibility = Visibility.Collapsed;
+                CreatedPlaylistHeader.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            CreatedPlaylistHeader.Visibility = Visibility.Visible;
+            int insertIndex = NavView.MenuItems.IndexOf(CreatePlaylistItem) + 1;
+            foreach (var playlist in _shellVm.CreatedPlaylists)
+            {
+                var item = new NavigationViewItem
+                {
+                    Content = playlist.Name,
+                    Tag = $"playlist_{playlist.Id}",
+                    Icon = new FontIcon { Glyph = "\uE8B8" }
+                };
+                ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
+
+                var deleteButton = new MenuFlyoutItem { Text = "删除歌单", Tag = playlist.Id };
+                deleteButton.Click += DeletePlaylist_Click;
+                var flyout = new MenuFlyout();
+                flyout.Items.Add(deleteButton);
+                item.ContextFlyout = flyout;
+
+                NavView.MenuItems.Insert(insertIndex, item);
+                _createdPlaylistItems.Add(item);
+                insertIndex++;
+            }
+
+            if (_shellVm.CollectedPlaylists.Count > 0)
+            {
+                CollectedPlaylistHeader.Visibility = Visibility.Visible;
+                insertIndex = NavView.MenuItems.IndexOf(CollectedPlaylistHeader) + 1;
+
+                foreach (var playlist in _shellVm.CollectedPlaylists)
+                {
+                    var item = new NavigationViewItem
+                    {
+                        Content = playlist.Name,
+                        Tag = $"playlist_{playlist.Id}",
+                        Icon = new FontIcon { Glyph = "\uE8B8" }
+                    };
+                    ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
+
+                    var unsubscribeButton = new MenuFlyoutItem { Text = "取消收藏", Tag = playlist.Id };
+                    unsubscribeButton.Click += UnsubscribePlaylist_Click;
+                    var flyout = new MenuFlyout();
+                    flyout.Items.Add(unsubscribeButton);
+                    item.ContextFlyout = flyout;
+
+                    NavView.MenuItems.Insert(insertIndex, item);
+                    _collectedPlaylistItems.Add(item);
+                    insertIndex++;
+                }
+            }
+            else
+            {
+                CollectedPlaylistHeader.Visibility = Visibility.Collapsed;
             }
         }
 
-        private double _paneStartWidth;
-        private double _startX;
-        private bool _isPaneResizing = false;
+        private void QualityMenuFlyout_Opening(object sender, object e)
+        {
+            _playerBarVm.OnQualityMenuOpeningAsync().Forget(_root.ApiLog, "MainWindow.QualityOpening");
+        }
+
+        private void Quality_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuFlyoutItem item && item.Tag is string quality)
+            {
+                _playerBarVm.SelectQualityAsync(quality).Forget(_root.ApiLog, "MainWindow.SelectQuality");
+            }
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e) => _shellVm.GoBack();
 
         private void PaneResizer_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
@@ -197,8 +341,7 @@ namespace music
 
             var currentX = e.GetCurrentPoint(PaneResizer).Position.X;
             var delta = currentX - _startX;
-            var newWidth = Math.Clamp(_paneStartWidth + delta, 180, 500);
-            NavView.OpenPaneLength = newWidth;
+            NavView.OpenPaneLength = Math.Clamp(_paneStartWidth + delta, 180, 500);
         }
 
         private void PaneResizer_PointerReleased(object sender, PointerRoutedEventArgs e)
@@ -229,7 +372,7 @@ namespace music
             }
         }
 
-        private void MainWindow_SizeChanged(object sender, Microsoft.UI.Xaml.WindowSizeChangedEventArgs e)
+        private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs e)
         {
             const int minWidth = 800;
             const int minHeight = 700;
@@ -239,576 +382,75 @@ namespace music
 
             if (appWindow.Size.Width < minWidth || appWindow.Size.Height < minHeight)
             {
-                var newSize = new Windows.Graphics.SizeInt32
+                appWindow.Resize(new Windows.Graphics.SizeInt32
                 {
                     Width = Math.Max(appWindow.Size.Width, minWidth),
                     Height = Math.Max(appWindow.Size.Height, minHeight)
-                };
-                appWindow.Resize(newSize);
+                });
             }
         }
 
-        private void AlbumCover_Tapped(object sender, TappedRoutedEventArgs e)
-        {
-            var settings = ApplicationData.Current.LocalSettings;
-            var fancyLyrics = settings.Values["FancyLyrics"] as bool? ?? false;
+        private void AlbumCover_Tapped(object sender, TappedRoutedEventArgs e) =>
+            _playerBarVm.OpenLyricsOrWindow();
 
-            if (fancyLyrics)
-            {
-                // 打开独立歌词窗口
-                var lyricsWindow = new LyricsWindow();
-                lyricsWindow.Activate();
-                return;
-            }
-
-            // 如果当前在歌词页面，则关闭歌词页面
-            if (ContentFrame.CurrentSourcePageType == typeof(Pages.LyricsPage))
-            {
-                if (ContentFrame.CanGoBack)
-                {
-                    ContentFrame.GoBack();
-                }
-                return;
-            }
-
-            // 否则打开歌词页面
-            var currentSong = PlaybackService.CurrentSong;
-            if (currentSong != null)
-            {
-                ContentFrame.Navigate(typeof(Pages.LyricsPage), currentSong);
-            }
-        }
-
-        private void AlbumCover_PointerEntered(object sender, PointerRoutedEventArgs e)
-        {
+        private void AlbumCover_PointerEntered(object sender, PointerRoutedEventArgs e) =>
             AlbumCover.Opacity = 0.8;
-        }
 
-        private void AlbumCover_PointerExited(object sender, PointerRoutedEventArgs e)
-        {
+        private void AlbumCover_PointerExited(object sender, PointerRoutedEventArgs e) =>
             AlbumCover.Opacity = 1.0;
-        }
 
-        private void SetupLoginEvents()
-        {
-            LoginItem.Tapped += async (s, e) =>
-            {
-                if (App.ApiService.IsLoggedIn)
-                {
-                    ContentFrame.Navigate(typeof(Pages.ProfilePage));
-                    return;
-                }
+        private void LogoutButton_Click(object sender, RoutedEventArgs e) =>
+            _shellVm.PerformLogout();
 
-                var dialog = new LoginDialog();
-                dialog.XamlRoot = ContentFrame.XamlRoot;
-                var result = await dialog.ShowAsync();
+        private void LikeButton_Click(object sender, RoutedEventArgs e) =>
+            _playerBarVm.ToggleLikeAsync().Forget(_root.ApiLog, "MainWindow.Like");
 
-                // 登录成功后加载用户信息和歌单
-                if (App.ApiService.IsLoggedIn)
-                {
-                    UpdateLoginStatus();
-                    await LoadUserInfoAsync();
-                    await LoadPlaylistsAsync();
-                    RefreshCurrentPage();
-                }
-            };
-        }
+        private void DownloadButton_Click(object sender, RoutedEventArgs e) =>
+            _playerBarVm.DownloadCurrentAsync().Forget(_root.ApiLog, "MainWindow.Download");
 
-        private void UpdateLoginStatus()
-        {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                var cachedUser = App.ApiService.GetCachedUserInfo();
-                if (cachedUser != null && App.ApiService.IsLoggedIn)
-                {
-                    LoginStatusText.Text = cachedUser.Nickname;
-                    LoginSubText.Text = "已登录";
-                    LoginIcon.Symbol = Symbol.Contact;
-                    LogoutButton.Visibility = Visibility.Visible;
+        private void PlayPauseButton_Click(object sender, RoutedEventArgs e) =>
+            _playerBarVm.TogglePlayPause();
 
-                    // 先隐藏VIP，等待异步检查后再显示
-                    VipBadge.Visibility = Visibility.Collapsed;
-                }
-                else if (App.ApiService.IsLoggedIn)
-                {
-                    LoginStatusText.Text = "已登录";
-                    LoginSubText.Text = $"ID: {App.ApiService.UserId}";
-                    LoginIcon.Symbol = Symbol.Contact;
-                    LogoutButton.Visibility = Visibility.Visible;
-                    VipBadge.Visibility = Visibility.Collapsed;
-                }
-                else
-                {
-                    LoginStatusText.Text = "未登录";
-                    LoginSubText.Text = "点击登录";
-                    LoginIcon.Symbol = Symbol.Contact;
-                    LogoutButton.Visibility = Visibility.Collapsed;
-                    VipBadge.Visibility = Visibility.Collapsed;
-                }
-            });
+        private void PrevButton_Click(object sender, RoutedEventArgs e) =>
+            _playerBarVm.PreviousAsync().Forget(_root.ApiLog, "MainWindow.Prev");
 
-            // 登录态变化后同步播放栏红心按钮与可用音质状态
-            var currentSong = PlaybackService.CurrentSong;
-            if (currentSong != null) UpdateSongInfo(currentSong);
-            DispatcherQueue.TryEnqueue(LoadQualitySetting);
-        }
+        private void NextButton_Click(object sender, RoutedEventArgs e) =>
+            _playerBarVm.NextAsync().Forget(_root.ApiLog, "MainWindow.Next");
 
-        private async System.Threading.Tasks.Task LoadUserInfoAsync()
-        {
-            var userInfo = await App.ApiService.GetUserInfoAsync();
-            if (userInfo != null)
-            {
-                // 获取VIP状态
-                var isVip = await App.ApiService.CheckVipStatusAsync();
+        private void ShuffleButton_Click(object sender, RoutedEventArgs e) =>
+            _playerBarVm.ToggleShuffle();
 
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    LoginStatusText.Text = userInfo.Nickname;
-                    LoginSubText.Text = "已登录";
-                    LoginIcon.Symbol = Symbol.Contact;
-                    LogoutButton.Visibility = Visibility.Visible;
-                    VipBadge.Visibility = isVip ? Visibility.Visible : Visibility.Collapsed;
-                    LoadQualitySetting();
-                });
+        private void RepeatButton_Click(object sender, RoutedEventArgs e) =>
+            _playerBarVm.ToggleRepeat();
 
-                // 登录成功后加载歌单
-                await LoadPlaylistsAsync();
-            }
-        }
-
-        // 启动时验证恢复的登录态：服务器可达但认证失败（Cookie 过期/是历史残留的
-        // 虚假状态）时清除并回到未登录，否则点击"登录"会被 IsLoggedIn 短路到
-        // 空白的个人中心，用户永远无法重新登录。网络失败时保守起见保留现状
-        private async System.Threading.Tasks.Task ValidateAndRestoreLoginAsync()
-        {
-            var userInfo = await App.ApiService.GetUserInfoAsync();
-
-            if (userInfo == null && !App.ApiService.LastRequestFailed)
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    LoginStatusText.Text = "登录已过期";
-                    LoginSubText.Text = "点击登录";
-                });
-                App.ApiService.ResetLogin();
-                UpdateLoginStatus();
-
-                // 若用户停留在失效的个人中心页，带离并回到首页
-                if (ContentFrame.CurrentSourcePageType == typeof(Pages.ProfilePage))
-                {
-                    ContentFrame.Navigate(typeof(Pages.HomePage));
-                }
-                return;
-            }
-
-            if (userInfo != null)
-            {
-                await LoadUserInfoAsync();
-            }
-        }
-
-        private void LogoutButton_Click(object sender, RoutedEventArgs e)
-        {
-            PerformLogout();
-        }
-
-        // 退出登录的统一入口：供侧边栏按钮与个人中心页内的"退出登录"按钮共用
-        public void PerformLogout()
-        {
-            App.ApiService.ResetLogin();
-            UpdateLoginStatus();
-
-            // 从个人中心退出时回到首页，避免停留在失效页面
-            if (ContentFrame.CurrentSourcePageType == typeof(Pages.ProfilePage))
-            {
-                ContentFrame.Navigate(typeof(Pages.HomePage));
-            }
-
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                foreach (var item in _createdPlaylistItems)
-                {
-                    NavView.MenuItems.Remove(item);
-                }
-                foreach (var item in _collectedPlaylistItems)
-                {
-                    NavView.MenuItems.Remove(item);
-                }
-                _createdPlaylistItems.Clear();
-                _collectedPlaylistItems.Clear();
-                CollectedPlaylistHeader.Visibility = Visibility.Collapsed;
-                CreatedPlaylistHeader.Visibility = Visibility.Collapsed;
-            });
-
-            RefreshCurrentPage();
-        }
-
-        private List<NavigationViewItem> _createdPlaylistItems = new();
-        private List<NavigationViewItem> _collectedPlaylistItems = new();
-
-        public System.Threading.Tasks.Task RefreshPlaylistsAsync() => LoadPlaylistsAsync(bypassCache: true);
-
-        private async System.Threading.Tasks.Task LoadPlaylistsAsync(bool bypassCache = false)
-        {
-            if (!App.ApiService.IsLoggedIn) return;
-
-            var userId = App.ApiService.UserId;
-            var playlists = await App.ApiService.GetUserPlaylistsAsync(userId, bypassCache);
-
-            if (playlists == null || playlists.Count == 0) return;
-
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                // 清除旧的歌单项
-                foreach (var item in _createdPlaylistItems)
-                {
-                    NavView.MenuItems.Remove(item);
-                }
-                foreach (var item in _collectedPlaylistItems)
-                {
-                    NavView.MenuItems.Remove(item);
-                }
-                _createdPlaylistItems.Clear();
-                _collectedPlaylistItems.Clear();
-
-                // 分类歌单：创建的和收藏的
-                var createdPlaylists = playlists.Where(p => p.CreatorId == App.ApiService.UserId).ToList();
-                var collectedPlaylists = playlists.Where(p => p.CreatorId != App.ApiService.UserId).ToList();
-
-                // 添加创建的歌单
-                int insertIndex = NavView.MenuItems.IndexOf(CreatePlaylistItem) + 1;
-                foreach (var playlist in createdPlaylists)
-                {
-                    var item = new NavigationViewItem
-                    {
-                        Content = playlist.Name,
-                        Tag = $"playlist_{playlist.Id}"
-                    };
-                    item.Icon = new FontIcon { Glyph = "\uE8B8" };
-                    ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
-
-                    var deleteButton = new MenuFlyoutItem { Text = "删除歌单", Tag = playlist.Id };
-                    deleteButton.Click += DeletePlaylist_Click;
-                    var flyout = new MenuFlyout();
-                    flyout.Items.Add(deleteButton);
-                    item.ContextFlyout = flyout;
-
-                    NavView.MenuItems.Insert(insertIndex, item);
-                    _createdPlaylistItems.Add(item);
-                    insertIndex++;
-                }
-
-                // 添加收藏的歌单
-                if (collectedPlaylists.Count > 0)
-                {
-                    CollectedPlaylistHeader.Visibility = Visibility.Visible;
-                    insertIndex = NavView.MenuItems.IndexOf(CollectedPlaylistHeader) + 1;
-
-                    foreach (var playlist in collectedPlaylists)
-                    {
-                        var item = new NavigationViewItem
-                        {
-                            Content = playlist.Name,
-                            Tag = $"playlist_{playlist.Id}"
-                        };
-                        item.Icon = new FontIcon { Glyph = "\uE8B8" };
-                        ToolTipService.SetToolTip(item, $"{playlist.TrackCount} 首歌曲");
-
-                        var deleteButton = new MenuFlyoutItem { Text = "取消收藏", Tag = playlist.Id };
-                        deleteButton.Click += UnsubscribePlaylist_Click;
-                        var flyout = new MenuFlyout();
-                        flyout.Items.Add(deleteButton);
-                        item.ContextFlyout = flyout;
-
-                        NavView.MenuItems.Insert(insertIndex, item);
-                        _collectedPlaylistItems.Add(item);
-                        insertIndex++;
-                    }
-                }
-            });
-        }
-
-        private void SetupPlaybackEvents()
-        {
-            PlaybackService.PlaybackStateChanged += (s, isPlaying) =>
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    PlayPauseIcon.Glyph = isPlaying ? "\uE769" : "\uE768";
-                });
-            };
-
-            PlaybackService.CurrentSongChanged += (s, song) =>
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    _playbackErrorVersion++;
-                    PlaybackErrorInfoBar.IsOpen = false;
-                    UpdateSongInfo(song);
-                });
-            };
-
-            PlaybackService.PlaybackFailed += (s, message) =>
-            {
-                DispatcherQueue.TryEnqueue(async () =>
-                {
-                    var version = ++_playbackErrorVersion;
-                    PlaybackErrorInfoBar.Message = message;
-                    PlaybackErrorInfoBar.IsOpen = true;
-                    await System.Threading.Tasks.Task.Delay(5000);
-                    if (_playbackErrorVersion == version)
-                    {
-                        PlaybackErrorInfoBar.IsOpen = false;
-                    }
-                });
-            };
-
-            PlaybackService.PositionChanged += (s, position) =>
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (!_progressDrag.IsDragging)
-                    {
-                        CurrentTime.Text = FormatTime(position);
-                        var duration = PlaybackService.GetDuration();
-                        if (duration.TotalSeconds > 0)
-                        {
-                            ProgressSlider.Value = (position.TotalSeconds / duration.TotalSeconds) * 100;
-                        }
-                    }
-                });
-            };
-
-            PlaybackService.DurationChanged += (s, duration) =>
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    TotalTime.Text = FormatTime(duration);
-                });
-            };
-        }
-
-        private void UpdateSongInfo(Song song)
-        {
-            if (song == null) return;
-
-            SongTitle.Text = song.Name;
-            ArtistName.Text = song.ArtistNames;
-            if (App.ApiService.HasLoadedLikedIds && !string.IsNullOrEmpty(song.Id))
-            {
-                song.Liked = App.ApiService.IsSongLiked(song.Id);
-            }
-            _currentSongLiked = song.Liked;
-            LikeIcon.Glyph = _currentSongLiked ? "\uE735" : "\uE734";
-            LikeButton.IsEnabled = App.ApiService.IsLoggedIn && string.IsNullOrEmpty(song.LocalFilePath);
-            DownloadButton.IsEnabled = string.IsNullOrEmpty(song.LocalFilePath);
-
-            if (!string.IsNullOrEmpty(song.CoverImgUrl))
-            {
-                AlbumImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(song.CoverImgUrl));
-                AlbumImage.Visibility = Visibility.Visible;
-                AlbumCoverIcon.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                AlbumImage.Visibility = Visibility.Collapsed;
-                AlbumCoverIcon.Visibility = Visibility.Visible;
-            }
-
-            LoadQualitySetting();
-            if (App.ApiService.IsLoggedIn &&
-                string.IsNullOrEmpty(song.LocalFilePath) &&
-                !string.IsNullOrWhiteSpace(song.Id) &&
-                !App.ApiService.HasLoadedLikedIds)
-            {
-                _ = RefreshCurrentSongLikeStateAsync(song);
-            }
-            if (string.IsNullOrEmpty(song.LocalFilePath) && song.QualityPrivilege == null)
-            {
-                _ = RefreshSongPrivilegeForUiAsync(song);
-            }
-        }
-
-        private async System.Threading.Tasks.Task RefreshCurrentSongLikeStateAsync(Song song)
-        {
-            await App.ApiService.EnsureLikedSongIdsLoadedAsync();
-            if (!App.ApiService.HasLoadedLikedIds) return;
-            var liked = App.ApiService.IsSongLiked(song.Id);
-            song.Liked = liked;
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (ReferenceEquals(PlaybackService?.CurrentSong, song))
-                {
-                    _currentSongLiked = liked;
-                    LikeIcon.Glyph = liked ? "\uE735" : "\uE734";
-                }
-            });
-        }
-
-        private async System.Threading.Tasks.Task RefreshSongPrivilegeForUiAsync(Song song)
-        {
-            var privilege = await App.ApiService.GetSongQualityPrivilegeAsync(song.Id);
-            if (privilege == null) return;
-            song.QualityPrivilege = privilege;
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (ReferenceEquals(PlaybackService?.CurrentSong, song))
-                {
-                    LoadQualitySetting();
-                    if (ContentFrame.Content is Pages.SettingsPage settingsPage)
-                    {
-                        var currentQuality = ApplicationData.Current.LocalSettings.Values["AudioQuality"]?.ToString() ?? "standard";
-                        settingsPage.SyncQualitySelection(currentQuality);
-                    }
-                }
-            });
-        }
-
-        private string FormatTime(TimeSpan time)
-        {
-            return $"{(int)time.TotalMinutes:D2}:{time.Seconds:D2}";
-        }
-
-        private async void LikeButton_Click(object sender, RoutedEventArgs e)
-        {
-            var song = PlaybackService.CurrentSong;
-            if (song == null || !App.ApiService.IsLoggedIn) return;
-            LikeButton.IsEnabled = false;
-            var target = !_currentSongLiked;
-            var success = await App.ApiService.LikeSongAsync(song.Id, target);
-            if (success)
-            {
-                _currentSongLiked = target;
-                song.Liked = target;
-                foreach (var queued in PlaybackService.GetPlaylist())
-                {
-                    if (string.Equals(queued.Id, song.Id, StringComparison.Ordinal))
-                    {
-                        queued.Liked = target;
-                    }
-                }
-                LikeIcon.Glyph = target ? "\uE735" : "\uE734";
-                LikeButton.IsEnabled = true;
-                await RefreshPlaylistsAsync();
-                return;
-            }
-            else
-            {
-                await ShowMessageAsync("操作失败", App.ApiService.LastErrorMessage);
-            }
-            LikeButton.IsEnabled = true;
-        }
-
-        private async void DownloadButton_Click(object sender, RoutedEventArgs e)
-        {
-            var song = PlaybackService.CurrentSong;
-            if (song == null || !string.IsNullOrEmpty(song.LocalFilePath)) return;
-            DownloadButton.IsEnabled = false;
-            var result = await App.ApiService.DownloadSongAsync(song);
-            DownloadButton.IsEnabled = true;
-            await ShowMessageAsync(result.Success ? "下载完成" : "下载失败",
-                result.Success ? $"已保存到：{result.Message}" : result.DisplayMessage);
-        }
-
-        private async System.Threading.Tasks.Task ShowMessageAsync(string title, string message)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = title,
-                Content = string.IsNullOrWhiteSpace(message) ? "请稍后重试。" : message,
-                CloseButtonText = "确定",
-                XamlRoot = ContentFrame.XamlRoot
-            };
-            await dialog.ShowAsync();
-        }
-
-        private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
-        {
-            PlaybackService.TogglePlayPause();
-        }
-
-        private async void PrevButton_Click(object sender, RoutedEventArgs e)
-        {
-            await PlaybackService.PreviousAsync();
-        }
-
-        private async void NextButton_Click(object sender, RoutedEventArgs e)
-        {
-            await PlaybackService.NextAsync();
-        }
-
-        private void ShuffleButton_Click(object sender, RoutedEventArgs e)
-        {
-            PlaybackService?.ToggleShuffle();
-            ShuffleButton.Opacity = PlaybackService?.IsShuffleEnabled == true ? 1.0 : 0.5;
-        }
-
-        private void RepeatButton_Click(object sender, RoutedEventArgs e)
-        {
-            PlaybackService?.ToggleRepeat();
-            var mode = PlaybackService?.GetRepeatMode();
-            switch (mode)
-            {
-                case RepeatMode.None:
-                    RepeatIcon.Glyph = "\uE8EE";
-                    RepeatButton.Opacity = 0.5;
-                    break;
-                case RepeatMode.All:
-                    RepeatIcon.Glyph = "\uE8EE";
-                    RepeatButton.Opacity = 1.0;
-                    break;
-                case RepeatMode.One:
-                    RepeatIcon.Glyph = "\uE8ED";
-                    RepeatButton.Opacity = 1.0;
-                    break;
-            }
-        }
-
-        private void ProgressSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-        {
-            if (PlaybackService == null) return;
-            var duration = PlaybackService.GetDuration();
-            if (duration > TimeSpan.Zero) _progressDrag.ValueChanged(e.NewValue, duration);
-        }
+        private void ProgressSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e) =>
+            _playerBarVm.ProgressValueChanged(e.NewValue);
 
         private void ProgressSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            _progressDrag.PointerPressed();
+            _playerBarVm.ProgressPointerPressed();
             ProgressSlider.CapturePointer(e.Pointer);
         }
 
         private void ProgressSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
-            var position = _progressDrag.PointerReleased();
-            if (position.HasValue) PlaybackService.Seek(position.Value);
+            _playerBarVm.ProgressPointerReleased();
             ProgressSlider.ReleasePointerCapture(e.Pointer);
         }
 
-        private void ProgressSlider_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
-        {
-            var position = _progressDrag.PointerCaptureLost();
-            if (position.HasValue) PlaybackService.Seek(position.Value);
-        }
+        private void ProgressSlider_PointerCaptureLost(object sender, PointerRoutedEventArgs e) =>
+            _playerBarVm.ProgressPointerCaptureLost();
 
         private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
-            if (PlaybackService != null)
-            {
-                PlaybackService.Volume = e.NewValue / 100;
-            }
+            if (_syncingVolume || _playerBarVm == null) return;
+            _playerBarVm.SetVolumePercent(e.NewValue);
             UpdateVolumeIcon(e.NewValue);
         }
 
         private void VolumeButton_Click(object sender, RoutedEventArgs e)
         {
-            if (VolumeSlider.Value > 0)
-            {
-                VolumeSlider.Value = 0;
-            }
-            else
-            {
-                VolumeSlider.Value = 100;
-            }
+            VolumeSlider.Value = VolumeSlider.Value > 0 ? 0 : 100;
         }
 
         private void UpdateVolumeIcon(double volume)
@@ -823,71 +465,8 @@ namespace music
 
         private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
         {
-            if (args.IsSettingsSelected)
-            {
-                // 清空返回栈
-                ClearBackStack();
-                ContentFrame.Navigate(typeof(Pages.SettingsPage));
-            }
-            else if (args.SelectedItemContainer != null)
-            {
-                var tag = args.SelectedItemContainer.Tag.ToString();
-                if (tag == "login" || tag == "create_playlist")
-                {
-                    return;
-                }
-
-                // 清空返回栈
-                ClearBackStack();
-
-                switch (tag)
-
-                {
-                    case "recommend":
-                        ContentFrame.Navigate(typeof(Pages.RecommendPage));
-                        break;
-                    case "liked":
-                        ContentFrame.Navigate(typeof(Pages.LikedPage));
-                        break;
-                    case "downloaded":
-                        ContentFrame.Navigate(typeof(Pages.DownloadedPage));
-                        break;
-                    case "cloud":
-                        ContentFrame.Navigate(typeof(Pages.CloudPage));
-                        break;
-                    default:
-                        // 处理动态歌单
-                        if (tag != null && tag.StartsWith("playlist_"))
-                        {
-                            var playlistId = tag.Substring("playlist_".Length);
-                            ContentFrame.Navigate(typeof(Pages.PlaylistDetailPage), playlistId);
-                        }
-                        break;
-                }
-            }
-        }
-
-        private void ClearBackStack()
-        {
-            while (ContentFrame.CanGoBack)
-            {
-                ContentFrame.GoBack();
-            }
-            BackBar.Opacity = 0;
-            BackBar.Translation = new System.Numerics.Vector3(0, -48, 0);
-            BackBar.Visibility = Visibility.Collapsed;
-        }
-
-        private void RefreshCurrentPage()
-        {
-            if (ContentFrame.CurrentSourcePageType == typeof(Pages.RecommendPage))
-            {
-                ContentFrame.Navigate(typeof(Pages.RecommendPage));
-            }
-            else if (ContentFrame.CurrentSourcePageType == typeof(Pages.LikedPage))
-            {
-                ContentFrame.Navigate(typeof(Pages.LikedPage));
-            }
+            var tag = args.SelectedItemContainer?.Tag?.ToString();
+            _shellVm.NavigateByTag(tag, args.IsSettingsSelected);
         }
 
         private void NavView_PaneClosing(NavigationView sender, NavigationViewPaneClosingEventArgs args)
@@ -902,74 +481,11 @@ namespace music
             CreatedPlaylistHeader.Visibility = Visibility.Visible;
         }
 
-        private async void Quality_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is MenuFlyoutItem item && item.Tag is string quality)
-            {
-                var settings = ApplicationData.Current.LocalSettings;
-                var previousQuality = settings.Values["AudioQuality"]?.ToString() ?? "standard";
-                var isVip = App.ApiService.IsLoggedIn && App.ApiService.GetVipStatus();
-                var privilege = await EnsureCurrentSongPrivilegeAsync();
-
-                if (privilege != null && !privilege.CanUserPlay(quality, isVip))
-                {
-                    var fallback = privilege.ResolveFallbackQuality(quality, isVip, previousQuality);
-                    settings.Values["AudioQuality"] = fallback;
-                    QualityText.Text = SongUrlPolicy.GetQualityDisplayName(fallback);
-                    UpdateQualityMenuAvailability(isVip, privilege);
-                    if (ContentFrame.Content is Pages.SettingsPage settingsPage)
-                    {
-                        settingsPage.SyncQualitySelection(fallback);
-                    }
-
-                    await ShowMessageAsync(
-                        "VIP 专属音质",
-                        $"当前歌曲的“{SongUrlPolicy.GetQualityDisplayName(quality)}”音质需要 VIP 会员权限，已为您退回“{SongUrlPolicy.GetQualityDisplayName(fallback)}”音质。");
-                    return;
-                }
-
-                settings.Values["AudioQuality"] = quality;
-                QualityText.Text = SongUrlPolicy.GetQualityDisplayName(quality);
-                UpdateQualityMenuAvailability(isVip, privilege);
-                if (ContentFrame.Content is Pages.SettingsPage currentSettingsPage)
-                {
-                    currentSettingsPage.SyncQualitySelection(quality);
-                }
-
-                if (PlaybackService?.CurrentSong != null &&
-                    PlaybackService.IsPlaying &&
-                    string.IsNullOrEmpty(PlaybackService.CurrentSong.LocalFilePath) &&
-                    !string.Equals(previousQuality, quality, StringComparison.OrdinalIgnoreCase))
-                {
-                    await PlaybackService.PlayAsync(PlaybackService.CurrentSong);
-                }
-
-                System.Diagnostics.Debug.WriteLine($"[Settings] Audio quality changed to: {quality}");
-            }
-        }
-
-        private async void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+        private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
         {
             if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
-            _searchSuggestionCancellation?.Cancel();
-            _searchSuggestionCancellation?.Dispose();
-            _searchSuggestionCancellation = new CancellationTokenSource();
-            var cancellation = _searchSuggestionCancellation;
-            var query = sender.Text.Trim();
-            if (query.Length == 0)
-            {
-                sender.ItemsSource = null;
-                return;
-            }
-
-            try
-            {
-                await System.Threading.Tasks.Task.Delay(300, cancellation.Token);
-                var suggestions = await App.ApiService.GetSearchSuggestionsAsync(query, cancellation.Token);
-                if (cancellation.IsCancellationRequested || sender.Text.Trim() != query) return;
-                sender.ItemsSource = suggestions;
-            }
-            catch (OperationCanceledException) { }
+            _searchSuggestionsVm.UpdateQueryAsync(sender.Text, () => sender.Text)
+                .Forget(_root.ApiLog, "MainWindow.SearchSuggest");
         }
 
         private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
@@ -977,16 +493,12 @@ namespace music
             var queryText = args.ChosenSuggestion is SearchSuggestion suggestion
                 ? suggestion.Name
                 : args.QueryText;
-            if (!string.IsNullOrWhiteSpace(queryText))
-            {
-                ContentFrame.Navigate(typeof(Pages.SearchPage), queryText);
-            }
+            _searchSuggestionsVm.SubmitQuery(queryText);
         }
 
         public void ApplySavedTheme()
         {
-            var saved = ApplicationData.Current.LocalSettings.Values["Theme"]?.ToString() ?? "System";
-            ApplyTheme(saved);
+            ApplyTheme(_root.SettingsService.Theme);
             if (Content is FrameworkElement root)
                 root.ActualThemeChanged += (_, _) => UpdateWindowChrome();
         }
@@ -994,12 +506,14 @@ namespace music
         public void ApplyTheme(string theme)
         {
             if (Content is FrameworkElement root)
+            {
                 root.RequestedTheme = ThemeSettings.Parse(theme) switch
                 {
                     ThemeMode.Light => ElementTheme.Light,
                     ThemeMode.Dark => ElementTheme.Dark,
                     _ => ElementTheme.Default
                 };
+            }
             DispatcherQueue.TryEnqueue(UpdateWindowChrome);
         }
 
@@ -1036,7 +550,6 @@ namespace music
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                // 强制刷新播放控件背景，使其跟随主题变化
                 var isDark = PlayerBar.ActualTheme == ElementTheme.Dark;
                 PlayerBar.Background = isDark
                     ? new AcrylicBrush
@@ -1056,21 +569,14 @@ namespace music
             });
         }
 
-        private void PlaylistButton_Click(object sender, RoutedEventArgs e)
-        {
-            TogglePlaylistPanel();
-        }
+        private void PlaylistButton_Click(object sender, RoutedEventArgs e) => TogglePlaylistPanel();
 
         private void TogglePlaylistPanel()
         {
             if (_isPlaylistPanelOpen)
-            {
                 HidePlaylistPanel();
-            }
             else
-            {
                 ShowPlaylistPanel();
-            }
         }
 
         private void ShowPlaylistPanel()
@@ -1095,7 +601,7 @@ namespace music
             double progress = 0;
             var timer = DispatcherQueue.CreateTimer();
             timer.Interval = TimeSpan.FromMilliseconds(16);
-            timer.Tick += (s, e) =>
+            timer.Tick += (_, _) =>
             {
                 progress += 0.06;
                 if (progress >= 1)
@@ -1118,7 +624,7 @@ namespace music
             double progress = 0;
             var timer = DispatcherQueue.CreateTimer();
             timer.Interval = TimeSpan.FromMilliseconds(16);
-            timer.Tick += (s, e) =>
+            timer.Tick += (_, _) =>
             {
                 progress += 0.08;
                 if (progress >= 1)
@@ -1135,27 +641,20 @@ namespace music
             timer.Start();
         }
 
-        // 平滑缓出带轻微过冲 - 无晃动
-        private double BackEaseOut(double t)
+        private static double BackEaseOut(double t)
         {
             const double c1 = 1.70158;
             const double c3 = c1 + 1;
             return 1 + c3 * Math.Pow(t - 1, 3) + c1 * Math.Pow(t - 1, 2);
         }
 
-        // 三次缓入
-        private double CubicEaseIn(double t)
-        {
-            return t * t * t;
-        }
+        private static double CubicEaseIn(double t) => t * t * t;
 
         private void UpdatePlaylistPanel()
         {
             PlaylistListView.Items.Clear();
 
-            var currentSong = PlaybackService.CurrentSong;
-            var playlist = PlaybackService.GetPlaylist();
-
+            var playlist = _playerBarVm.GetPlaylist();
             PlaylistCountText.Text = $"{playlist.Count}首歌曲";
 
             foreach (var song in playlist)
@@ -1168,90 +667,32 @@ namespace music
         {
             if (e.ClickedItem is string songName)
             {
-                var playlist = PlaybackService.GetPlaylist();
+                var playlist = _playerBarVm.GetPlaylist();
                 var index = playlist.FindIndex(s => s.Name == songName);
                 if (index >= 0)
                 {
-                    _ = PlaybackService.PlayAsync(playlist, index);
+                    _playerBarVm.PlayFromPlaylistIndexAsync(index).Forget(_root.ApiLog, "MainWindow.PlayFromQueue");
                 }
                 HidePlaylistPanel();
             }
         }
 
-        private async void CreatePlaylistItem_Tapped(object sender, TappedRoutedEventArgs e)
-        {
-            if (!App.ApiService.IsLoggedIn)
-            {
-                var dialog = new LoginDialog();
-                dialog.XamlRoot = ContentFrame.XamlRoot;
-                await dialog.ShowAsync();
-                return;
-            }
+        private void CreatePlaylistItem_Tapped(object sender, TappedRoutedEventArgs e) =>
+            _shellVm.CreatePlaylistAsync().Forget(_root.ApiLog, "MainWindow.CreatePlaylist");
 
-            var inputTextBox = new TextBox
-            {
-                PlaceholderText = "请输入歌单名称",
-                MaxLength = 40,
-                Width = 300
-            };
-
-            var dialog2 = new ContentDialog
-            {
-                Title = "新建歌单",
-                Content = inputTextBox,
-                PrimaryButtonText = "创建",
-                CloseButtonText = "取消",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = ContentFrame.XamlRoot
-            };
-
-            var result = await dialog2.ShowAsync();
-            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(inputTextBox.Text))
-            {
-                var name = inputTextBox.Text.Trim();
-                var success = await App.ApiService.CreatePlaylistAsync(name);
-                if (success)
-                {
-                    await LoadPlaylistsAsync(bypassCache: true);
-                }
-            }
-        }
-
-        private async void DeletePlaylist_Click(object sender, RoutedEventArgs e)
+        private void DeletePlaylist_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuFlyoutItem button && button.Tag is string playlistId)
             {
-                var dialog = new ContentDialog
-                {
-                    Title = "删除歌单",
-                    Content = "确定要删除这个歌单吗？此操作不可撤销。",
-                    PrimaryButtonText = "删除",
-                    CloseButtonText = "取消",
-                    DefaultButton = ContentDialogButton.Close,
-                    XamlRoot = ContentFrame.XamlRoot
-                };
-
-                var result = await dialog.ShowAsync();
-                if (result == ContentDialogResult.Primary)
-                {
-                    var success = await App.ApiService.DeletePlaylistAsync(playlistId);
-                    if (success)
-                    {
-                        await LoadPlaylistsAsync(bypassCache: true);
-                    }
-                }
+                _shellVm.DeletePlaylistAsync(playlistId).Forget(_root.ApiLog, "MainWindow.DeletePlaylist");
             }
         }
 
-        private async void UnsubscribePlaylist_Click(object sender, RoutedEventArgs e)
+        private void UnsubscribePlaylist_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuFlyoutItem button && button.Tag is string playlistId)
             {
-                var success = await App.ApiService.UnsubscribePlaylistAsync(playlistId);
-                if (success)
-                {
-                    await LoadPlaylistsAsync(bypassCache: true);
-                }
+                _shellVm.UnsubscribePlaylistAsync(playlistId).Forget(_root.ApiLog, "MainWindow.UnsubscribePlaylist");
             }
         }
     }

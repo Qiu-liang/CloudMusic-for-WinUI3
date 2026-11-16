@@ -1,131 +1,75 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
-using music.Models;
-using music.Services;
+using music.Core.Abstractions;
+using music.Core.Models;
+using music.Core.ViewModels;
 
 namespace music.Pages
 {
     public sealed partial class LyricsPage : Page
     {
-        private Song? _currentSong;
-        private List<LyricLine> _lyrics = new();
-        private int _currentLyricIndex = -1;
-        private bool _isActive;
-        private CancellationTokenSource? _lyricsCancellation;
-        private readonly LatestLyricRequest _latestLyrics = new();
+        public LyricsViewModel? ViewModel { get; private set; }
 
         public LyricsPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            _isActive = true;
-            SetupPlaybackEvents();
 
-            if (e.Parameter is Song song)
+            if (e.Parameter is NavigationRequest request)
             {
-                _currentSong = song;
-                LoadSongInfo();
-                _ = LoadLyricsAsync();
+                DetachViewModel();
+                ViewModel = (LyricsViewModel)request.CreateViewModel();
+                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+                ViewModel.LyricsUpdated += ViewModel_LyricsUpdated;
+                ViewModel.ActiveLineChanged += ViewModel_ActiveLineChanged;
+
+                ViewModel.Activate(request.Parameter as Song);
+                SongInfoText.Text = ViewModel.SongInfoText;
             }
         }
 
-        private void LoadSongInfo()
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            if (_currentSong == null) return;
-            SongInfoText.Text = $"{_currentSong.Name} - {_currentSong.ArtistNames}";
+            base.OnNavigatedFrom(e);
+            DetachViewModel();
         }
 
-        private async System.Threading.Tasks.Task LoadLyricsAsync()
+        private void DetachViewModel()
         {
-            if (_currentSong == null) return;
-            if (!string.IsNullOrEmpty(_currentSong.LocalFilePath))
+            if (ViewModel != null)
             {
-                _lyrics.Clear();
-                DisplayLyrics();
-                return;
+                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+                ViewModel.LyricsUpdated -= ViewModel_LyricsUpdated;
+                ViewModel.ActiveLineChanged -= ViewModel_ActiveLineChanged;
+                ViewModel.Dispose();
+                ViewModel = null;
             }
-
-            _lyricsCancellation?.Cancel();
-            _lyricsCancellation?.Dispose();
-            _lyricsCancellation = new CancellationTokenSource();
-            var cancellation = _lyricsCancellation;
-            var songId = _currentSong.Id;
-            var request = _latestLyrics.Next(songId);
-
-            try
-            {
-                var lyricInfo = await App.ApiService.GetLyricsAsync(songId, cancellation.Token);
-                if (!_isActive || cancellation.IsCancellationRequested) return;
-                if (!_latestLyrics.IsCurrent(request, songId, _currentSong?.Id ?? string.Empty)) return;
-
-                _lyrics = lyricInfo == null || string.IsNullOrEmpty(lyricInfo.LrcLyric)
-                    ? new List<LyricLine>()
-                    : ParseLyrics(lyricInfo.LrcLyric);
-                DispatcherQueue.TryEnqueue(() => DisplayLyrics());
-            }
-            catch (OperationCanceledException) { }
         }
 
-        private List<LyricLine> ParseLyrics(string lrcContent)
+        private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            var lines = new List<LyricLine>();
-            if (string.IsNullOrEmpty(lrcContent)) return lines;
-
-            foreach (var line in lrcContent.Split('\n'))
-            {
-                var trimmedLine = line.Trim();
-                if (string.IsNullOrEmpty(trimmedLine)) continue;
-
-                if (trimmedLine.StartsWith("[") && trimmedLine.Contains("]"))
-                {
-                    var timeEnd = trimmedLine.IndexOf(']');
-                    var timeStr = trimmedLine.Substring(1, timeEnd - 1);
-                    var text = trimmedLine.Substring(timeEnd + 1).Trim();
-
-                    if (TryParseTime(timeStr, out var time) && !string.IsNullOrEmpty(text))
-                    {
-                        lines.Add(new LyricLine { Time = time, Text = text });
-                    }
-                }
-            }
-
-            return lines.OrderBy(l => l.Time).ToList();
+            if (ViewModel != null && e.PropertyName == nameof(LyricsViewModel.SongInfoText))
+                SongInfoText.Text = ViewModel.SongInfoText;
         }
 
-        private bool TryParseTime(string timeStr, out TimeSpan time)
-        {
-            time = TimeSpan.Zero;
-            try
-            {
-                var parts = timeStr.Split(':');
-                if (parts.Length == 2)
-                {
-                    var minutes = int.Parse(parts[0]);
-                    var seconds = double.Parse(parts[1]);
-                    time = TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(seconds);
-                    return true;
-                }
-            }
-            catch { }
-            return false;
-        }
+        private void ViewModel_LyricsUpdated(object? sender, EventArgs e) => DisplayLyrics();
+
+        private void ViewModel_ActiveLineChanged(object? sender, int index) => HighlightLyric(index);
 
         private void DisplayLyrics()
         {
+            if (ViewModel == null) return;
             LyricsPanel.Children.Clear();
 
-            if (_lyrics.Count == 0)
+            if (ViewModel.Lyrics.Count == 0)
             {
                 LyricsPanel.Children.Add(new TextBlock
                 {
@@ -137,7 +81,7 @@ namespace music.Pages
                 return;
             }
 
-            foreach (var lyric in _lyrics)
+            foreach (var lyric in ViewModel.Lyrics)
             {
                 LyricsPanel.Children.Add(new TextBlock
                 {
@@ -152,100 +96,13 @@ namespace music.Pages
                 });
             }
 
-            UpdateLyricsThemeColors();
-        }
-
-        private void UpdateLyricsThemeColors()
-        {
-            var isDark = this.ActualTheme == ElementTheme.Dark;
-            var defaultColor = isDark
-                ? Windows.UI.Color.FromArgb(220, 200, 200, 200)
-                : Windows.UI.Color.FromArgb(220, 80, 80, 80);
-            var highlightColor = isDark
-                ? Windows.UI.Color.FromArgb(255, 96, 165, 250)
-                : Windows.UI.Color.FromArgb(255, 0, 120, 215);
-
-            foreach (var child in LyricsPanel.Children)
-            {
-                if (child is TextBlock textBlock)
-                {
-                    textBlock.Foreground = new SolidColorBrush(defaultColor);
-                }
-            }
-
-            if (_currentLyricIndex >= 0 && _currentLyricIndex < LyricsPanel.Children.Count)
-            {
-                if (LyricsPanel.Children[_currentLyricIndex] is TextBlock highlight)
-                {
-                    highlight.Foreground = new SolidColorBrush(highlightColor);
-                }
-            }
-        }
-
-        private void SetupPlaybackEvents()
-        {
-            var playbackService = MainWindow.PlaybackService;
-            if (playbackService == null) return;
-            playbackService.CurrentSongChanged -= PlaybackService_CurrentSongChanged;
-            playbackService.PositionChanged -= PlaybackService_PositionChanged;
-            playbackService.CurrentSongChanged += PlaybackService_CurrentSongChanged;
-            playbackService.PositionChanged += PlaybackService_PositionChanged;
-        }
-
-        private void PlaybackService_CurrentSongChanged(object? sender, Song song)
-        {
-            if (!_isActive) return;
-            _currentSong = song;
-            _lyrics.Clear();
-            _currentLyricIndex = -1;
-            DispatcherQueue.TryEnqueue(() => LoadSongInfo());
-            _ = LoadLyricsAsync();
-        }
-
-        private void PlaybackService_PositionChanged(object? sender, TimeSpan position)
-        {
-            if (!_isActive) return;
-            DispatcherQueue.TryEnqueue(() => UpdateLyricsHighlight(position));
-        }
-
-        protected override void OnNavigatedFrom(NavigationEventArgs e)
-        {
-            base.OnNavigatedFrom(e);
-            _isActive = false;
-            _lyricsCancellation?.Cancel();
-            var playbackService = MainWindow.PlaybackService;
-            if (playbackService != null)
-            {
-                playbackService.CurrentSongChanged -= PlaybackService_CurrentSongChanged;
-                playbackService.PositionChanged -= PlaybackService_PositionChanged;
-            }
-        }
-
-        private void UpdateLyricsHighlight(TimeSpan position)
-        {
-            var currentMs = position.TotalMilliseconds;
-            var newIndex = -1;
-
-            for (int i = _lyrics.Count - 1; i >= 0; i--)
-            {
-                if (currentMs >= _lyrics[i].Time.TotalMilliseconds)
-                {
-                    newIndex = i;
-                    break;
-                }
-            }
-
-            if (newIndex != _currentLyricIndex)
-            {
-                _currentLyricIndex = newIndex;
-                HighlightLyric(newIndex);
-            }
+            HighlightLyric(ViewModel.CurrentLyricIndex);
         }
 
         private void HighlightLyric(int index)
         {
             var children = LyricsPanel.Children;
-            var isDark = this.ActualTheme == ElementTheme.Dark;
+            var isDark = ActualTheme == ElementTheme.Dark;
             var defaultColor = isDark
                 ? Windows.UI.Color.FromArgb(220, 200, 200, 200)
                 : Windows.UI.Color.FromArgb(220, 80, 80, 80);
@@ -280,9 +137,6 @@ namespace music.Pages
             }
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (Frame.CanGoBack) Frame.GoBack();
-        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e) => ViewModel?.Close();
     }
 }

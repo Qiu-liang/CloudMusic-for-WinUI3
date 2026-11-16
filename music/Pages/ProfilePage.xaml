@@ -13,7 +13,6 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- 顶部标题栏 -->
         <Grid Margin="24,16,24,8">
             <StackPanel Orientation="Horizontal" Spacing="12">
                 <FontIcon Glyph="&#xE77B;" FontSize="20" VerticalAlignment="Center" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
@@ -23,14 +22,12 @@
             </StackPanel>
         </Grid>
 
-        <!-- 用户信息区域 -->
-        <Grid x:Name="UserInfoSection" Grid.Row="1" Margin="24,0,24,16" Visibility="Collapsed">
+        <Grid x:Name="UserInfoSection" Grid.Row="1" Margin="24,0,24,16" Visibility="{x:Bind ViewModel.IsContent, Mode=OneWay}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 头像 -->
             <Border Grid.Column="0"
                     Width="160" Height="160"
                     CornerRadius="80"
@@ -42,23 +39,23 @@
                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     <Image x:Name="AvatarImage"
                            Stretch="UniformToFill"
-                           Visibility="Collapsed"/>
+                           Visibility="{x:Bind ViewModel.HasAvatar, Mode=OneWay}"/>
                 </Grid>
             </Border>
 
-            <!-- 用户信息 -->
             <StackPanel Grid.Column="1"
                         VerticalAlignment="Center"
                         Spacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock x:Name="NicknameText"
+                               Text="{x:Bind ViewModel.Nickname, Mode=OneWay}"
                                FontSize="28"
                                FontWeight="Bold"
                                TextWrapping="Wrap"
                                MaxLines="2"
                                TextTrimming="CharacterEllipsis"/>
                     <Border x:Name="VipBadge"
-                            Visibility="Collapsed"
+                            Visibility="{x:Bind ViewModel.IsVip, Mode=OneWay}"
                             Background="{ThemeResource AccentFillColorDefaultBrush}"
                             CornerRadius="4"
                             Padding="8,3"
@@ -71,30 +68,30 @@
                 </StackPanel>
 
                 <TextBlock x:Name="StatsText"
+                           Text="{x:Bind ViewModel.StatsText, Mode=OneWay}"
                            FontSize="14"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           Visibility="Collapsed"/>
+                           Visibility="{x:Bind ViewModel.ShowStats, Mode=OneWay}"/>
 
                 <TextBlock x:Name="SignatureText"
+                           Text="{x:Bind ViewModel.Signature, Mode=OneWay}"
                            FontSize="13"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            TextWrapping="Wrap"
                            MaxLines="4"
                            TextTrimming="CharacterEllipsis"
-                           Visibility="Collapsed"/>
+                           Visibility="{x:Bind ViewModel.ShowSignature, Mode=OneWay}"/>
 
-                <!-- 登录失效时的出口：在页面内直接退出并回到首页重新登录 -->
                 <Button x:Name="ForceLogoutButton"
-                        Click="ForceLogoutButton_Click"
+                        Command="{x:Bind ViewModel.ForceLogoutCommand, Mode=OneWay}"
                         Content="退出登录"
-                        Visibility="Collapsed"
+                        Visibility="{x:Bind ViewModel.ShowForceLogout, Mode=OneWay}"
                         HorizontalAlignment="Left"
                         Margin="0,4,0,0"/>
             </StackPanel>
         </Grid>
 
-        <!-- 加载中 -->
-        <Grid Grid.Row="1" x:Name="LoadingPanel">
+        <Grid Grid.Row="1" x:Name="LoadingPanel" Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                 <ProgressRing IsActive="True" Width="32" Height="32"/>
                 <TextBlock Text="加载中..."
@@ -104,7 +101,6 @@
             </StackPanel>
         </Grid>
 
-        <!-- 分页导航 -->
         <NavigationView Grid.Row="2"
                         x:Name="ProfileNavView"
                         PaneDisplayMode="Top"
