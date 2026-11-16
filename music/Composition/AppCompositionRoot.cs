@@ -61,21 +61,19 @@ namespace music.Composition
             QualityService = new QualityService(Transport, SettingsStore);
             SongSourceResolver = new SongSourceResolver(Transport, SettingsStore);
 
-            LibraryService = null!;
             SessionService = new SessionService(
                 Transport,
                 Endpoint,
                 CookieJar,
                 SettingsStore,
-                ApiLog,
-                () => QualityService.ClearCache(),
-                () => LibraryService?.ClearState());
+                ApiLog);
+            SessionService.SessionChanged += (_, _) => QualityService.ClearCache();
+            SessionService.VipStatusRefreshed += (_, _) => QualityService.ClearCache();
 
             LibraryService = new LibraryService(
                 Transport,
                 QualityService,
-                () => SessionService.IsLoggedIn,
-                () => SessionService.UserId);
+                SessionService);
 
             PlaylistService = new PlaylistService(Transport, LibraryService, QualityService);
             ArtistService = new ArtistService(Transport, LibraryService, QualityService);

@@ -111,25 +111,19 @@ namespace music.Core.Netease.Mapping
             var songs = new List<Song>();
             if (string.IsNullOrWhiteSpace(json)) return songs;
 
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            var privilegesById = ExtractPrivilegesById(result);
+            if (result.TryGetProperty("songs", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                var privilegesById = ExtractPrivilegesById(result);
-                if (result.ValueKind == JsonValueKind.Object &&
-                    result.TryGetProperty("songs", out var items) &&
-                    items.ValueKind == JsonValueKind.Array)
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
-                    {
-                        var id = SongUrlPolicy.ReadString(item, "id");
-                        JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
-                        songs.Add(ParseSong(item, priv, isLikedLookup, onPrivilegeParsed));
-                    }
+                    var id = SongUrlPolicy.ReadString(item, "id");
+                    JsonElement? priv = privilegesById.TryGetValue(id, out var matchedPriv) ? matchedPriv : null;
+                    songs.Add(ParseSong(item, priv, isLikedLookup, onPrivilegeParsed));
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] ParseSongsList Error: {ex.Message}");
             }
 
             return songs;
@@ -144,21 +138,17 @@ namespace music.Core.Netease.Mapping
             var songs = new List<Song>();
             if (string.IsNullOrWhiteSpace(json)) return songs;
 
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("data", out var data) &&
+                data.TryGetProperty("dailySongs", out var dailySongs))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("data", out var data) &&
-                    data.TryGetProperty("dailySongs", out var dailySongs))
+                foreach (var item in dailySongs.EnumerateArray().Take(Math.Max(0, limit)))
                 {
-                    foreach (var item in dailySongs.EnumerateArray().Take(Math.Max(0, limit)))
-                    {
-                        songs.Add(ParseSong(item, null, isLikedLookup, onPrivilegeParsed));
-                    }
+                    songs.Add(ParseSong(item, null, isLikedLookup, onPrivilegeParsed));
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] Recommend Error: {ex.Message}");
             }
 
             return songs;
@@ -169,59 +159,55 @@ namespace music.Core.Netease.Mapping
             var songs = new List<Song>();
             if (string.IsNullOrWhiteSpace(json)) return songs;
 
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("result", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("result", out var items))
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
+                    var song = new Song
                     {
-                        var song = new Song
+                        Id = SongUrlPolicy.ReadString(item, "id"),
+                        Name = SongUrlPolicy.ReadString(item, "name")
+                    };
+
+                    if (item.TryGetProperty("song", out var songObj) && songObj.ValueKind == JsonValueKind.Object)
+                    {
+                        if (songObj.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
                         {
-                            Id = SongUrlPolicy.ReadString(item, "id"),
-                            Name = SongUrlPolicy.ReadString(item, "name")
-                        };
-
-                        if (item.TryGetProperty("song", out var songObj) && songObj.ValueKind == JsonValueKind.Object)
-                        {
-                            if (songObj.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
+                            foreach (var artist in artists.EnumerateArray())
                             {
-                                foreach (var artist in artists.EnumerateArray())
+                                if (artist.ValueKind != JsonValueKind.Object) continue;
+                                song.Artists.Add(new Artist
                                 {
-                                    if (artist.ValueKind != JsonValueKind.Object) continue;
-                                    song.Artists.Add(new Artist
-                                    {
-                                        Id = SongUrlPolicy.ReadString(artist, "id"),
-                                        Name = SongUrlPolicy.ReadString(artist, "name")
-                                    });
-                                }
+                                    Id = SongUrlPolicy.ReadString(artist, "id"),
+                                    Name = SongUrlPolicy.ReadString(artist, "name")
+                                });
                             }
-
-                            if (songObj.TryGetProperty("album", out var album) && album.ValueKind == JsonValueKind.Object)
-                            {
-                                song.Album = new Album
-                                {
-                                    Id = SongUrlPolicy.ReadString(album, "id"),
-                                    Name = SongUrlPolicy.ReadString(album, "name")
-                                };
-                                song.CoverImgUrl = SongUrlPolicy.ReadString(album, "picUrl");
-                            }
-
-                            song.Duration = SongUrlPolicy.ReadInt64(songObj, "duration");
                         }
 
-                        if (string.IsNullOrEmpty(song.CoverImgUrl) && item.TryGetProperty("picUrl", out var outerPicUrl))
+                        if (songObj.TryGetProperty("album", out var album) && album.ValueKind == JsonValueKind.Object)
                         {
-                            song.CoverImgUrl = outerPicUrl.GetString() ?? string.Empty;
+                            song.Album = new Album
+                            {
+                                Id = SongUrlPolicy.ReadString(album, "id"),
+                                Name = SongUrlPolicy.ReadString(album, "name")
+                            };
+                            song.CoverImgUrl = SongUrlPolicy.ReadString(album, "picUrl");
                         }
 
-                        songs.Add(song);
+                        song.Duration = SongUrlPolicy.ReadInt64(songObj, "duration");
                     }
+
+                    if (string.IsNullOrEmpty(song.CoverImgUrl) && item.TryGetProperty("picUrl", out var outerPicUrl))
+                    {
+                        song.CoverImgUrl = outerPicUrl.GetString() ?? string.Empty;
+                    }
+
+                    songs.Add(song);
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetPersonalizedSongs Error: {ex.Message}");
             }
 
             return songs;
@@ -235,29 +221,25 @@ namespace music.Core.Netease.Mapping
             var songs = new List<Song>();
             if (string.IsNullOrWhiteSpace(json)) return songs;
 
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("data", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("data", out var items) && items.ValueKind == JsonValueKind.Array)
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
+                    try
                     {
-                        try
-                        {
-                            var songElement = item.TryGetProperty("songInfo", out var songInfo) ? songInfo : item;
-                            if (songElement.TryGetProperty("id", out _) && songElement.TryGetProperty("name", out _))
-                                songs.Add(ParseSong(songElement, null, isLikedLookup, onPrivilegeParsed));
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"GetIntelligenceSongs: 跳过无法解析的条目 {ex.GetType().Name}");
-                        }
+                        var songElement = item.TryGetProperty("songInfo", out var songInfo) ? songInfo : item;
+                        if (songElement.TryGetProperty("id", out _) && songElement.TryGetProperty("name", out _))
+                            songs.Add(ParseSong(songElement, null, isLikedLookup, onPrivilegeParsed));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"GetIntelligenceSongs: 跳过无法解析的条目 {ex.GetType().Name}");
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] ParseIntelligenceSongs Error: {ex.Message}");
             }
 
             return songs;
@@ -271,21 +253,17 @@ namespace music.Core.Netease.Mapping
             var songs = new List<Song>();
             if (string.IsNullOrWhiteSpace(json)) return songs;
 
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("result", out var searchResult) &&
+                searchResult.TryGetProperty("songs", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("result", out var searchResult) &&
-                    searchResult.TryGetProperty("songs", out var items))
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
-                    {
-                        songs.Add(ParseSong(item, null, isLikedLookup, onPrivilegeParsed));
-                    }
+                    songs.Add(ParseSong(item, null, isLikedLookup, onPrivilegeParsed));
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] Search Error: {ex.Message}");
             }
 
             return songs;

@@ -12,10 +12,10 @@ namespace music.Core.Services
     public interface IRecommendationService
     {
         Task<ApiResult<List<Song>>> GetDailyRecommendSongsAsync(int limit = 30);
-        Task<List<RecommendedPlaylist>> GetRecommendedPlaylistsAsync(int limit = 10);
-        Task<List<RecommendedPlaylist>> GetRecommendResourceAsync();
-        Task<List<Song>> GetPersonalizedSongsAsync(int limit = 10);
-        Task<List<Song>> GetIntelligenceSongsAsync();
+        Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendedPlaylistsAsync(int limit = 10);
+        Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendResourceAsync();
+        Task<ApiResult<List<Song>>> GetPersonalizedSongsAsync(int limit = 10);
+        Task<ApiResult<List<Song>>> GetIntelligenceSongsAsync();
     }
 
     public sealed class RecommendationService : IRecommendationService
@@ -65,25 +65,34 @@ namespace music.Core.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] Recommend Error: {ex.Message}");
-                return ApiResult<List<Song>>.Ok(new List<Song>());
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<Song>());
             }
         }
 
-        public async Task<List<RecommendedPlaylist>> GetRecommendedPlaylistsAsync(int limit = 10)
+        public async Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendedPlaylistsAsync(int limit = 10)
         {
             try
             {
                 var resp = await _transport.GetAsync($"/personalized?limit={limit}").ConfigureAwait(false);
-                return resp.Success ? PlaylistJsonMapper.ParseRecommendedPlaylists(resp.Body) : new List<RecommendedPlaylist>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<RecommendedPlaylist>>.Fail(resp.Result, new List<RecommendedPlaylist>());
+                }
+
+                return ApiResult<List<RecommendedPlaylist>>.Ok(PlaylistJsonMapper.ParseRecommendedPlaylists(resp.Body));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetRecommendedPlaylists Error: {ex.Message}");
-                return new List<RecommendedPlaylist>();
+                return ApiResult<List<RecommendedPlaylist>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<RecommendedPlaylist>());
             }
         }
 
-        public async Task<List<RecommendedPlaylist>> GetRecommendResourceAsync()
+        public async Task<ApiResult<List<RecommendedPlaylist>>> GetRecommendResourceAsync()
         {
             try
             {
@@ -99,7 +108,7 @@ namespace music.Core.Services
                     {
                         return await GetRecommendedPlaylistsAsync(10).ConfigureAwait(false);
                     }
-                    return new List<RecommendedPlaylist>();
+                    return ApiResult<List<RecommendedPlaylist>>.Fail(resp.Result, new List<RecommendedPlaylist>());
                 }
 
                 var (needsLogin, items) = PlaylistJsonMapper.ParseRecommendResource(resp.Body);
@@ -108,68 +117,89 @@ namespace music.Core.Services
                     return await GetRecommendedPlaylistsAsync(10).ConfigureAwait(false);
                 }
 
-                return items;
+                return ApiResult<List<RecommendedPlaylist>>.Ok(items);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetRecommendResource Error: {ex.Message}");
-                return new List<RecommendedPlaylist>();
+                return ApiResult<List<RecommendedPlaylist>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<RecommendedPlaylist>());
             }
         }
 
-        public async Task<List<Song>> GetPersonalizedSongsAsync(int limit = 10)
+        public async Task<ApiResult<List<Song>>> GetPersonalizedSongsAsync(int limit = 10)
         {
             try
             {
                 var resp = await _transport.GetAsync($"/personalized/newsong?limit={limit}").ConfigureAwait(false);
-                return resp.Success ? SongJsonMapper.ParsePersonalizedSongs(resp.Body) : new List<Song>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<Song>>.Fail(resp.Result, new List<Song>());
+                }
+
+                return ApiResult<List<Song>>.Ok(SongJsonMapper.ParsePersonalizedSongs(resp.Body));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetPersonalizedSongs Error: {ex.Message}");
-                return new List<Song>();
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<Song>());
             }
         }
 
-        public async Task<List<Song>> GetIntelligenceSongsAsync()
+        public async Task<ApiResult<List<Song>>> GetIntelligenceSongsAsync()
         {
             if (!_sessionService.IsLoggedIn)
             {
-                return new List<Song>();
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.Authentication, "请先登录。"),
+                    new List<Song>());
             }
 
             try
             {
                 var likedIdsResult = await _libraryService.GetLikedSongIdsAsync().ConfigureAwait(false);
+                if (!likedIdsResult.Success)
+                {
+                    return ApiResult<List<Song>>.Fail(likedIdsResult.Status, new List<Song>());
+                }
+
                 var likedIds = likedIdsResult.Value;
-                if (likedIds.Count == 0) return new List<Song>();
+                if (likedIds.Count == 0) return ApiResult<List<Song>>.Ok(new List<Song>());
 
                 var seed = likedIds[0];
                 var pid = await _libraryService.GetFavoritePlaylistIdAsync().ConfigureAwait(false);
                 if (string.IsNullOrEmpty(pid))
                 {
-                    return (await _libraryService.GetLikedSongsAsync(18).ConfigureAwait(false)).Value;
+                    return await _libraryService.GetLikedSongsAsync(18).ConfigureAwait(false);
                 }
 
                 var stamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var resp = await _transport.GetAsync(
                     $"/playmode/intelligence/list?id={seed}&pid={pid}&sid={seed}&timestamp={stamp}").ConfigureAwait(false);
 
-                var songs = resp.Success
-                    ? SongJsonMapper.ParseIntelligenceSongs(
-                        resp.Body,
-                        id => _libraryService.HasLoadedLikedIds && _libraryService.IsSongLiked(id),
-                        _qualityService.CachePrivilege)
-                    : new List<Song>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<Song>>.Fail(resp.Result, new List<Song>());
+                }
 
-                if (songs.Count > 0) return songs;
+                var songs = SongJsonMapper.ParseIntelligenceSongs(
+                    resp.Body,
+                    id => _libraryService.HasLoadedLikedIds && _libraryService.IsSongLiked(id),
+                    _qualityService.CachePrivilege);
 
-                return (await _libraryService.GetLikedSongsAsync(18).ConfigureAwait(false)).Value;
+                if (songs.Count > 0) return ApiResult<List<Song>>.Ok(songs);
+
+                return await _libraryService.GetLikedSongsAsync(18).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetIntelligenceSongs Error: {ex.Message}");
-                return (await _libraryService.GetLikedSongsAsync(18).ConfigureAwait(false)).Value;
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<Song>());
             }
         }
     }

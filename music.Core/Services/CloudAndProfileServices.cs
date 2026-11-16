@@ -45,7 +45,9 @@ namespace music.Core.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetCloudSongs Error: {ex.Message}");
-                return ApiResult<List<CloudSongInfo>>.Ok(new List<CloudSongInfo>());
+                return ApiResult<List<CloudSongInfo>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<CloudSongInfo>());
             }
         }
 
@@ -95,10 +97,10 @@ namespace music.Core.Services
 
     public interface IProfileService
     {
-        Task<UserDetailInfo?> GetUserDetailAsync(long uid);
-        Task<List<FollowUser>> GetFollowsAsync(long uid, int limit = 30, int offset = 0);
-        Task<List<FollowUser>> GetFollowedsAsync(long uid, int limit = 30, int offset = 0);
-        Task<List<RecentSong>> GetRecentSongsAsync(int limit = 100);
+        Task<ApiResult<UserDetailInfo?>> GetUserDetailAsync(long uid);
+        Task<ApiResult<List<FollowUser>>> GetFollowsAsync(long uid, int limit = 30, int offset = 0);
+        Task<ApiResult<List<FollowUser>>> GetFollowedsAsync(long uid, int limit = 30, int offset = 0);
+        Task<ApiResult<List<RecentSong>>> GetRecentSongsAsync(int limit = 100);
     }
 
     public sealed class ProfileService : IProfileService
@@ -110,28 +112,84 @@ namespace music.Core.Services
             _transport = transport;
         }
 
-        public async Task<UserDetailInfo?> GetUserDetailAsync(long uid)
+        public async Task<ApiResult<UserDetailInfo?>> GetUserDetailAsync(long uid)
         {
-            var resp = await _transport.GetAsync($"/user/detail?uid={uid}").ConfigureAwait(false);
-            return resp.Success ? ProfileJsonMapper.ParseUserDetail(resp.Body) : null;
+            try
+            {
+                var resp = await _transport.GetAsync($"/user/detail?uid={uid}").ConfigureAwait(false);
+                if (!resp.Success)
+                {
+                    return ApiResult<UserDetailInfo?>.Fail(resp.Result, null);
+                }
+                return ApiResult<UserDetailInfo?>.Ok(ProfileJsonMapper.ParseUserDetail(resp.Body));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetUserDetail Error: {ex.Message}");
+                return ApiResult<UserDetailInfo?>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    null);
+            }
         }
 
-        public async Task<List<FollowUser>> GetFollowsAsync(long uid, int limit = 30, int offset = 0)
+        public async Task<ApiResult<List<FollowUser>>> GetFollowsAsync(long uid, int limit = 30, int offset = 0)
         {
-            var resp = await _transport.GetAsync($"/user/follows?uid={uid}&limit={limit}&offset={offset}").ConfigureAwait(false);
-            return resp.Success ? ProfileJsonMapper.ParseFollowUsers(resp.Body, "follow") : new List<FollowUser>();
+            try
+            {
+                var resp = await _transport.GetAsync($"/user/follows?uid={uid}&limit={limit}&offset={offset}").ConfigureAwait(false);
+                if (!resp.Success)
+                {
+                    return ApiResult<List<FollowUser>>.Fail(resp.Result, new List<FollowUser>());
+                }
+                return ApiResult<List<FollowUser>>.Ok(ProfileJsonMapper.ParseFollowUsers(resp.Body, "follow"));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetFollows Error: {ex.Message}");
+                return ApiResult<List<FollowUser>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<FollowUser>());
+            }
         }
 
-        public async Task<List<FollowUser>> GetFollowedsAsync(long uid, int limit = 30, int offset = 0)
+        public async Task<ApiResult<List<FollowUser>>> GetFollowedsAsync(long uid, int limit = 30, int offset = 0)
         {
-            var resp = await _transport.GetAsync($"/user/followeds?uid={uid}&limit={limit}&offset={offset}").ConfigureAwait(false);
-            return resp.Success ? ProfileJsonMapper.ParseFollowUsers(resp.Body, "followeds") : new List<FollowUser>();
+            try
+            {
+                var resp = await _transport.GetAsync($"/user/followeds?uid={uid}&limit={limit}&offset={offset}").ConfigureAwait(false);
+                if (!resp.Success)
+                {
+                    return ApiResult<List<FollowUser>>.Fail(resp.Result, new List<FollowUser>());
+                }
+                return ApiResult<List<FollowUser>>.Ok(ProfileJsonMapper.ParseFollowUsers(resp.Body, "followeds"));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetFolloweds Error: {ex.Message}");
+                return ApiResult<List<FollowUser>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<FollowUser>());
+            }
         }
 
-        public async Task<List<RecentSong>> GetRecentSongsAsync(int limit = 100)
+        public async Task<ApiResult<List<RecentSong>>> GetRecentSongsAsync(int limit = 100)
         {
-            var resp = await _transport.GetAsync($"/record/recent/song?limit={limit}").ConfigureAwait(false);
-            return resp.Success ? ProfileJsonMapper.ParseRecentSongs(resp.Body) : new List<RecentSong>();
+            try
+            {
+                var resp = await _transport.GetAsync($"/record/recent/song?limit={limit}").ConfigureAwait(false);
+                if (!resp.Success)
+                {
+                    return ApiResult<List<RecentSong>>.Fail(resp.Result, new List<RecentSong>());
+                }
+                return ApiResult<List<RecentSong>>.Ok(ProfileJsonMapper.ParseRecentSongs(resp.Body));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[API] GetRecentSongs Error: {ex.Message}");
+                return ApiResult<List<RecentSong>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<RecentSong>());
+            }
         }
     }
 }

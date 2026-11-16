@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using music.Core.Abstractions;
 using music.Core.Mvvm;
+using music.Core.Results;
 using music.Core.Services;
 using music.Core.ViewModels.Items;
 using music.Models;
@@ -75,19 +76,47 @@ namespace music.Core.ViewModels
                 var isLoggedIn = _sessionService.IsLoggedIn;
 
                 // 严格保留原有 6 次 API 调用顺序
-                var playlists = await _recommendationService.GetRecommendedPlaylistsAsync(20);
+                var playlistsResult = await _recommendationService.GetRecommendedPlaylistsAsync(20);
                 if (!IsCurrentLoad(version, token)) return;
-                var personalized = await _recommendationService.GetPersonalizedSongsAsync(20);
+                var personalizedResult = await _recommendationService.GetPersonalizedSongsAsync(20);
                 if (!IsCurrentLoad(version, token)) return;
                 var dailyResult = await _recommendationService.GetDailyRecommendSongsAsync(38);
                 if (!IsCurrentLoad(version, token)) return;
+                var radarResult = isLoggedIn
+                    ? await _recommendationService.GetRecommendResourceAsync()
+                    : ApiResult<List<RecommendedPlaylist>>.Ok(new List<RecommendedPlaylist>());
+                if (!IsCurrentLoad(version, token)) return;
+                var guessResult = await _recommendationService.GetPersonalizedSongsAsync(38);
+                if (!IsCurrentLoad(version, token)) return;
+                var likedResult = isLoggedIn
+                    ? await _recommendationService.GetIntelligenceSongsAsync()
+                    : ApiResult<List<Song>>.Ok(new List<Song>());
+                if (!IsCurrentLoad(version, token)) return;
+
+                var playlists = playlistsResult.Value;
+                var personalized = personalizedResult.Value;
                 var daily = dailyResult.Value;
-                var radar = isLoggedIn ? await _recommendationService.GetRecommendResourceAsync() : new List<RecommendedPlaylist>();
-                if (!IsCurrentLoad(version, token)) return;
-                var guess = await _recommendationService.GetPersonalizedSongsAsync(38);
-                if (!IsCurrentLoad(version, token)) return;
-                var liked = isLoggedIn ? await _recommendationService.GetIntelligenceSongsAsync() : new List<Song>();
-                if (!IsCurrentLoad(version, token)) return;
+                var radar = radarResult.Value;
+                var guess = guessResult.Value;
+                var liked = likedResult.Value;
+
+                var firstFailure = new[]
+                {
+                    playlistsResult.Status,
+                    personalizedResult.Status,
+                    dailyResult.Status,
+                    radarResult.Status,
+                    guessResult.Status,
+                    likedResult.Status
+                }.FirstOrDefault(s => !s.Success);
+
+                if (firstFailure != null &&
+                    playlists.Count == 0 && personalized.Count == 0 && daily.Count == 0 &&
+                    radar.Count == 0 && guess.Count == 0 && liked.Count == 0)
+                {
+                    ShowError(firstFailure.DisplayMessage);
+                    return;
+                }
 
                 PopulatePlaylists(Playlists, playlists);
 

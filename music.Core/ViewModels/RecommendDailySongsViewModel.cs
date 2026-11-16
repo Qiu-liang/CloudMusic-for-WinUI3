@@ -57,12 +57,16 @@ namespace music.Core.ViewModels
                 {
                     case "intelligence":
                         Title = "你的红心歌曲和相似推荐";
-                        songs = await _recommendationService.GetIntelligenceSongsAsync();
+                        var intelRes = await _recommendationService.GetIntelligenceSongsAsync();
+                        songs = intelRes.Value;
+                        if (!intelRes.Success) failureMessage = intelRes.Status.DisplayMessage;
                         emptyMessage = "暂无智能推荐";
                         break;
                     case "guess":
                         Title = "猜你喜欢的歌";
-                        songs = await _recommendationService.GetPersonalizedSongsAsync(100);
+                        var guessRes = await _recommendationService.GetPersonalizedSongsAsync(100);
+                        songs = guessRes.Value;
+                        if (!guessRes.Success) failureMessage = guessRes.Status.DisplayMessage;
                         emptyMessage = "暂无推荐歌曲";
                         break;
                     default:

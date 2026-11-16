@@ -16,6 +16,18 @@
             </StackPanel>
         </Grid>
 
+        <Grid x:Name="ErrorPanel" Visibility="{x:Bind ViewModel.IsError, Mode=OneWay}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE783;" FontSize="48"
+                          HorizontalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
         <ScrollViewer x:Name="ContentPanel" Visibility="{x:Bind ViewModel.IsContent, Mode=OneWay}"
                       VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="16" Margin="24,16,24,16">

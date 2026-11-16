@@ -89,7 +89,7 @@ namespace music.Pages
 
         private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName is nameof(SearchViewModel.State) or nameof(SearchViewModel.Title))
+            if (e.PropertyName is nameof(SearchViewModel.State) or nameof(SearchViewModel.Title) or nameof(SearchViewModel.ErrorMessage))
             {
                 SyncViewFromViewModel();
             }
@@ -104,6 +104,12 @@ namespace music.Pages
             if (ViewModel.IsLoading)
             {
                 ShowLoading();
+                return;
+            }
+
+            if (ViewModel.IsError)
+            {
+                ShowError(ViewModel.ErrorMessage);
                 return;
             }
 
@@ -277,6 +283,7 @@ namespace music.Pages
         {
             EmptyState.Visibility = Visibility.Visible;
             LoadingPanel.Visibility = Visibility.Collapsed;
+            ErrorPanel.Visibility = Visibility.Collapsed;
             ResultsPanel.Visibility = Visibility.Collapsed;
         }
 
@@ -284,13 +291,24 @@ namespace music.Pages
         {
             EmptyState.Visibility = Visibility.Collapsed;
             LoadingPanel.Visibility = Visibility.Visible;
+            ErrorPanel.Visibility = Visibility.Collapsed;
             ResultsPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void ShowError(string message)
+        {
+            EmptyState.Visibility = Visibility.Collapsed;
+            LoadingPanel.Visibility = Visibility.Collapsed;
+            ErrorPanel.Visibility = Visibility.Visible;
+            ResultsPanel.Visibility = Visibility.Collapsed;
+            ErrorText.Text = message;
         }
 
         private void ShowResults()
         {
             EmptyState.Visibility = Visibility.Collapsed;
             LoadingPanel.Visibility = Visibility.Collapsed;
+            ErrorPanel.Visibility = Visibility.Collapsed;
             ResultsPanel.Visibility = Visibility.Visible;
         }
 

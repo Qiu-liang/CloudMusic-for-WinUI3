@@ -13,11 +13,11 @@ namespace music.Core.Services
     {
         event EventHandler? UserPlaylistsChanged;
 
-        Task<List<PlaylistInfo>> GetUserPlaylistsAsync(long uid, bool bypassCache = false);
+        Task<ApiResult<List<PlaylistInfo>>> GetUserPlaylistsAsync(long uid, bool bypassCache = false);
         Task<ApiResult<List<Song>>> GetPlaylistDetailAsync(string playlistId, bool bypassCache = true);
         Task<PlaylistDetailInfo?> GetPlaylistInfoAsync(string playlistId, bool bypassCache = true);
         Task<AlbumDetailInfo?> GetAlbumInfoAsync(string albumId);
-        Task<List<Song>> GetAlbumSongsAsync(string albumId);
+        Task<ApiResult<List<Song>>> GetAlbumSongsAsync(string albumId);
         Task<ApiResult> CreatePlaylistAsync(string name);
         Task<ApiResult> DeletePlaylistAsync(string playlistId);
         Task<ApiResult> SetPlaylistSubscriptionAsync(string playlistId, bool subscribe);
@@ -44,19 +44,26 @@ namespace music.Core.Services
 
         public void NotifyUserPlaylistsChanged() => UserPlaylistsChanged?.Invoke(this, EventArgs.Empty);
 
-        public async Task<List<PlaylistInfo>> GetUserPlaylistsAsync(long uid, bool bypassCache = false)
+        public async Task<ApiResult<List<PlaylistInfo>>> GetUserPlaylistsAsync(long uid, bool bypassCache = false)
         {
             try
             {
                 var url = $"/user/playlist?uid={uid}";
                 if (bypassCache) url = LibraryService.AppendTimestamp(url);
                 var resp = await _transport.GetAsync(url).ConfigureAwait(false);
-                return resp.Success ? PlaylistJsonMapper.ParseUserPlaylists(resp.Body) : new List<PlaylistInfo>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<PlaylistInfo>>.Fail(resp.Result, new List<PlaylistInfo>());
+                }
+
+                return ApiResult<List<PlaylistInfo>>.Ok(PlaylistJsonMapper.ParseUserPlaylists(resp.Body));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetPlaylists Error: {ex.Message}");
-                return new List<PlaylistInfo>();
+                return ApiResult<List<PlaylistInfo>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<PlaylistInfo>());
             }
         }
 
@@ -69,7 +76,9 @@ namespace music.Core.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetPlaylistDetail Error: {ex.Message}");
-                return ApiResult<List<Song>>.Ok(new List<Song>());
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<Song>());
             }
         }
 
@@ -103,22 +112,28 @@ namespace music.Core.Services
             }
         }
 
-        public async Task<List<Song>> GetAlbumSongsAsync(string albumId)
+        public async Task<ApiResult<List<Song>>> GetAlbumSongsAsync(string albumId)
         {
             try
             {
                 var resp = await _transport.GetAsync($"/album?id={Uri.EscapeDataString(albumId)}").ConfigureAwait(false);
-                if (!resp.Success) return new List<Song>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<Song>>.Fail(resp.Result, new List<Song>());
+                }
 
-                return SongJsonMapper.ParseSongsList(
+                var songs = SongJsonMapper.ParseSongsList(
                     resp.Body,
                     id => _libraryService.HasLoadedLikedIds && _libraryService.IsSongLiked(id),
                     _qualityService.CachePrivilege);
+                return ApiResult<List<Song>>.Ok(songs);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetAlbumSongs Error: {ex.Message}");
-                return new List<Song>();
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<Song>());
             }
         }
 

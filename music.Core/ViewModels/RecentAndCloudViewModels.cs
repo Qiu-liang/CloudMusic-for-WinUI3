@@ -46,9 +46,18 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var songs = await _profileService.GetRecentSongsAsync(100);
+            var result = await _profileService.GetRecentSongsAsync(100);
             if (!IsCurrentLoad(version, token)) return;
 
+            if (!result.Success)
+            {
+                _songModels.Clear();
+                Songs.Clear();
+                ShowError(result.Status.DisplayMessage);
+                return;
+            }
+
+            var songs = result.Value;
             if (songs.Count == 0)
             {
                 _songModels.Clear();

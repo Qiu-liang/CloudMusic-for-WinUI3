@@ -87,10 +87,10 @@ node app.js
 git clone <your-repo-url>
 cd CloudMusic-for-WinUI3
 
-# 编译 (x64)
-dotnet build music/music.csproj -p:Platform=x64
+# 编译解决方案 (x64)
+dotnet build music.slnx -p:Platform=x64
 
-# 运行
+# 运行应用
 dotnet run --project music/music.csproj -p:Platform=x64
 ```
 
@@ -104,52 +104,49 @@ dotnet run --project music/music.csproj -p:Platform=x64
 
 ```
 CloudMusic-for-WinUI3/
-├── music.slnx                      # 解决方案文件
-├── tests/music.Tests.csproj        # 最小回归测试工程
-├── LICENSE                          # MIT 许可证
-├── README.md                        # 中文说明
-├── README_EN.md                     # 英文说明
+├── music.slnx                          # 解决方案文件
+├── global.json                         # Microsoft.Testing.Platform 测试运行器配置
+├── .github/workflows/ci.yml            # GitHub Actions CI（x64 构建与单元测试）
+├── tests/music.Tests.csproj            # xUnit v3 单元测试与架构守卫工程
+├── LICENSE                             # MIT 许可证
+├── README.md                           # 中文说明
+├── README_EN.md                        # 英文说明
 │
-└── music/
-    ├── App.xaml / .cs               # 应用程序入口
-    ├── MainWindow.xaml / .cs        # 主窗口（导航、搜索栏、播放栏、播放列表）
-    ├── music.csproj                 # 项目文件
-    ├── Package.appxmanifest         # 应用清单
+├── music.Core/                         # 纯 .NET 8 业务核心层（不依赖 WinUI）
+│   ├── music.Core.csproj               # 核心类库项目文件
+│   ├── Abstractions/                   # 平台与 UI 抽象接口（IApiLog/IUiDispatcher/IMediaPlayer/INavigationService 等）
+│   ├── Models/                         # 领域模型与 DTO（Song/Artist/Album/PlaybackTypes/ApiDtos）
+│   ├── Mvvm/                           # MVVM 基础设施（ObservableObject/PageViewModelBase/AsyncRelayCommand）
+│   ├── Netease/                        # HTTP 传输、端点管理、Cookie 罐、URL 策略与 JSON Mapping
+│   ├── Results/                        # 统一响应结果模型（ApiResult / ApiResult<T>）
+│   ├── Services/                       # 业务服务（Session/Library/Playlist/Artist/Recommendation/Search/Cloud/Profile/Playback/Download/Lyrics 等）
+│   └── ViewModels/                     # 页面与窗口 ViewModel（Shell/PlayerBar/Recommend/Search/PlaylistDetail/LyricsWindow/Settings 等）
+│
+└── music/                              # WinUI 3 客户端应用层
+    ├── App.xaml / .cs                  # 应用程序入口
+    ├── MainWindow.xaml / .cs           # 主窗口（导航框架、搜索框、播放栏、播放队列面板）
+    ├── LyricsWindow.xaml / .cs         # 独立桌面歌词窗口（Win2D 绘制、点击穿透、译文同步）
+    ├── music.csproj                    # 应用项目文件
+    ├── Package.appxmanifest            # 应用清单
     │
-    ├── Pages/                       # 页面
-    │   ├── RecommendPage            # 推荐页（默认首页）
-    │   ├── RecommendDailySongsPage  # 每日推荐完整列表
-    │   ├── RecommendRadarPage       # 雷达歌单
-    │   ├── AllPlaylistsPage         # 全部推荐歌单
-    │   ├── LikedPage                # 喜欢的歌曲
-    │   ├── RecentPage               # 最近播放
-    │   ├── DownloadedPage           # 下载管理（容器）
-    │   ├── DownloadPage             # 已下载歌曲
-    │   ├── LocalPage                # 本地音乐
-    │   ├── CloudPage                # 音乐云盘
-    │   ├── SearchPage               # 搜索结果
-    │   ├── SearchAllSongsPage       # 搜索结果 - 歌曲
-    │   ├── SearchAllResultsPage     # 搜索结果 - 歌单/专辑
-    │   ├── PlaylistDetailPage       # 歌单/专辑详情
-    │   ├── ArtistDetailPage         # 歌手详情
-    │   ├── ArtistAlbumsPage         # 歌手专辑列表
-    │   ├── ArtistInfoPage           # 歌手简介
-    │   ├── ArtistTopSongsPage       # 歌手热门歌曲
-    │   ├── LyricsPage               # 全屏歌词
-    │   ├── SettingsPage             # 设置
-    │   └── ViewModels.cs            # 视图模型类 (SongItem/PlaylistItem 等)
+    ├── Composition/                    # 组合根
+    │   └── AppCompositionRoot.cs       # 手动依赖注入、路由注册与窗口/服务装配
     │
-    ├── Services/
-    │   ├── MusicApiService.cs       # 网易云音乐 API 客户端（登录、搜索、推荐、歌单等）
-    │   └── PlaybackService.cs       # 播放服务（播放器封装、播放列表管理）
+    ├── Infrastructure/Platform/        # Windows / WinUI 3 平台端口实现
+    │   ├── DialogService.cs            # 弹窗与登录框服务
+    │   ├── FileApiLog.cs               # 本地日志文件写入
+    │   ├── LocalSettingsStore.cs       # LocalSettings 封装
+    │   ├── MediaPlayerAdapter.cs       # Windows MediaPlayer 适配器
+    │   ├── NavigationService.cs        # Frame 页面导航与路由请求解析
+    │   ├── PickerThemeAndLauncherServices.cs # 文件选择器、主题切换与歌词窗启动器
+    │   ├── WindowHost.cs               # 主窗口宿主引用
+    │   ├── WindowsCredentialStore.cs   # Windows 凭据保管库 / DPAPI Cookie 存储
+    │   └── WinUiDispatcher.cs          # DispatcherQueue 调度器适配
     │
-    ├── Models/
-    │   └── RecommendModels.cs       # 数据模型 (Song/Artist/Album)
-    │
-    ├── Dialogs/
-    │   └── LoginDialog.xaml / .cs   # 登录弹窗（手机登录/二维码登录）
-    │
-    └── Assets/                      # 应用图标和资源
+    ├── Controls/                       # 自定义控件（MarqueeText 等）
+    ├── Dialogs/                        # 弹窗（LoginDialog.xaml / .cs）
+    ├── Pages/                          # 页面视图与 Code-Behind（XAML + 轻量交互/动效）
+    └── Assets/                         # 应用图标和资源
 ```
 
 ## 技术栈
@@ -161,24 +158,26 @@ CloudMusic-for-WinUI3/
 | UI 框架 | WinUI 3 (Windows App SDK 2.1.3) |
 | 设计语言 | Fluent Design System |
 | 媒体播放 | Windows.Media.Playback.MediaPlayer |
+| 歌词渲染 | Win2D (Microsoft.Graphics.Win2D) |
 | 网络请求 | System.Net.Http |
 | JSON 序列化 | System.Text.Json |
-| 数据持久化 | ApplicationData.LocalSettings |
+| 数据持久化 | ApplicationData.LocalSettings / PasswordVault + DPAPI |
 | 构建工具 | Microsoft.Windows.SDK.BuildTools |
 
 ## 架构概述
 
-项目采用 **Code-Behind** 模式，页面逻辑直接写在 `.cs` 后台文件中。
+项目采用 **MVVM + Clean Core** 分层架构，将核心业务逻辑与 WinUI 3 平台/视图解耦：
 
-### 核心组件
+### 核心分层
 
-- **MusicApiService** — 封装所有网易云音乐 API 调用，管理登录状态和 Cookie，处理请求队列（SemaphoreSlim 限流）
-- **PlaybackService** — 封装 MediaPlayer，管理播放列表、播放模式（顺序/循环/随机）、音量控制
-- **ViewModels** — 轻量级视图模型（SongItem/PlaylistItem），实现 INotifyPropertyChanged
+- **music.Core** — 纯 .NET 8 类库，包含网络传输（`NeteaseHttpTransport` + `SemaphoreSlim` 限流）、JSON 映射、统一 `ApiResult` 错误模型、各领域服务（`SessionService` / `LibraryService` / `PlaylistService` / `PlaybackCoordinator` 等）以及页面 `ViewModel`。
+- **music/Composition** — `AppCompositionRoot` 负责统一装配服务、平台端口与页面路由工厂，View 不直接访问全局静态服务或 `HttpClient`。
+- **music/Infrastructure/Platform** — 实现 `music.Core.Abstractions` 中定义的端口（`IUiDispatcher`、`IMediaPlayer`、`INavigationService`、`IDialogService`、`ICredentialStore`、`ISettingsStore` 等）。
+- **music/Pages & Windows** — 负责 XAML 数据绑定（`{x:Bind}`）、页面生命周期管理，以及 Win2D 歌词绘制、Win32 窗口互操作与横向滚轮动画等纯 UI 逻辑。
 
 ### 页面导航
 
-- **NavigationView** — 左侧导航栏，包含推荐、关注、我的音乐、歌单列表
+- **NavigationView** — 左侧导航栏，包含推荐、我喜欢的音乐、下载、云盘与歌单列表
 - **Frame** — 内容区域导航，支持页面前进/后退
 - **播放栏** — 底部悬浮播放控件，半透明背景
 
@@ -195,21 +194,26 @@ CloudMusic-for-WinUI3/
 | `AudioQuality` | 音质设置 |
 | `SidebarWidth` | 侧边栏宽度 |
 | `LocalMusicFolders` | 本地音乐文件夹列表 |
+| `DownloadFolder` | 自定义下载目录 |
+| `FancyLyrics` | 独立桌面歌词窗口开关 |
 | `DeviceId` | 设备标识 |
 
-登录 Cookie 保存在 Windows 凭据保管库（不可用时回退到当前用户 DPAPI 加密），不会以明文写入 `LocalSettings`。下载的音频文件保存在 `LocalFolder/Downloads/` 目录。
+登录 Cookie 保存在 Windows 凭据保管库（不可用时回退到当前用户 DPAPI 加密），不会以明文写入 `LocalSettings`。默认下载目录为系统“音乐”文件夹下的 `CloudMusic for WinUI`（不可用时回退到 `LocalFolder/Downloads/`）。
 
 ## 测试
 
 ```bash
-# 使用 xUnit 进程内运行器（无需测试宿主）
-dotnet run --project tests/music.Tests.csproj
+# 运行全部单元测试与架构守卫测试（使用 global.json 配置的 Microsoft.Testing.Platform）
+dotnet test
 
-# 支持 Microsoft.Testing.Platform 的宿主也可使用
+# 或直接指定测试工程
 dotnet test tests/music.Tests.csproj
+
+# 也可使用 xUnit 进程内运行器直接运行
+dotnet run --project tests/music.Tests.csproj
 ```
 
-回归测试覆盖播放队列切换、本地文件路径保持、歌词乱序、喜欢列表分批、上传业务状态解析、主题恢复和进度条拖动状态。
+测试覆盖队列调度、本地路径安全、歌词时间戳对齐、喜欢列表分批、上传/业务错误语义、命令线程调度、主题恢复、ViewModel 状态机与分层架构守卫。
 
 ## 开发指南
 

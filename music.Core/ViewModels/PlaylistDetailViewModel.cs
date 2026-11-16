@@ -70,9 +70,9 @@ namespace music.Core.ViewModels
             _log = log;
 
             Songs = new ObservableCollection<SongItem>();
-            PlayAllCommand = new AsyncRelayCommand(PlayAllAsync, () => _songModels.Count > 0, log);
-            RetryCommand = new AsyncRelayCommand(() => LoadAsync(_playlistId), log: log);
-            ToggleSubscribeCommand = new AsyncRelayCommand(ToggleSubscribeAsync, () => _canSubscribe && !_isSubscribing, log);
+            PlayAllCommand = new AsyncRelayCommand(PlayAllAsync, () => _songModels.Count > 0, log, dispatcher);
+            RetryCommand = new AsyncRelayCommand(() => LoadAsync(_playlistId), log: log, dispatcher: dispatcher);
+            ToggleSubscribeCommand = new AsyncRelayCommand(ToggleSubscribeAsync, () => _canSubscribe && !_isSubscribing, log, dispatcher);
 
             _libraryService.SongLikeChanged += OnSongLikeChanged;
         }
@@ -150,15 +150,19 @@ namespace music.Core.ViewModels
             if (_playlistId.StartsWith("artist_", StringComparison.Ordinal))
             {
                 var artistId = _playlistId.Substring("artist_".Length);
-                songs = await _artistService.GetArtistSongsAsync(artistId, cancellationToken: token);
+                var artistSongsResult = await _artistService.GetArtistSongsAsync(artistId, cancellationToken: token);
                 if (!IsCurrentLoad(version, token)) return;
+                songs = artistSongsResult.Value;
+                if (!artistSongsResult.Success) failure = artistSongsResult.Status;
                 title = "歌手热门歌曲";
             }
             else if (_playlistId.StartsWith("album_", StringComparison.Ordinal))
             {
                 var albumId = _playlistId.Substring("album_".Length);
-                songs = await _playlistService.GetAlbumSongsAsync(albumId);
+                var albumSongsResult = await _playlistService.GetAlbumSongsAsync(albumId);
                 if (!IsCurrentLoad(version, token)) return;
+                songs = albumSongsResult.Value;
+                if (!albumSongsResult.Success) failure = albumSongsResult.Status;
                 title = "专辑歌曲";
 
                 var albumInfo = await _playlistService.GetAlbumInfoAsync(albumId);

@@ -39,9 +39,17 @@ namespace music.Core.ViewModels
 
             try
             {
-                var songs = await _searchService.SearchSongsAsync(_keywords, 100);
+                var result = await _searchService.SearchSongsAsync(_keywords, 100);
                 if (!IsCurrentLoad(version, token)) return;
 
+                if (!result.Success)
+                {
+                    ClearSongs(string.Empty);
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
+
+                var songs = result.Value;
                 if (songs.Count == 0)
                 {
                     ClearSongs(string.Empty);
@@ -81,9 +89,17 @@ namespace music.Core.ViewModels
             var (version, token) = BeginLoad();
             ShowLoading();
 
-            var songs = await _artistService.GetArtistSongsAsync(_artistId, 50, token);
+            var result = await _artistService.GetArtistSongsAsync(_artistId, 50, token);
             if (!IsCurrentLoad(version, token)) return;
 
+            if (!result.Success)
+            {
+                ClearSongs(string.Empty);
+                ShowError(result.Status.DisplayMessage);
+                return;
+            }
+
+            var songs = result.Value;
             if (songs.Count == 0)
             {
                 ClearSongs(string.Empty);

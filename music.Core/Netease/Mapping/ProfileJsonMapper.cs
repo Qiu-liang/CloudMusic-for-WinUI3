@@ -9,26 +9,22 @@ namespace music.Core.Netease.Mapping
     {
         public static UserDetailInfo? ParseUserDetail(string json)
         {
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("profile", out var profile))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("profile", out var profile))
+                return new UserDetailInfo
                 {
-                    return new UserDetailInfo
-                    {
-                        UserId = profile.GetProperty("userId").GetInt64(),
-                        Nickname = profile.GetProperty("nickname").GetString() ?? string.Empty,
-                        AvatarUrl = profile.TryGetProperty("avatarUrl", out var avatar) ? avatar.GetString() ?? string.Empty : string.Empty,
-                        Signature = profile.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty,
-                        FollowCount = profile.TryGetProperty("follows", out var follows) ? follows.GetInt32() : 0,
-                        FollowedCount = profile.TryGetProperty("followeds", out var followeds) ? followeds.GetInt32() : 0,
-                        EventCount = profile.TryGetProperty("eventCount", out var events) ? events.GetInt32() : 0
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetUserDetail Error: {ex.Message}");
+                    UserId = profile.GetProperty("userId").GetInt64(),
+                    Nickname = profile.GetProperty("nickname").GetString() ?? string.Empty,
+                    AvatarUrl = profile.TryGetProperty("avatarUrl", out var avatar) ? avatar.GetString() ?? string.Empty : string.Empty,
+                    Signature = profile.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty,
+                    FollowCount = profile.TryGetProperty("follows", out var follows) ? follows.GetInt32() : 0,
+                    FollowedCount = profile.TryGetProperty("followeds", out var followeds) ? followeds.GetInt32() : 0,
+                    EventCount = profile.TryGetProperty("eventCount", out var events) ? events.GetInt32() : 0
+                };
             }
             return null;
         }
@@ -36,26 +32,22 @@ namespace music.Core.Netease.Mapping
         public static List<FollowUser> ParseFollowUsers(string json, string propertyName)
         {
             var users = new List<FollowUser>();
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty(propertyName, out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty(propertyName, out var items))
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
+                    users.Add(new FollowUser
                     {
-                        users.Add(new FollowUser
-                        {
-                            UserId = item.GetProperty("userId").GetInt64(),
-                            Nickname = item.GetProperty("nickname").GetString() ?? string.Empty,
-                            AvatarUrl = item.TryGetProperty("avatarUrl", out var av) ? av.GetString() ?? string.Empty : string.Empty,
-                            Signature = item.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty
-                        });
-                    }
+                        UserId = item.GetProperty("userId").GetInt64(),
+                        Nickname = item.GetProperty("nickname").GetString() ?? string.Empty,
+                        AvatarUrl = item.TryGetProperty("avatarUrl", out var av) ? av.GetString() ?? string.Empty : string.Empty,
+                        Signature = item.TryGetProperty("signature", out var sig) ? sig.GetString() ?? string.Empty : string.Empty
+                    });
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] ParseFollowUsers Error: {ex.Message}");
             }
             return users;
         }
@@ -63,14 +55,15 @@ namespace music.Core.Netease.Mapping
         public static List<RecentSong> ParseRecentSongs(string json)
         {
             var songs = new List<RecentSong>();
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("data", out var data) &&
+                data.TryGetProperty("list", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("data", out var data) &&
-                    data.TryGetProperty("list", out var items))
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
-                    {
                         try
                         {
                             var song = new RecentSong();
@@ -113,12 +106,7 @@ namespace music.Core.Netease.Mapping
                         {
                             System.Diagnostics.Debug.WriteLine($"[API] Recent song parse error: {ex.Message}");
                         }
-                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetRecentSongs Error: {ex.Message}");
             }
             return songs;
         }

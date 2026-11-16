@@ -29,8 +29,8 @@ namespace music.Core.ViewModels
             _dispatcher = dispatcher;
             _log = log;
 
-            RetryCommand = new AsyncRelayCommand(LoadAsync, log: log);
-            LoginCommand = new AsyncRelayCommand(LoginAndReloadAsync, log: log);
+            RetryCommand = new AsyncRelayCommand(LoadAsync, log: log, dispatcher: dispatcher);
+            LoginCommand = new AsyncRelayCommand(LoginAndReloadAsync, log: log, dispatcher: dispatcher);
 
             _libraryService.SongLikeChanged += OnSongLikeChanged;
         }

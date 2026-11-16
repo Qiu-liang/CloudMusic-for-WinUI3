@@ -42,9 +42,17 @@ namespace music.Core.ViewModels
 
             try
             {
-                var playlists = await _recommendationService.GetRecommendResourceAsync();
+                var result = await _recommendationService.GetRecommendResourceAsync();
                 if (!IsCurrentLoad(version, token)) return;
 
+                if (!result.Success)
+                {
+                    Playlists.Clear();
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
+
+                var playlists = result.Value;
                 if (playlists.Count == 0)
                 {
                     Playlists.Clear();
@@ -109,9 +117,17 @@ namespace music.Core.ViewModels
 
             try
             {
-                var playlists = await _recommendationService.GetRecommendedPlaylistsAsync(50);
+                var result = await _recommendationService.GetRecommendedPlaylistsAsync(50);
                 if (!IsCurrentLoad(version, token)) return;
 
+                if (!result.Success)
+                {
+                    Playlists.Clear();
+                    ShowError(result.Status.DisplayMessage);
+                    return;
+                }
+
+                var playlists = result.Value;
                 if (playlists.Count == 0)
                 {
                     Playlists.Clear();
@@ -194,15 +210,19 @@ namespace music.Core.ViewModels
             try
             {
                 List<RecommendedPlaylist> results;
+                ApiResult? failure = null;
                 if (_searchType == "playlist")
                 {
-                    results = await _searchService.SearchPlaylistsAsync(_keywords, 50);
+                    var res = await _searchService.SearchPlaylistsAsync(_keywords, 50);
+                    if (!res.Success) failure = res.Status;
+                    results = res.Value;
                 }
                 else
                 {
-                    var albums = await _searchService.SearchAlbumsAsync(_keywords, 50);
+                    var res = await _searchService.SearchAlbumsAsync(_keywords, 50);
+                    if (!res.Success) failure = res.Status;
                     results = new List<RecommendedPlaylist>();
-                    foreach (var album in albums)
+                    foreach (var album in res.Value)
                     {
                         results.Add(new RecommendedPlaylist
                         {
@@ -215,6 +235,13 @@ namespace music.Core.ViewModels
                 }
 
                 if (!IsCurrentLoad(version, token)) return;
+
+                if (failure != null)
+                {
+                    Items.Clear();
+                    ShowError(failure.DisplayMessage);
+                    return;
+                }
 
                 if (results.Count == 0)
                 {

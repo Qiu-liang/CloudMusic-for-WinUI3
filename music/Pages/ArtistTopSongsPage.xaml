@@ -22,6 +22,29 @@
             </StackPanel>
         </Grid>
 
+        <Grid Grid.Row="1" x:Name="EmptyState" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE8D6;" FontSize="48"
+                          HorizontalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="暂无热门歌曲"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" x:Name="ErrorPanel" Visibility="{x:Bind ViewModel.IsError, Mode=OneWay}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE783;" FontSize="48"
+                          HorizontalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
         <ListView Grid.Row="1"
                   x:Name="SongsListView"
                   ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}"

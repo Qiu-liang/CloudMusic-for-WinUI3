@@ -100,6 +100,18 @@
             </StackPanel>
         </Grid>
 
+        <Grid Grid.Row="2" x:Name="ErrorPanel" Visibility="{x:Bind ViewModel.IsError, Mode=OneWay}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE783;" FontSize="48"
+                          HorizontalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
         <NavigationView Grid.Row="2"
                         x:Name="ArtistNavView"
                         Visibility="{x:Bind ViewModel.ShowNav, Mode=OneWay}"

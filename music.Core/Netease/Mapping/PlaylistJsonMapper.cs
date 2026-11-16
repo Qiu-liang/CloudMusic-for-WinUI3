@@ -10,29 +10,25 @@ namespace music.Core.Netease.Mapping
         public static List<PlaylistInfo> ParseUserPlaylists(string json)
         {
             var playlists = new List<PlaylistInfo>();
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("playlist", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("playlist", out var items))
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
+                    playlists.Add(new PlaylistInfo
                     {
-                        playlists.Add(new PlaylistInfo
-                        {
-                            Id = item.GetProperty("id").GetInt64().ToString(),
-                            Name = item.GetProperty("name").GetString() ?? string.Empty,
-                            CoverImgUrl = item.GetProperty("coverImgUrl").GetString() ?? string.Empty,
-                            TrackCount = item.GetProperty("trackCount").GetInt32(),
-                            PlayCount = item.TryGetProperty("playCount", out var pc) ? pc.GetInt64() : 0,
-                            CreatorName = item.GetProperty("creator").GetProperty("nickname").GetString() ?? string.Empty,
-                            CreatorId = item.GetProperty("creator").GetProperty("userId").GetInt64()
-                        });
-                    }
+                        Id = item.GetProperty("id").GetInt64().ToString(),
+                        Name = item.GetProperty("name").GetString() ?? string.Empty,
+                        CoverImgUrl = item.GetProperty("coverImgUrl").GetString() ?? string.Empty,
+                        TrackCount = item.GetProperty("trackCount").GetInt32(),
+                        PlayCount = item.TryGetProperty("playCount", out var pc) ? pc.GetInt64() : 0,
+                        CreatorName = item.GetProperty("creator").GetProperty("nickname").GetString() ?? string.Empty,
+                        CreatorId = item.GetProperty("creator").GetProperty("userId").GetInt64()
+                    });
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetPlaylists Error: {ex.Message}");
             }
             return playlists;
         }
@@ -130,40 +126,36 @@ namespace music.Core.Netease.Mapping
         public static (bool NeedsLogin, List<RecommendedPlaylist> Items) ParseRecommendResource(string json)
         {
             var playlists = new List<RecommendedPlaylist>();
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("code", out var code) && code.GetInt32() == 301)
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("code", out var code) && code.GetInt32() == 301)
-                {
-                    return (true, playlists);
-                }
-
-                if (result.TryGetProperty("recommend", out var items))
-                {
-                    foreach (var item in items.EnumerateArray())
-                    {
-                        var playCount = 0L;
-                        if (item.TryGetProperty("playCount", out var pc))
-                            playCount = pc.GetInt64();
-                        else if (item.TryGetProperty("played", out var played))
-                            playCount = played.GetInt64();
-                        else if (item.TryGetProperty("playcount", out var playcount))
-                            playCount = playcount.GetInt64();
-
-                        playlists.Add(new RecommendedPlaylist
-                        {
-                            Id = item.GetProperty("id").GetInt64().ToString(),
-                            Name = item.GetProperty("name").GetString() ?? string.Empty,
-                            PicUrl = item.TryGetProperty("picUrl", out var picUrl) ? picUrl.GetString() ?? string.Empty : string.Empty,
-                            PlayCount = playCount,
-                            TrackCount = item.TryGetProperty("trackCount", out var trackCount) ? trackCount.GetInt32() : 0
-                        });
-                    }
-                }
+                return (true, playlists);
             }
-            catch (Exception ex)
+
+            if (result.TryGetProperty("recommend", out var items))
             {
-                System.Diagnostics.Debug.WriteLine($"[API] GetRecommendResource Error: {ex.Message}");
+                foreach (var item in items.EnumerateArray())
+                {
+                    var playCount = 0L;
+                    if (item.TryGetProperty("playCount", out var pc))
+                        playCount = pc.GetInt64();
+                    else if (item.TryGetProperty("played", out var played))
+                        playCount = played.GetInt64();
+                    else if (item.TryGetProperty("playcount", out var playcount))
+                        playCount = playcount.GetInt64();
+
+                    playlists.Add(new RecommendedPlaylist
+                    {
+                        Id = item.GetProperty("id").GetInt64().ToString(),
+                        Name = item.GetProperty("name").GetString() ?? string.Empty,
+                        PicUrl = item.TryGetProperty("picUrl", out var picUrl) ? picUrl.GetString() ?? string.Empty : string.Empty,
+                        PlayCount = playCount,
+                        TrackCount = item.TryGetProperty("trackCount", out var trackCount) ? trackCount.GetInt32() : 0
+                    });
+                }
             }
             return (false, playlists);
         }
@@ -171,27 +163,23 @@ namespace music.Core.Netease.Mapping
         public static List<RecommendedPlaylist> ParseRecommendedPlaylists(string json)
         {
             var playlists = new List<RecommendedPlaylist>();
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("result", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("result", out var items))
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
+                    playlists.Add(new RecommendedPlaylist
                     {
-                        playlists.Add(new RecommendedPlaylist
-                        {
-                            Id = item.GetProperty("id").GetInt64().ToString(),
-                            Name = item.GetProperty("name").GetString() ?? string.Empty,
-                            PicUrl = item.GetProperty("picUrl").GetString() ?? string.Empty,
-                            PlayCount = item.TryGetProperty("playCount", out var playCount) ? playCount.GetInt64() : 0,
-                            TrackCount = item.TryGetProperty("trackCount", out var trackCount) ? trackCount.GetInt32() : 0
-                        });
-                    }
+                        Id = item.GetProperty("id").GetInt64().ToString(),
+                        Name = item.GetProperty("name").GetString() ?? string.Empty,
+                        PicUrl = item.GetProperty("picUrl").GetString() ?? string.Empty,
+                        PlayCount = item.TryGetProperty("playCount", out var playCount) ? playCount.GetInt64() : 0,
+                        TrackCount = item.TryGetProperty("trackCount", out var trackCount) ? trackCount.GetInt32() : 0
+                    });
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetRecommendedPlaylists Error: {ex.Message}");
             }
             return playlists;
         }
@@ -199,28 +187,24 @@ namespace music.Core.Netease.Mapping
         public static List<RecommendedPlaylist> ParseSearchPlaylists(string json)
         {
             var playlists = new List<RecommendedPlaylist>();
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            if (result.TryGetProperty("result", out var searchResult) &&
+                searchResult.TryGetProperty("playlists", out var items))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
-                if (result.TryGetProperty("result", out var searchResult) &&
-                    searchResult.TryGetProperty("playlists", out var items))
+                foreach (var item in items.EnumerateArray())
                 {
-                    foreach (var item in items.EnumerateArray())
+                    playlists.Add(new RecommendedPlaylist
                     {
-                        playlists.Add(new RecommendedPlaylist
-                        {
-                            Id = item.GetProperty("id").GetInt64().ToString(),
-                            Name = item.GetProperty("name").GetString() ?? string.Empty,
-                            PicUrl = item.TryGetProperty("coverImgUrl", out var coverImgUrl) ? coverImgUrl.GetString() ?? string.Empty : string.Empty,
-                            PlayCount = item.TryGetProperty("playCount", out var playCount) ? playCount.GetInt64() : 0,
-                            TrackCount = item.TryGetProperty("trackCount", out var trackCount) ? trackCount.GetInt32() : 0
-                        });
-                    }
+                        Id = item.GetProperty("id").GetInt64().ToString(),
+                        Name = item.GetProperty("name").GetString() ?? string.Empty,
+                        PicUrl = item.TryGetProperty("coverImgUrl", out var coverImgUrl) ? coverImgUrl.GetString() ?? string.Empty : string.Empty,
+                        PlayCount = item.TryGetProperty("playCount", out var playCount) ? playCount.GetInt64() : 0,
+                        TrackCount = item.TryGetProperty("trackCount", out var trackCount) ? trackCount.GetInt32() : 0
+                    });
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] SearchPlaylists Error: {ex.Message}");
             }
             return playlists;
         }

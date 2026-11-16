@@ -78,9 +78,10 @@ namespace music.Core.ViewModels
 
             try
             {
-                var userInfo = await _profileService.GetUserDetailAsync(_sessionService.UserId);
+                var userResult = await _profileService.GetUserDetailAsync(_sessionService.UserId);
                 if (!IsCurrentLoad(version, token)) return;
 
+                var userInfo = userResult.Value;
                 if (userInfo != null)
                 {
                     Nickname = userInfo.Nickname;
@@ -97,6 +98,15 @@ namespace music.Core.ViewModels
 
                 IsVip = await _sessionService.CheckVipStatusAsync();
                 if (!IsCurrentLoad(version, token)) return;
+
+                if (!userResult.Success && string.IsNullOrEmpty(Nickname))
+                {
+                    Nickname = "无法加载用户信息";
+                    StatsText = userResult.Status.DisplayMessage;
+                    ShowStats = true;
+                    ShowSignature = false;
+                    ShowForceLogout = true;
+                }
             }
             catch (Exception ex)
             {
@@ -156,8 +166,20 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var allPlaylists = await _playlistService.GetUserPlaylistsAsync(_sessionService.UserId);
+            var result = await _playlistService.GetUserPlaylistsAsync(_sessionService.UserId);
             if (!IsCurrentLoad(version, token)) return;
+
+            if (!result.Success)
+            {
+                CreatedPlaylists.Clear();
+                CollectedPlaylists.Clear();
+                OnPropertyChanged(nameof(HasCreated));
+                OnPropertyChanged(nameof(HasCollected));
+                ShowError(result.Status.DisplayMessage);
+                return;
+            }
+
+            var allPlaylists = result.Value;
 
             var created = new List<PlaylistItem>();
             var collected = new List<PlaylistItem>();
@@ -239,10 +261,19 @@ namespace music.Core.ViewModels
 
             ShowLoading();
 
-            var users = isFollowsMode
+            var result = isFollowsMode
                 ? await _profileService.GetFollowsAsync(_sessionService.UserId)
                 : await _profileService.GetFollowedsAsync(_sessionService.UserId);
             if (!IsCurrentLoad(version, token)) return;
+
+            if (!result.Success)
+            {
+                Users.Clear();
+                ShowError(result.Status.DisplayMessage);
+                return;
+            }
+
+            var users = result.Value;
 
             Users.Clear();
             foreach (var u in users)
@@ -331,9 +362,10 @@ namespace music.Core.ViewModels
 
             try
             {
-                var info = await _artistService.GetArtistDetailAsync(artistId, token);
+                var artistResult = await _artistService.GetArtistDetailAsync(artistId, token);
                 if (!IsCurrentLoad(version, token)) return;
 
+                var info = artistResult.Value;
                 if (info != null)
                 {
                     Title = "歌手详情";
@@ -360,9 +392,10 @@ namespace music.Core.ViewModels
 
                 if (long.TryParse(artistId, out var uid))
                 {
-                    var userInfo = await _profileService.GetUserDetailAsync(uid);
+                    var userResult = await _profileService.GetUserDetailAsync(uid);
                     if (!IsCurrentLoad(version, token)) return;
 
+                    var userInfo = userResult.Value;
                     if (userInfo != null)
                     {
                         Title = "用户详情";
@@ -382,6 +415,24 @@ namespace music.Core.ViewModels
                         ShowContent();
                         return;
                     }
+
+                    if (!userResult.Success)
+                    {
+                        Title = "加载失败";
+                        ShowNav = false;
+                        ShowPlayAll = false;
+                        ShowError(userResult.Status.DisplayMessage);
+                        return;
+                    }
+                }
+
+                if (!artistResult.Success)
+                {
+                    Title = "加载失败";
+                    ShowNav = false;
+                    ShowPlayAll = false;
+                    ShowError(artistResult.Status.DisplayMessage);
+                    return;
                 }
 
                 Title = "未找到";
@@ -428,8 +479,17 @@ namespace music.Core.ViewModels
             var (version, token) = BeginLoad();
             ShowLoading();
 
-            var albums = await _artistService.GetArtistAlbumsAsync(artistId, 50, token);
+            var result = await _artistService.GetArtistAlbumsAsync(artistId, 50, token);
             if (!IsCurrentLoad(version, token)) return;
+
+            if (!result.Success)
+            {
+                Albums.Clear();
+                ShowError(result.Status.DisplayMessage);
+                return;
+            }
+
+            var albums = result.Value;
 
             Albums.Clear();
             foreach (var a in albums)
@@ -490,9 +550,16 @@ namespace music.Core.ViewModels
             var (version, token) = BeginLoad();
             ShowLoading();
 
-            var info = await _artistService.GetArtistDetailAsync(artistId, token);
+            var result = await _artistService.GetArtistDetailAsync(artistId, token);
             if (!IsCurrentLoad(version, token)) return;
 
+            if (!result.Success)
+            {
+                ShowError(result.Status.DisplayMessage);
+                return;
+            }
+
+            var info = result.Value;
             if (info != null)
             {
                 ArtistName = info.Name;

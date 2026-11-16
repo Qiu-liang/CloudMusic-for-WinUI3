@@ -16,6 +16,8 @@ namespace music.Core.Services
         long UserId { get; }
         bool IsSecureConnection { get; }
         event EventHandler? SessionChanged;
+        event EventHandler? SessionCleared;
+        event EventHandler? VipStatusRefreshed;
 
         Task InitializeAsync();
         Task<bool> LoginAnonymouslyAsync();
@@ -43,8 +45,6 @@ namespace music.Core.Services
         private readonly SessionCookieJar _cookieJar;
         private readonly ISettingsStore _settings;
         private readonly IApiLog _log;
-        private readonly Action _clearPrivilegeCache;
-        private readonly Action _clearLikedState;
         private long _userId;
 
         public SessionService(
@@ -52,17 +52,13 @@ namespace music.Core.Services
             ServerEndpoint endpoint,
             SessionCookieJar cookieJar,
             ISettingsStore settings,
-            IApiLog log,
-            Action clearPrivilegeCache,
-            Action clearLikedState)
+            IApiLog log)
         {
             _transport = transport;
             _endpoint = endpoint;
             _cookieJar = cookieJar;
             _settings = settings;
             _log = log;
-            _clearPrivilegeCache = clearPrivilegeCache;
-            _clearLikedState = clearLikedState;
 
             _cookieJar.LoadFromStore();
             _userId = _settings.ContainsKey(UserIdKey) ? _settings.GetInt64(UserIdKey) : 0;
@@ -78,6 +74,8 @@ namespace music.Core.Services
         public bool IsInitialized => _cookieJar.IsInitialized;
 
         public event EventHandler? SessionChanged;
+        public event EventHandler? SessionCleared;
+        public event EventHandler? VipStatusRefreshed;
 
         public async Task InitializeAsync()
         {
@@ -221,7 +219,7 @@ namespace music.Core.Services
         {
             if (string.IsNullOrWhiteSpace(cookie)) return false;
 
-            _clearLikedState();
+            SessionCleared?.Invoke(this, EventArgs.Empty);
             _cookieJar.MergeAndSave(cookie);
 
             for (var attempt = 0; attempt < 3; attempt++)
@@ -332,7 +330,7 @@ namespace music.Core.Services
                 var isVip = SongUrlPolicy.EvaluateVipStatus(json);
 
                 _settings.SetBoolean(IsVipKey, isVip);
-                _clearPrivilegeCache();
+                VipStatusRefreshed?.Invoke(this, EventArgs.Empty);
 
                 System.Diagnostics.Debug.WriteLine($"[API] VIP Status: {isVip}");
                 return isVip;
@@ -350,8 +348,7 @@ namespace music.Core.Services
             _settings.Remove(UserIdKey);
             _settings.Remove(IsVipKey);
             _userId = 0;
-            _clearPrivilegeCache();
-            _clearLikedState();
+            SessionCleared?.Invoke(this, EventArgs.Empty);
             SessionChanged?.Invoke(this, EventArgs.Empty);
         }
     }

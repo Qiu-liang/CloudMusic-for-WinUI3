@@ -62,14 +62,27 @@ namespace music.Core.ViewModels
 
             try
             {
-                var artists = await _searchService.SearchArtistsAsync(query, 10);
+                var artistsResult = await _searchService.SearchArtistsAsync(query, 10);
                 if (!IsCurrentLoad(version, token)) return;
-                var songs = await _searchService.SearchSongsAsync(query, 39);
+                var songsResult = await _searchService.SearchSongsAsync(query, 39);
                 if (!IsCurrentLoad(version, token)) return;
-                var playlists = await _searchService.SearchPlaylistsAsync(query, 20);
+                var playlistsResult = await _searchService.SearchPlaylistsAsync(query, 20);
                 if (!IsCurrentLoad(version, token)) return;
-                var albums = await _searchService.SearchAlbumsAsync(query, 20);
+                var albumsResult = await _searchService.SearchAlbumsAsync(query, 20);
                 if (!IsCurrentLoad(version, token)) return;
+
+                var artists = artistsResult.Value;
+                var songs = songsResult.Value;
+                var playlists = playlistsResult.Value;
+                var albums = albumsResult.Value;
+
+                var firstFailure = new[]
+                {
+                    artistsResult.Status,
+                    songsResult.Status,
+                    playlistsResult.Status,
+                    albumsResult.Status
+                }.FirstOrDefault(s => !s.Success);
 
                 Artists.Clear();
                 foreach (var artist in artists)
@@ -126,8 +139,16 @@ namespace music.Core.ViewModels
 
                 if (Artists.Count == 0 && Songs.Count == 0 && Playlists.Count == 0 && Albums.Count == 0)
                 {
-                    Title = $"未找到 \"{query}\" 的结果";
-                    ShowEmpty();
+                    if (firstFailure != null)
+                    {
+                        Title = $"搜索 \"{query}\" 失败";
+                        ShowError(firstFailure.DisplayMessage);
+                    }
+                    else
+                    {
+                        Title = $"未找到 \"{query}\" 的结果";
+                        ShowEmpty();
+                    }
                 }
                 else
                 {
@@ -140,7 +161,7 @@ namespace music.Core.ViewModels
                 if (IsCurrentLoad(version, token))
                 {
                     Title = $"搜索 \"{query}\" 失败";
-                    ShowEmpty();
+                    ShowError(ex.Message);
                 }
             }
         }

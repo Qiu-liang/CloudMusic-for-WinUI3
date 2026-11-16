@@ -128,5 +128,17 @@
                        HorizontalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel>
+
+        <Grid x:Name="ErrorPanel" Visibility="{x:Bind ViewModel.IsError, Mode=OneWay}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE783;" FontSize="48"
+                          HorizontalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>

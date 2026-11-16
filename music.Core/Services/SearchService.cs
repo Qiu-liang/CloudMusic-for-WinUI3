@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using music.Core.Netease;
 using music.Core.Netease.Mapping;
+using music.Core.Results;
 using music.Models;
 using music.Services;
 
@@ -12,10 +13,10 @@ namespace music.Core.Services
     public interface ISearchService
     {
         Task<List<SearchSuggestion>> GetSearchSuggestionsAsync(string keywords, CancellationToken cancellationToken = default);
-        Task<List<Song>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0);
-        Task<List<SearchArtistInfo>> SearchArtistsAsync(string keywords, int limit = 10);
-        Task<List<RecommendedPlaylist>> SearchPlaylistsAsync(string keywords, int limit = 10);
-        Task<List<SearchAlbumInfo>> SearchAlbumsAsync(string keywords, int limit = 10);
+        Task<ApiResult<List<Song>>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0);
+        Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(string keywords, int limit = 10);
+        Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(string keywords, int limit = 10);
+        Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(string keywords, int limit = 10);
     }
 
     public sealed class SearchService : ISearchService
@@ -54,68 +55,92 @@ namespace music.Core.Services
             }
         }
 
-        public async Task<List<Song>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0)
+        public async Task<ApiResult<List<Song>>> SearchSongsAsync(string keywords, int limit = 30, int offset = 0)
         {
             try
             {
                 var resp = await _transport.GetAsync(
                     $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&limit={limit}&offset={offset}").ConfigureAwait(false);
-                if (!resp.Success) return new List<Song>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<Song>>.Fail(resp.Result, new List<Song>());
+                }
 
-                return SongJsonMapper.ParseSearchSongs(
+                var songs = SongJsonMapper.ParseSearchSongs(
                     resp.Body,
                     id => _libraryService.HasLoadedLikedIds && _libraryService.IsSongLiked(id),
                     _qualityService.CachePrivilege);
+                return ApiResult<List<Song>>.Ok(songs);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] Search Error: {ex.Message}");
-                return new List<Song>();
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<Song>());
             }
         }
 
-        public async Task<List<SearchArtistInfo>> SearchArtistsAsync(string keywords, int limit = 10)
+        public async Task<ApiResult<List<SearchArtistInfo>>> SearchArtistsAsync(string keywords, int limit = 10)
         {
             try
             {
                 var resp = await _transport.GetAsync(
                     $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=100&limit={limit}").ConfigureAwait(false);
-                return resp.Success ? ArtistJsonMapper.ParseSearchArtists(resp.Body) : new List<SearchArtistInfo>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<SearchArtistInfo>>.Fail(resp.Result, new List<SearchArtistInfo>());
+                }
+                return ApiResult<List<SearchArtistInfo>>.Ok(ArtistJsonMapper.ParseSearchArtists(resp.Body));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] SearchArtists Error: {ex.Message}");
-                return new List<SearchArtistInfo>();
+                return ApiResult<List<SearchArtistInfo>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<SearchArtistInfo>());
             }
         }
 
-        public async Task<List<RecommendedPlaylist>> SearchPlaylistsAsync(string keywords, int limit = 10)
+        public async Task<ApiResult<List<RecommendedPlaylist>>> SearchPlaylistsAsync(string keywords, int limit = 10)
         {
             try
             {
                 var resp = await _transport.GetAsync(
                     $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=1000&limit={limit}").ConfigureAwait(false);
-                return resp.Success ? PlaylistJsonMapper.ParseSearchPlaylists(resp.Body) : new List<RecommendedPlaylist>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<RecommendedPlaylist>>.Fail(resp.Result, new List<RecommendedPlaylist>());
+                }
+                return ApiResult<List<RecommendedPlaylist>>.Ok(PlaylistJsonMapper.ParseSearchPlaylists(resp.Body));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] SearchPlaylists Error: {ex.Message}");
-                return new List<RecommendedPlaylist>();
+                return ApiResult<List<RecommendedPlaylist>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<RecommendedPlaylist>());
             }
         }
 
-        public async Task<List<SearchAlbumInfo>> SearchAlbumsAsync(string keywords, int limit = 10)
+        public async Task<ApiResult<List<SearchAlbumInfo>>> SearchAlbumsAsync(string keywords, int limit = 10)
         {
             try
             {
                 var resp = await _transport.GetAsync(
                     $"/cloudsearch?keywords={Uri.EscapeDataString(keywords)}&type=10&limit={limit}").ConfigureAwait(false);
-                return resp.Success ? AlbumJsonMapper.ParseSearchAlbums(resp.Body) : new List<SearchAlbumInfo>();
+                if (!resp.Success)
+                {
+                    return ApiResult<List<SearchAlbumInfo>>.Fail(resp.Result, new List<SearchAlbumInfo>());
+                }
+                return ApiResult<List<SearchAlbumInfo>>.Ok(AlbumJsonMapper.ParseSearchAlbums(resp.Body));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] SearchAlbums Error: {ex.Message}");
-                return new List<SearchAlbumInfo>();
+                return ApiResult<List<SearchAlbumInfo>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<SearchAlbumInfo>());
             }
         }
     }

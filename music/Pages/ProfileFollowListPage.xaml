@@ -23,6 +23,13 @@
             </StackPanel>
         </Grid>
 
+        <Grid x:Name="ErrorPanel" Visibility="{x:Bind ViewModel.IsError, Mode=OneWay}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE783;" FontSize="48" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
         <ListView x:Name="UserListView"
                   ItemsSource="{x:Bind ViewModel.Users, Mode=OneWay}"
                   Visibility="{x:Bind ViewModel.IsContent, Mode=OneWay}"

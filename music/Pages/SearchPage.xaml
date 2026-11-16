@@ -52,6 +52,19 @@
             </StackPanel>
         </Grid>
 
+        <!-- 错误状态 -->
+        <Grid Grid.Row="1" x:Name="ErrorPanel" Visibility="Collapsed">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE783;" FontSize="48"
+                          HorizontalAlignment="Center"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock x:Name="ErrorText"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
         <!-- 搜索结果 -->
         <ScrollViewer Grid.Row="1" x:Name="ResultsPanel" Visibility="Collapsed"
                       VerticalScrollBarVisibility="Auto"

@@ -30,8 +30,7 @@ namespace music.Core.Services
     {
         private readonly NeteaseHttpTransport _transport;
         private readonly IQualityService _qualityService;
-        private readonly Func<bool> _isLoggedIn;
-        private readonly Func<long> _getUserId;
+        private readonly ISessionService _sessionService;
         private readonly object _likedLock = new();
         private readonly HashSet<string> _likedSongIds = new(StringComparer.Ordinal);
         private bool _hasLoadedLikedIds;
@@ -40,13 +39,13 @@ namespace music.Core.Services
         public LibraryService(
             NeteaseHttpTransport transport,
             IQualityService qualityService,
-            Func<bool> isLoggedIn,
-            Func<long> getUserId)
+            ISessionService sessionService)
         {
             _transport = transport;
             _qualityService = qualityService;
-            _isLoggedIn = isLoggedIn;
-            _getUserId = getUserId;
+            _sessionService = sessionService;
+            _sessionService.SessionCleared += (_, _) => ClearState();
+            _sessionService.SessionChanged += (_, _) => ClearState();
         }
 
         public bool HasLoadedLikedIds
@@ -80,7 +79,7 @@ namespace music.Core.Services
 
         public async Task EnsureLikedSongIdsLoadedAsync()
         {
-            if (!_isLoggedIn()) return;
+            if (!_sessionService.IsLoggedIn) return;
             if (!HasLoadedLikedIds)
             {
                 await GetLikedSongIdsAsync(bypassCache: true).ConfigureAwait(false);
@@ -89,7 +88,7 @@ namespace music.Core.Services
 
         public async Task<ApiResult<List<string>>> GetLikedSongIdsAsync(bool bypassCache = false)
         {
-            if (!_isLoggedIn())
+            if (!_sessionService.IsLoggedIn)
             {
                 return ApiResult<List<string>>.Fail(
                     new ApiResult(false, ApiErrorKind.Authentication, "请先登录。"),
@@ -98,7 +97,7 @@ namespace music.Core.Services
 
             try
             {
-                var url = $"/likelist?uid={_getUserId()}";
+                var url = $"/likelist?uid={_sessionService.UserId}";
                 if (bypassCache) url = AppendTimestamp(url);
 
                 var response = await _transport.GetAsync(url).ConfigureAwait(false);
@@ -154,13 +153,16 @@ namespace music.Core.Services
                 if (limit > 0) ids = ids.Take(limit).ToList();
 
                 var songsResult = await GetSongsByIdsInternalAsync(ids).ConfigureAwait(false);
+                if (!songsResult.Success) return songsResult;
                 foreach (var song in songsResult.Value) song.Liked = true;
                 return songsResult;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[API] GetLikedSongs Error: {ex.Message}");
-                return ApiResult<List<Song>>.Ok(new List<Song>());
+                return ApiResult<List<Song>>.Fail(
+                    new ApiResult(false, ApiErrorKind.InvalidResponse, ex.Message),
+                    new List<Song>());
             }
         }
 
@@ -196,7 +198,7 @@ namespace music.Core.Services
 
         public async Task<bool> IsFavoritePlaylistAsync(string? playlistId)
         {
-            if (!_isLoggedIn() || string.IsNullOrWhiteSpace(playlistId)) return false;
+            if (!_sessionService.IsLoggedIn || string.IsNullOrWhiteSpace(playlistId)) return false;
             var favoriteId = await GetFavoritePlaylistIdAsync().ConfigureAwait(false);
             return !string.IsNullOrEmpty(favoriteId) && string.Equals(favoriteId, playlistId, StringComparison.Ordinal);
         }
@@ -207,7 +209,7 @@ namespace music.Core.Services
 
             try
             {
-                var url = $"/user/playlist?uid={_getUserId()}";
+                var url = $"/user/playlist?uid={_sessionService.UserId}";
                 if (bypassCache) url = AppendTimestamp(url);
                 var response = await _transport.GetAsync(url).ConfigureAwait(false);
                 if (response.Success)

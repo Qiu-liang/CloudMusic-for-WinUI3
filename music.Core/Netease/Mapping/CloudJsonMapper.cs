@@ -10,24 +10,24 @@ namespace music.Core.Netease.Mapping
         public static List<CloudSongInfo> ParseCloudSongs(string json)
         {
             var songs = new List<CloudSongInfo>();
-            try
+            var result = JsonSerializer.Deserialize<JsonElement>(json);
+            if (result.ValueKind != JsonValueKind.Object)
+                throw new JsonException("响应不是有效的 JSON 对象。");
+
+            JsonElement dataArray;
+            if (result.TryGetProperty("data", out dataArray))
             {
-                var result = JsonSerializer.Deserialize<JsonElement>(json);
+            }
+            else if (result.TryGetProperty("cloudData", out dataArray))
+            {
+            }
+            else
+            {
+                return songs;
+            }
 
-                JsonElement dataArray;
-                if (result.TryGetProperty("data", out dataArray))
-                {
-                }
-                else if (result.TryGetProperty("cloudData", out dataArray))
-                {
-                }
-                else
-                {
-                    return songs;
-                }
-
-                foreach (var item in dataArray.EnumerateArray())
-                {
+            foreach (var item in dataArray.EnumerateArray())
+            {
                     try
                     {
                         var song = new CloudSongInfo();
@@ -98,11 +98,6 @@ namespace music.Core.Netease.Mapping
                         System.Diagnostics.Debug.WriteLine($"[API] Cloud item parse error: {ex.Message}");
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[API] GetCloudSongs Error: {ex.Message}");
-            }
 
             return songs;
         }

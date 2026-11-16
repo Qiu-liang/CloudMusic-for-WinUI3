@@ -172,9 +172,10 @@ namespace music.Core.ViewModels
             if (!_sessionService.IsLoggedIn) return;
 
             var uid = _sessionService.UserId;
-            var playlists = await _playlistService.GetUserPlaylistsAsync(uid, bypassCache);
-            if (playlists.Count == 0) return;
+            var result = await _playlistService.GetUserPlaylistsAsync(uid, bypassCache);
+            if (!result.Success || result.Value.Count == 0) return;
 
+            var playlists = result.Value;
             _dispatcher.TryEnqueue(() =>
             {
                 if (_disposed) return;
